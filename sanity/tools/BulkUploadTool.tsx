@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { useClient } from "sanity";
 
 const CATEGORIES = [
   "מטבחים",
@@ -11,11 +12,13 @@ const CATEGORIES = [
 ];
 
 export function BulkUploadTool() {
+  const client = useClient({ apiVersion: "2024-01-01" });
   const [category, setCategory] = useState(CATEGORIES[0]);
   const [files, setFiles] = useState<File[]>([]);
   const [status, setStatus] = useState<"idle" | "uploading" | "done" | "error">("idle");
   const [message, setMessage] = useState("");
   const [progress, setProgress] = useState(0);
+  const [current, setCurrent] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -26,34 +29,50 @@ export function BulkUploadTool() {
     if (!files.length) return;
     setStatus("uploading");
     setProgress(0);
+    setCurrent(0);
     setMessage("");
 
-    const BATCH = 5;
-    let done = 0;
+    try {
+      const uploadedAssets = [];
 
-    for (let i = 0; i < files.length; i += BATCH) {
-      const batch = files.slice(i, i + BATCH);
-      const fd = new FormData();
-      fd.append("category", category);
-      batch.forEach((f) => fd.append("files", f));
-
-      const res = await fetch("/api/upload-images", { method: "POST", body: fd });
-      const data = await res.json();
-
-      if (!res.ok) {
-        setStatus("error");
-        setMessage(`שגיאה: ${data.error}`);
-        return;
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setCurrent(i + 1);
+        const asset = await client.assets.upload("image", file, {
+          filename: file.name,
+          contentType: file.type,
+        });
+        uploadedAssets.push({
+          _type: "image",
+          _key: asset._id,
+          asset: { _type: "reference", _ref: asset._id },
+        });
+        setProgress(Math.round(((i + 1) / files.length) * 100));
       }
 
-      done += batch.length;
-      setProgress(Math.round((done / files.length) * 100));
-    }
+      // Find existing project doc or create new one
+      const existing = await client.fetch(
+        `*[_type == "project" && category == $category][0]`,
+        { category }
+      );
 
-    setStatus("done");
-    setMessage(`הועלו ${files.length} תמונות לקטגוריה "${category}" בהצלחה!`);
-    setFiles([]);
-    if (inputRef.current) inputRef.current.value = "";
+      if (existing) {
+        await client.patch(existing._id).setIfMissing({ images: [] }).append("images", uploadedAssets).commit();
+        // Auto-publish
+        await client.patch(`drafts.${existing._id}`).commit().catch(() => {});
+      } else {
+        const doc = await client.create({ _type: "project", category, title: category, images: uploadedAssets });
+        await client.patch(`drafts.${doc._id}`).commit().catch(() => {});
+      }
+
+      setStatus("done");
+      setMessage(`✓ הועלו ${files.length} תמונות לקטגוריה "${category}" בהצלחה!`);
+      setFiles([]);
+      if (inputRef.current) inputRef.current.value = "";
+    } catch (err: unknown) {
+      setStatus("error");
+      setMessage(`שגיאה: ${err instanceof Error ? err.message : String(err)}`);
+    }
   };
 
   return (
@@ -68,10 +87,7 @@ export function BulkUploadTool() {
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          style={{
-            width: "100%", padding: "10px 12px", fontSize: 15,
-            borderRadius: 8, border: "1px solid #d0d0d0", background: "#fafafa",
-          }}
+          style={{ width: "100%", padding: "10px 12px", fontSize: 15, borderRadius: 8, border: "1px solid #d0d0d0", background: "#fafafa" }}
         >
           {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -85,10 +101,7 @@ export function BulkUploadTool() {
           accept="image/*"
           multiple
           onChange={handleFiles}
-          style={{
-            width: "100%", padding: "10px", fontSize: 14,
-            borderRadius: 8, border: "1px solid #d0d0d0", background: "#fafafa",
-          }}
+          style={{ width: "100%", padding: "10px", fontSize: 14, borderRadius: 8, border: "1px solid #d0d0d0", background: "#fafafa" }}
         />
         {files.length > 0 && (
           <p style={{ color: "#555", marginTop: 6, fontSize: 13 }}>נבחרו {files.length} תמונות</p>
@@ -103,15 +116,14 @@ export function BulkUploadTool() {
           background: files.length && status !== "uploading" ? "#8B6F47" : "#ccc",
           color: "white", border: "none", borderRadius: 10,
           cursor: files.length && status !== "uploading" ? "pointer" : "not-allowed",
-          transition: "background 0.2s",
         }}
       >
-        {status === "uploading" ? `מעלה... ${progress}%` : "העלה תמונות"}
+        {status === "uploading" ? `מעלה ${current} מתוך ${files.length}... ${progress}%` : "העלה תמונות"}
       </button>
 
       {status === "uploading" && (
         <div style={{ marginTop: 14, background: "#e8e8e8", borderRadius: 8, overflow: "hidden" }}>
-          <div style={{ width: `${progress}%`, height: 8, background: "#8B6F47", transition: "width 0.3s" }} />
+          <div style={{ width: `${progress}%`, height: 10, background: "#8B6F47", transition: "width 0.3s" }} />
         </div>
       )}
 
