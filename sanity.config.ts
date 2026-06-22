@@ -23,19 +23,20 @@ export default defineConfig({
           .title("תוכן האתר")
           .items([
             S.listItem()
-              .title("הגדרות אתר")
+              .title("⚙️ הגדרות אתר")
               .id("siteSettings")
               .child(
                 S.document()
                   .schemaType("siteSettings")
                   .documentId("siteSettings")
               ),
-            S.divider(),
             S.listItem()
-              .title("פרויקטים")
+              .title("🖼️ פרויקטים וקטגוריות")
+              .id("projects")
               .child(S.documentTypeList("project").title("פרויקטים")),
             S.listItem()
-              .title("המלצות")
+              .title("⭐ המלצות")
+              .id("testimonials")
               .child(S.documentTypeList("testimonial").title("המלצות")),
           ]),
     }),
