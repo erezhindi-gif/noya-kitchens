@@ -18,7 +18,7 @@ export default function CategoryPage({ title, subtitle, images }: Props) {
       <WhatsAppButton />
 
       {/* Hero banner */}
-      <section className="pt-[88px] bg-[#F0EBE1] border-b border-[#8B6F47]/15">
+      <section className="pt-[88px] bg-[#FAF3EB] border-b border-[#8B6F47]/15">
         <div className="max-w-7xl mx-auto px-5 md:px-8 py-10 md:py-14">
           <Link href="/#categories" className="inline-flex items-center gap-2 text-[#8B6F47] text-sm mb-6 hover:gap-3 transition-all">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -55,7 +55,7 @@ export default function CategoryPage({ title, subtitle, images }: Props) {
       </section>
 
       {/* CTA */}
-      <section className="py-14 bg-[#F0EBE1] text-center">
+      <section className="py-14 bg-[#FAF3EB] text-center">
         <p className="text-[#8B6F47] text-xs tracking-widest uppercase mb-3">רוצה גם אתה?</p>
         <h2 className="font-['Playfair_Display'] text-2xl md:text-3xl font-bold text-[#2C2C2C] mb-6">
           נדבר על הפרויקט שלך

@@ -102,7 +102,7 @@ export default function Navbar() {
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="md:hidden bg-[#F0EBE1] border-t border-[#8B6F47]/12 px-5 py-3 shadow-lg">
+        <div className="md:hidden bg-[#FAF3EB] border-t border-[#8B6F47]/12 px-5 py-3 shadow-lg">
           <Link href="/#about" className="block py-3.5 text-[#3a3a3a] border-b border-[#8B6F47]/10 text-sm font-medium" onClick={() => setMenuOpen(false)}>אודות</Link>
           <div className="py-2 border-b border-[#8B6F47]/10">
             <p className="text-[#8B6F47] text-[10px] font-bold tracking-widest uppercase mb-2 pt-1">פרויקטים</p>

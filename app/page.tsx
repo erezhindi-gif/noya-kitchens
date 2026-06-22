@@ -141,7 +141,7 @@ export default function Home() {
       </section>
 
       {/* STATS */}
-      <section className="bg-[#F0EBE1] border-b border-[#8B6F47]/12">
+      <section className="bg-[#FAF3EB] border-b border-[#8B6F47]/12">
         <div className="max-w-7xl mx-auto px-5 md:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-x-reverse divide-[#8B6F47]/12">
             {[
@@ -212,7 +212,7 @@ export default function Home() {
       </section>
 
       {/* BENEFITS */}
-      <section className="section-py bg-[#F0EBE1]">
+      <section className="section-py bg-[#FAF3EB]">
         <div className="max-w-7xl mx-auto px-5 md:px-8">
           <div className="text-center mb-12">
             <p className="section-label mb-2">למה לבחור בי</p>
@@ -258,7 +258,7 @@ export default function Home() {
       </section>
 
       {/* PHOTO MASONRY */}
-      <section className="section-py bg-[#F0EBE1]">
+      <section className="section-py bg-[#FAF3EB]">
         <div className="max-w-7xl mx-auto px-5 md:px-8">
           <div className="text-center mb-12">
             <p className="section-label mb-2">מבחר עבודות</p>
@@ -312,7 +312,7 @@ export default function Home() {
       </section>
 
       {/* CONTACT */}
-      <section id="contact" className="section-py bg-[#F0EBE1]">
+      <section id="contact" className="section-py bg-[#FAF3EB]">
         <div className="max-w-3xl mx-auto px-5 md:px-8 text-center">
           <p className="section-label mb-2">מוכן להתחיל?</p>
           <h2 className="section-title mb-3">צור קשר עכשיו</h2>
