@@ -81,8 +81,8 @@ export default function CategoryPage({ title, subtitle, images }: Props) {
 
       {/* CTA */}
       <section className="py-14 bg-[#FAF3EB] text-center">
-        <p className="text-[#8B6F47] text-xs tracking-widest uppercase mb-3">רוצה גם אתה?</p>
-        <h2 className="font-['Playfair_Display'] text-2xl md:text-3xl font-bold text-[#2C2C2C] mb-6">נדבר על הפרויקט שלך</h2>
+        <p className="text-[#8B6F47] text-xs tracking-widest uppercase mb-3">רוצים מטבח בהתאמה אישית?</p>
+        <h2 className="font-['Playfair_Display'] text-2xl md:text-3xl font-bold text-[#2C2C2C] mb-6">מתכננים פרויקט חדש? בואו נדבר.</h2>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <a href="tel:0502808180" className="btn-gold">התקשר עכשיו — 050-2808180</a>
           <a href="https://wa.me/972502808180" target="_blank" rel="noopener noreferrer" className="btn-outline">שלח הודעה בוואטסאפ</a>
