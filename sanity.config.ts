@@ -17,6 +17,8 @@ export default defineConfig({
   plugins: [
     structureTool(),
     presentationTool({
+      name: "preview",
+      title: "תצוגה מקדימה",
       previewUrl: {
         origin: "https://noya-kitchens.vercel.app",
         previewMode: {
