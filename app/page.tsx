@@ -108,11 +108,25 @@ const GoogleIcon = () => (
 );
 
 export default async function Home() {
-  const settings = await getSiteSettings();
-  const heroTitle = settings?.heroTitle || "מטבחים שמספרים את הסיפור שלך";
-  const heroSubtitle = settings?.heroSubtitle || "ארז הנדי — נגר מקצועי עם למעלה מ־30 שנות ניסיון.\nכל פרויקט מתוכנן, מיוצר ומותקן על ידי ארז עצמו.";
-  const phone = settings?.phone || "050-2808180";
-  const whatsapp = settings?.whatsapp || "972502808180";
+  const s = await getSiteSettings();
+  const heroLabel    = s?.heroLabel    || "נגרות יוקרתית בהתאמה אישית";
+  const heroTitle    = s?.heroTitle    || "מטבחים שמספרים את הסיפור שלך";
+  const heroSubtitle = s?.heroSubtitle || "ארז הנדי — נגר מקצועי עם למעלה מ־30 שנות ניסיון.\nכל פרויקט מתוכנן, מיוצר ומותקן על ידי ארז עצמו.";
+  const heroCta1     = s?.heroCta1     || "קבל הצעת מחיר חינם";
+  const heroCta2     = s?.heroCta2     || "קרא עוד עלי";
+  const benefit1Title = s?.benefit1Title || "30+ שנות ניסיון";
+  const benefit1Text  = s?.benefit1Text  || "ניסיון עשיר בכל סוגי פרויקטי הנגרות";
+  const benefit2Title = s?.benefit2Title || "פרזול Blum מקורי";
+  const benefit2Text  = s?.benefit2Text  || "רק פרזול אוסטרי מקורי — מהאיכותיים בעולם";
+  const benefit3Title = s?.benefit3Title || "עבודה ידנית מלאה";
+  const benefit3Text  = s?.benefit3Text  || "שליטה מלקיחת מידות ועד ההתקנה הסופית";
+  const benefit4Title = s?.benefit4Title || "ארז עצמו אצלך";
+  const benefit4Text  = s?.benefit4Text  || "ללא קבלני משנה — שירות אישי וישיר ממני";
+  const contactTitle    = s?.contactTitle    || "בואו נדבר על הפרויקט שלכם";
+  const contactSubtitle = s?.contactSubtitle || "זמינים לכם בטלפון, בוואטסאפ ובאימייל";
+  const phone    = s?.phone    || "050-2808180";
+  const whatsapp = s?.whatsapp || "972502808180";
+  const email    = s?.email    || "erezhindi@gmail.com";
 
   return (
     <>
@@ -124,7 +138,7 @@ export default async function Home() {
         <HeroSlider />
         <div className="relative z-10 max-w-7xl mx-auto px-5 md:px-8 w-full">
           <div className="max-w-xl md:max-w-2xl">
-            <p className="text-[#C9A96E] text-xs tracking-[0.35em] uppercase mb-4 font-semibold">נגרות יוקרתית בהתאמה אישית</p>
+            <p className="text-[#C9A96E] text-xs tracking-[0.35em] uppercase mb-4 font-semibold">{heroLabel}</p>
             <h1 className="font-['Playfair_Display'] text-white text-4xl md:text-6xl font-bold mb-5 leading-tight">
               {heroTitle}
             </h1>
@@ -132,8 +146,8 @@ export default async function Home() {
               {heroSubtitle}
             </p>
             <div className="flex flex-wrap gap-3">
-              <a href="#contact" className="btn-gold">קבל הצעת מחיר חינם</a>
-              <a href="#about" className="btn-outline border-white/60 text-white hover:bg-white/10 hover:border-white">קרא עוד עלי</a>
+              <a href="#contact" className="btn-gold">{heroCta1}</a>
+              <a href="#about" className="btn-outline border-white/60 text-white hover:bg-white/10 hover:border-white">{heroCta2}</a>
             </div>
           </div>
         </div>
@@ -222,7 +236,12 @@ export default async function Home() {
             <div className="w-12 h-0.5 bg-gradient-to-l from-[#C9A96E] to-transparent mx-auto mt-4" />
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-x-reverse divide-white/8">
-            {benefits.map((b, i) => (
+            {[
+              { icon: benefits[0].icon, title: benefit1Title, text: benefit1Text },
+              { icon: benefits[1].icon, title: benefit2Title, text: benefit2Text },
+              { icon: benefits[2].icon, title: benefit3Title, text: benefit3Text },
+              { icon: benefits[3].icon, title: benefit4Title, text: benefit4Text },
+            ].map((b, i) => (
               <div key={i} className="p-8 md:p-10 text-center group hover:bg-white/5 transition-colors duration-300">
                 <div className="w-14 h-14 rounded-full border border-[#C9A96E]/40 flex items-center justify-center mx-auto mb-5 group-hover:border-[#C9A96E] transition-colors">
                   {b.icon}
@@ -318,9 +337,9 @@ export default async function Home() {
       <section id="contact" className="section-py bg-[#FAF3EB]">
         <div className="max-w-3xl mx-auto px-5 md:px-8 text-center">
           <p className="section-label mb-2">מוכן להתחיל?</p>
-          <h2 className="section-title mb-3">צור קשר עכשיו</h2>
+          <h2 className="section-title mb-3">{contactTitle}</h2>
           <div className="gold-divider mx-auto" />
-          <p className="text-[#6b6b6b] mt-5 mb-10 text-base">אשמח לתת לך הצעת מחיר חינם ולתכנן את הפרויקט שלך יחד</p>
+          <p className="text-[#6b6b6b] mt-5 mb-10 text-base">{contactSubtitle}</p>
 
           <div className="flex flex-col gap-4 max-w-sm mx-auto w-full mb-8">
             {/* Phone */}
