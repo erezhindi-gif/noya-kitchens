@@ -245,7 +245,7 @@ body {
   outline-offset: 2px;
 }
 
-body.high-contrast {
+body.high-contrast #page-content {
   filter: contrast(1.6) brightness(1.1);
 }
 

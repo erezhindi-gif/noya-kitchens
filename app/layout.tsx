@@ -89,7 +89,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${heebo.variable} ${playfair.variable}`}>
         <a href="#main-content" className="skip-link">דלג לתוכן הראשי</a>
         <AccessibilityWidget />
-        {children}
+        <div id="page-content">{children}</div>
         <Script src="https://elfsightcdn.com/platform.js" strategy="lazyOnload" />
       </body>
     </html>
