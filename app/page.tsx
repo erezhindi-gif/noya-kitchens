@@ -286,51 +286,20 @@ export default function Home() {
         </div>
       </section>
 
-      {/* GOOGLE REVIEWS */}
+      {/* GOOGLE REVIEWS — Elfsight widget */}
       <section id="testimonials" className="section-py bg-white">
         <div className="max-w-7xl mx-auto px-5 md:px-8">
-          <div className="text-center mb-12">
+          <div className="text-center mb-10">
             <p className="section-label mb-2">מה אומרים עלי</p>
             <h2 className="section-title">ממליצים עלי</h2>
             <div className="gold-divider mx-auto mt-3" />
-            {/* Google Rating Summary */}
-            <div className="flex items-center justify-center gap-3 mt-6">
-              <GoogleIcon />
-              <span className="font-bold text-[#3a3a3a] text-lg">5.0</span>
-              <GoogleStars count={5} />
-              <span className="text-[#6b6b6b] text-sm">ביקורות Google</span>
-            </div>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-5">
-            {reviews.map((r, i) => (
-              <div key={i} className="review-card bg-[#F8F5F0] border-[#8B6F47]/10">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
-                      style={{ backgroundColor: r.color }}>
-                      {r.initials}
-                    </div>
-                    <div>
-                      <p className="font-semibold text-[#3a3a3a] text-sm">{r.name}</p>
-                      <p className="text-[#9a9a9a] text-xs">{r.timeAgo}</p>
-                    </div>
-                  </div>
-                  <GoogleIcon />
-                </div>
-                <GoogleStars count={r.rating} />
-                <p className="text-[#5a5a5a] text-sm leading-relaxed mt-3">"{r.text}"</p>
-              </div>
-            ))}
-          </div>
+          {/* Elfsight Google Reviews widget */}
+          <div className="elfsight-app-3f01dad4-7460-447c-b6a7-24e54ea37518" data-elfsight-app-lazy></div>
 
-          {/* Write a review + View all */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-10">
-            <a href="https://share.google/DlkIEwVynx7sEg1Su" target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-2 bg-white border border-[#dadce0] hover:border-[#8B6F47] text-[#3a3a3a] px-6 py-3 rounded-full text-sm font-medium transition-all hover:shadow-md">
-              <GoogleIcon />
-              כל הביקורות בגוגל
-            </a>
+          {/* Write a review */}
+          <div className="flex justify-center mt-8">
             <a href="https://share.google/DlkIEwVynx7sEg1Su" target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-2 btn-gold text-sm py-3 px-6">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">

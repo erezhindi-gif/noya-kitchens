@@ -36,16 +36,16 @@ export default function Navbar() {
 
   return (
     <nav className={`fixed top-0 w-full z-50 transition-all duration-300 navbar-strip ${scrolled ? "shadow-sm" : ""}`}>
-      <div className="max-w-7xl mx-auto px-4 md:px-8 flex items-center justify-between h-[88px]">
+      <div className="max-w-7xl mx-auto px-4 md:px-8 flex items-center justify-between h-[108px]">
 
         {/* Logo — seamless with strip */}
-        <Link href="/" className="flex items-center">
+        <Link href="/" className="flex items-center bg-[#F0EBE1]">
           <Image
             src="/images/logo-new.jpg"
             alt="NOYA Kitchens by Erez Hindi"
-            width={180}
-            height={72}
-            className="h-[68px] w-auto object-contain"
+            width={240}
+            height={96}
+            className="h-[88px] w-auto object-contain"
             style={{ mixBlendMode: "multiply" }}
             priority
           />

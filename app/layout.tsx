@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Heebo, Playfair_Display } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const heebo = Heebo({
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="he" dir="rtl">
       <body className={`${heebo.variable} ${playfair.variable}`}>
         {children}
+        <Script src="https://elfsightcdn.com/platform.js" strategy="lazyOnload" />
       </body>
     </html>
   );
