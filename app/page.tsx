@@ -113,7 +113,7 @@ export default function Home() {
       <WhatsAppButton />
 
       {/* HERO */}
-      <section className="hero-section pt-[80px]">
+      <section id="main-content" className="hero-section pt-[80px]">
         <HeroSlider />
         <div className="relative z-10 max-w-7xl mx-auto px-5 md:px-8 w-full">
           <div className="max-w-xl md:max-w-2xl">

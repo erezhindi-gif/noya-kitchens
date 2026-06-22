@@ -55,8 +55,9 @@ export default function Footer() {
             </div>
           </div>
         </div>
-        <div className="border-t border-[#8B6F47]/12 pt-6 text-center text-[#9a9a9a] text-xs">
-          © 2024 NOYA מטבחים ונגרות — ארז הנדי. כל הזכויות שמורות.
+        <div className="border-t border-[#8B6F47]/12 pt-6 text-center text-[#9a9a9a] text-xs flex flex-col sm:flex-row justify-center gap-3">
+          <span>© 2025 NOYA מטבחים ונגרות — ארז הנדי. כל הזכויות שמורות.</span>
+          <a href="/accessibility" className="hover:text-[#8B6F47] transition-colors underline">הצהרת נגישות</a>
         </div>
       </div>
     </footer>
