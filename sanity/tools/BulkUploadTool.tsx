@@ -1,4 +1,3 @@
-"use client";
 import { useState, useRef } from "react";
 
 const CATEGORIES = [
@@ -7,11 +6,11 @@ const CATEGORIES = [
   "סלונים",
   "חדרי שינה",
   "חדרי ילדים",
-  "ממ\"דים",
+  'ממ"דים',
   "מסחרי",
 ];
 
-export default function UploadPage() {
+export function BulkUploadTool() {
   const [category, setCategory] = useState(CATEGORIES[0]);
   const [files, setFiles] = useState<File[]>([]);
   const [status, setStatus] = useState<"idle" | "uploading" | "done" | "error">("idle");
@@ -58,33 +57,41 @@ export default function UploadPage() {
   };
 
   return (
-    <div dir="rtl" style={{ fontFamily: "Arial, sans-serif", maxWidth: 600, margin: "60px auto", padding: "0 20px" }}>
-      <h1 style={{ fontSize: 24, marginBottom: 8 }}>העלאת תמונות — NOYA Kitchens</h1>
-      <p style={{ color: "#666", marginBottom: 30 }}>בחר קטגוריה ותמונות (אפשר לבחור הרבה בבת אחת)</p>
+    <div dir="rtl" style={{ padding: "40px 32px", maxWidth: 560, fontFamily: "inherit" }}>
+      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>העלאת תמונות מרובות</h2>
+      <p style={{ color: "#666", marginBottom: 32, fontSize: 14 }}>
+        בחר קטגוריה ותמונות — אפשר לבחור כמה קבצים בו זמנית
+      </p>
 
       <div style={{ marginBottom: 20 }}>
-        <label style={{ display: "block", fontWeight: "bold", marginBottom: 6 }}>קטגוריה:</label>
+        <label style={{ display: "block", fontWeight: 600, marginBottom: 6, fontSize: 14 }}>קטגוריה:</label>
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          style={{ width: "100%", padding: "10px", fontSize: 16, borderRadius: 8, border: "1px solid #ccc" }}
+          style={{
+            width: "100%", padding: "10px 12px", fontSize: 15,
+            borderRadius: 8, border: "1px solid #d0d0d0", background: "#fafafa",
+          }}
         >
           {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
 
-      <div style={{ marginBottom: 20 }}>
-        <label style={{ display: "block", fontWeight: "bold", marginBottom: 6 }}>תמונות:</label>
+      <div style={{ marginBottom: 24 }}>
+        <label style={{ display: "block", fontWeight: 600, marginBottom: 6, fontSize: 14 }}>תמונות:</label>
         <input
           ref={inputRef}
           type="file"
           accept="image/*"
           multiple
           onChange={handleFiles}
-          style={{ width: "100%", padding: "10px", fontSize: 16, borderRadius: 8, border: "1px solid #ccc", background: "#fafafa" }}
+          style={{
+            width: "100%", padding: "10px", fontSize: 14,
+            borderRadius: 8, border: "1px solid #d0d0d0", background: "#fafafa",
+          }}
         />
         {files.length > 0 && (
-          <p style={{ color: "#555", marginTop: 6 }}>נבחרו {files.length} תמונות</p>
+          <p style={{ color: "#555", marginTop: 6, fontSize: 13 }}>נבחרו {files.length} תמונות</p>
         )}
       </div>
 
@@ -92,42 +99,31 @@ export default function UploadPage() {
         onClick={handleUpload}
         disabled={!files.length || status === "uploading"}
         style={{
-          width: "100%",
-          padding: "14px",
-          fontSize: 18,
-          fontWeight: "bold",
+          width: "100%", padding: "13px", fontSize: 16, fontWeight: 700,
           background: files.length && status !== "uploading" ? "#8B6F47" : "#ccc",
-          color: "white",
-          border: "none",
-          borderRadius: 10,
+          color: "white", border: "none", borderRadius: 10,
           cursor: files.length && status !== "uploading" ? "pointer" : "not-allowed",
+          transition: "background 0.2s",
         }}
       >
         {status === "uploading" ? `מעלה... ${progress}%` : "העלה תמונות"}
       </button>
 
       {status === "uploading" && (
-        <div style={{ marginTop: 16, background: "#eee", borderRadius: 8, overflow: "hidden" }}>
-          <div style={{ width: `${progress}%`, height: 10, background: "#8B6F47", transition: "width 0.3s" }} />
+        <div style={{ marginTop: 14, background: "#e8e8e8", borderRadius: 8, overflow: "hidden" }}>
+          <div style={{ width: `${progress}%`, height: 8, background: "#8B6F47", transition: "width 0.3s" }} />
         </div>
       )}
 
       {message && (
         <div style={{
-          marginTop: 20,
-          padding: 16,
-          borderRadius: 10,
+          marginTop: 20, padding: 14, borderRadius: 10, fontSize: 15,
           background: status === "done" ? "#d4edda" : "#f8d7da",
           color: status === "done" ? "#155724" : "#721c24",
-          fontSize: 16,
         }}>
           {message}
         </div>
       )}
-
-      <p style={{ marginTop: 40, color: "#999", fontSize: 13 }}>
-        * התמונות מועלות ישירות ל-Sanity ומופיעות באתר תוך דקה.
-      </p>
     </div>
   );
 }

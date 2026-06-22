@@ -5,6 +5,7 @@ import { structureTool } from "sanity/structure";
 import { presentationTool } from "sanity/presentation";
 import { visionTool } from "@sanity/vision";
 import { schemaTypes } from "./sanity/schemas";
+import { BulkUploadTool } from "./sanity/tools/BulkUploadTool";
 
 export default defineConfig({
   basePath: "/studio",
@@ -27,5 +28,14 @@ export default defineConfig({
       },
     }),
     visionTool(),
+  ],
+  tools: (prev) => [
+    ...prev,
+    {
+      name: "bulk-upload",
+      title: "העלאת תמונות",
+      icon: () => "📤",
+      component: BulkUploadTool,
+    },
   ],
 });
