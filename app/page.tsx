@@ -241,7 +241,7 @@ export default function Home() {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
             {categories.map((cat) => (
               <Link key={cat.id} href={cat.href} id={cat.id} className="category-card group block">
-                <Image src={cat.img} alt={cat.title} fill className="object-cover" />
+                <Image src={cat.img} alt={`${cat.title} — NOYA מטבחים ארז הנדי`} fill className="object-cover" />
                 <div className="card-overlay">
                   <div className="flex items-center justify-between">
                     <h3 className="text-white text-sm md:text-lg font-bold">{cat.title}</h3>
@@ -276,7 +276,8 @@ export default function Home() {
             ].map((src, i) => (
               <div key={i} className="break-inside-avoid overflow-hidden rounded-xl group">
                 <Image src={src} alt={`פרויקט ${i + 1}`} width={600} height={450}
-                  className="w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                  className="w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  title={`פרויקט נגרות ${i + 1} — NOYA מטבחים`} />
               </div>
             ))}
           </div>
