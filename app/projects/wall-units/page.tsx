@@ -1,8 +1,9 @@
 import CategoryPage from "@/components/CategoryPage";
+import { getProjectImages } from "@/lib/getProjectImages";
 
-const images = Array.from({length: 12}, (_, i) => `/images/wall-units/wall-${i+1}.jpg`);
+export const metadata = { title: "ארונות קיר | NOYA Kitchens" };
 
-// export const metadata = { title: "ארונות קיר | NOYA Kitchens" };
-export default function Page() {
+export default async function Page() {
+  const images = await getProjectImages("ארונות קיר");
   return <CategoryPage title="ארונות קיר" subtitle="ניצול מקסימלי של כל סנטימטר" images={images} />;
 }

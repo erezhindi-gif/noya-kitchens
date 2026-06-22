@@ -1,8 +1,9 @@
 import CategoryPage from "@/components/CategoryPage";
+import { getProjectImages } from "@/lib/getProjectImages";
 
-const images = Array.from({length: 8}, (_, i) => `/images/entrance/entrance-${i+1}.jpg`);
+export const metadata = { title: "ארונות כניסה | NOYA Kitchens" };
 
-// export const metadata = { title: "ארונות כניסה | NOYA Kitchens" };
-export default function Page() {
+export default async function Page() {
+  const images = await getProjectImages("ארונות כניסה");
   return <CategoryPage title="ארונות כניסה" subtitle="הרושם הראשון מתחיל כאן" images={images} />;
 }

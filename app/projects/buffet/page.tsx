@@ -1,8 +1,9 @@
 import CategoryPage from "@/components/CategoryPage";
+import { getProjectImages } from "@/lib/getProjectImages";
 
-const images = Array.from({length: 10}, (_, i) => `/images/buffet/buffet-${i+1}.jpg`);
+export const metadata = { title: "מזנונים ושולחן סלון | NOYA Kitchens" };
 
-// export const metadata = { title: "מזנונים ושולחן סלון | NOYA Kitchens" };
-export default function Page() {
+export default async function Page() {
+  const images = await getProjectImages("מזנונים ושולחנות סלון");
   return <CategoryPage title="מזנונים ושולחן סלון" subtitle="אלגנטיות ופרקטיות לסלון שלכם" images={images} />;
 }
