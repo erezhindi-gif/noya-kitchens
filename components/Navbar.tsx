@@ -1,108 +1,96 @@
 "use client";
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import Image from "next/image";
-import { Menu, X, Phone } from "lucide-react";
+import Link from "next/link";
 
-const categories = [
-  "מטבחים","מטבחונים","חדרי ילדים","ארונות אמבטיה",
-  "ארונות קיר","ארונות כניסה","מזנונים ושולחנות סלון","שונות",
+const navLinks = [
+  { href: "#about", label: "אודות" },
+  { href: "#categories", label: "הפרויקטים שלנו" },
+  { href: "#gallery", label: "גלריה" },
+  { href: "#testimonials", label: "המלצות" },
+  { href: "#contact", label: "צור קשר" },
 ];
 
 export default function Navbar() {
-  const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [projOpen, setProjOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
-    const handler = () => setScrolled(window.scrollY > 50);
-    window.addEventListener("scroll", handler);
-    return () => window.removeEventListener("scroll", handler);
+    const handleScroll = () => setScrolled(window.scrollY > 50);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   return (
-    <header
+    <nav
       className={`fixed top-0 w-full z-50 transition-all duration-500 ${
         scrolled
-          ? "bg-white/95 backdrop-blur-md shadow-sm border-b border-gold/20"
-          : "bg-transparent"
+          ? "bg-[#111]/95 backdrop-blur-md border-b border-[#C9A96E]/20 py-3"
+          : "bg-transparent py-5"
       }`}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-8">
-        <div className="flex items-center justify-between h-20">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-3">
-            <div className={`font-serif text-2xl font-bold tracking-widest transition-colors ${scrolled ? "text-dark-wood" : "text-white"}`}>
-              NOYA
-            </div>
-            <div className={`text-xs tracking-widest border-r pr-3 transition-colors ${scrolled ? "text-warm-brown border-warm-brown/30" : "text-gold border-gold/40"}`}>
-              KITCHENS
-            </div>
-          </Link>
+      <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
+        <Link href="/" className="flex items-center">
+          <Image
+            src="/images/logo.jpg"
+            alt="NOYA מטבחים"
+            width={120}
+            height={50}
+            className="object-contain h-12 w-auto brightness-110"
+          />
+        </Link>
 
-          {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-8">
-            <Link href="/#about" className={`text-sm tracking-wide hover:text-gold transition-colors ${scrolled ? "text-charcoal" : "text-white/90"}`}>
-              אודות
-            </Link>
-            <div className="relative group" onMouseEnter={() => setProjOpen(true)} onMouseLeave={() => setProjOpen(false)}>
-              <Link href="/projects" className={`text-sm tracking-wide hover:text-gold transition-colors ${scrolled ? "text-charcoal" : "text-white/90"}`}>
-                פרויקטים ▾
-              </Link>
-              {projOpen && (
-                <div className="absolute top-full right-0 mt-2 w-52 bg-white shadow-xl border border-gold/10 rounded-sm py-2 z-50">
-                  <Link href="/projects" className="block px-4 py-2 text-sm text-charcoal hover:bg-cream hover:text-gold transition-colors">
-                    כל הפרויקטים
-                  </Link>
-                  <div className="border-t border-gold/10 my-1" />
-                  {categories.map((cat) => (
-                    <Link key={cat} href={`/projects?cat=${encodeURIComponent(cat)}`}
-                      className="block px-4 py-2 text-sm text-charcoal hover:bg-cream hover:text-gold transition-colors">
-                      {cat}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-            <Link href="/#reviews" className={`text-sm tracking-wide hover:text-gold transition-colors ${scrolled ? "text-charcoal" : "text-white/90"}`}>
-              המלצות
-            </Link>
-            <Link href="/#contact" className={`text-sm tracking-wide hover:text-gold transition-colors ${scrolled ? "text-charcoal" : "text-white/90"}`}>
-              צור קשר
-            </Link>
-            <a href="tel:0502808180" className="flex items-center gap-2 bg-gold text-dark-wood text-sm font-semibold px-4 py-2 rounded-sm hover:bg-warm-brown hover:text-white transition-all">
-              <Phone size={14} />
-              050-2808180
-            </a>
-          </nav>
+        <ul className="hidden md:flex items-center gap-8">
+          {navLinks.map((link) => (
+            <li key={link.href}>
+              <a
+                href={link.href}
+                className="text-white/80 hover:text-[#C9A96E] transition-colors duration-300 text-sm tracking-wide font-medium"
+              >
+                {link.label}
+              </a>
+            </li>
+          ))}
+        </ul>
 
-          {/* Mobile menu button */}
-          <button onClick={() => setOpen(!open)} className={`md:hidden transition-colors ${scrolled ? "text-charcoal" : "text-white"}`}>
-            {open ? <X size={24} /> : <Menu size={24} />}
-          </button>
-        </div>
+        <a
+          href="tel:0502808180"
+          className="hidden md:flex items-center gap-2 btn-gold text-sm py-2.5 px-5"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
+          </svg>
+          050-2808180
+        </a>
+
+        <button
+          className="md:hidden text-white p-2"
+          onClick={() => setMenuOpen(!menuOpen)}
+          aria-label="תפריט"
+        >
+          <div className={`w-6 h-0.5 bg-current mb-1.5 transition-all ${menuOpen ? "rotate-45 translate-y-2" : ""}`} />
+          <div className={`w-6 h-0.5 bg-current mb-1.5 transition-all ${menuOpen ? "opacity-0" : ""}`} />
+          <div className={`w-6 h-0.5 bg-current transition-all ${menuOpen ? "-rotate-45 -translate-y-2" : ""}`} />
+        </button>
       </div>
 
-      {/* Mobile Nav */}
-      {open && (
-        <div className="md:hidden bg-white border-t border-gold/20 shadow-lg">
-          <div className="px-6 py-4 space-y-4">
-            <Link href="/#about" onClick={() => setOpen(false)} className="block text-charcoal hover:text-gold py-2">אודות</Link>
-            <Link href="/projects" onClick={() => setOpen(false)} className="block text-charcoal hover:text-gold py-2">כל הפרויקטים</Link>
-            {categories.map((cat) => (
-              <Link key={cat} href={`/projects?cat=${encodeURIComponent(cat)}`} onClick={() => setOpen(false)}
-                className="block text-sm text-warm-brown hover:text-gold py-1 pr-4">
-                {cat}
-              </Link>
-            ))}
-            <Link href="/#reviews" onClick={() => setOpen(false)} className="block text-charcoal hover:text-gold py-2">המלצות</Link>
-            <Link href="/#contact" onClick={() => setOpen(false)} className="block text-charcoal hover:text-gold py-2">צור קשר</Link>
-            <a href="tel:0502808180" className="flex items-center gap-2 bg-gold text-dark-wood font-semibold px-4 py-2 rounded-sm w-full justify-center">
-              <Phone size={14} /> 050-2808180
+      {menuOpen && (
+        <div className="md:hidden bg-[#111]/98 border-t border-[#C9A96E]/20 px-6 py-4">
+          {navLinks.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              className="block py-3 text-white/80 hover:text-[#C9A96E] border-b border-white/5 text-base"
+              onClick={() => setMenuOpen(false)}
+            >
+              {link.label}
             </a>
-          </div>
+          ))}
+          <a href="tel:0502808180" className="block mt-4 btn-gold text-center text-sm">
+            050-2808180
+          </a>
         </div>
       )}
-    </header>
+    </nav>
   );
 }
