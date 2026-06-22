@@ -1,15 +1,16 @@
 import Image from "next/image";
+import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import WhatsAppButton from "@/components/WhatsAppButton";
 
 const categories = [
-  { id: "kitchens", title: "מטבחים", img: "/images/kitchens/kitchen-2.jpg" },
-  { id: "bathrooms", title: "ארונות אמבטיה", img: "/images/bathrooms/bathroom-1.jpg" },
-  { id: "kids", title: "חדרי ילדים", img: "/images/kids/kids-1.jpg" },
-  { id: "wall-units", title: "ארונות קיר", img: "/images/wall-units/wall-1.jpg" },
-  { id: "entrance", title: "ארונות כניסה", img: "/images/entrance/entrance-1.jpg" },
-  { id: "buffet", title: "מזנונים ושולחן סלון", img: "/images/buffet/buffet-1.jpg" },
+  { id: "kitchens", title: "מטבחים", href: "/projects/kitchens", img: "/images/kitchens/kitchen-2.jpg" },
+  { id: "bathrooms", title: "ארונות אמבטיה", href: "/projects/bathrooms", img: "/images/bathrooms/bathroom-1.jpg" },
+  { id: "kids", title: "חדרי ילדים", href: "/projects/kids", img: "/images/kids/kids-1.jpg" },
+  { id: "wall-units", title: "ארונות קיר", href: "/projects/wall-units", img: "/images/wall-units/wall-1.jpg" },
+  { id: "entrance", title: "ארונות כניסה", href: "/projects/entrance", img: "/images/entrance/entrance-1.jpg" },
+  { id: "buffet", title: "מזנונים ושולחן סלון", href: "/projects/buffet", img: "/images/buffet/buffet-1.jpg" },
 ];
 
 const benefits = [
@@ -220,8 +221,8 @@ export default function Home() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {benefits.map((b, i) => (
-              <div key={i} className="benefit-card">
-                <div className="w-14 h-14 rounded-2xl bg-[#8B6F47]/10 flex items-center justify-center mx-auto mb-4">
+              <div key={i} className="benefit-card bg-transparent border-[#8B6F47]/20 hover:bg-white/60">
+                <div className="w-14 h-14 rounded-2xl bg-[#8B6F47]/12 flex items-center justify-center mx-auto mb-4">
                   {b.icon}
                 </div>
                 <h3 className="text-[#8B6F47] font-bold text-sm md:text-base mb-2">{b.title}</h3>
@@ -242,12 +243,15 @@ export default function Home() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
             {categories.map((cat) => (
-              <div key={cat.id} id={cat.id} className="category-card group">
+              <Link key={cat.id} href={cat.href} id={cat.id} className="category-card group block">
                 <Image src={cat.img} alt={cat.title} fill className="object-cover" />
                 <div className="card-overlay">
-                  <h3 className="text-white text-sm md:text-lg font-bold">{cat.title}</h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-white text-sm md:text-lg font-bold">{cat.title}</h3>
+                    <span className="text-white/70 text-xs hidden md:block">לחץ לצפייה ←</span>
+                  </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
@@ -300,7 +304,7 @@ export default function Home() {
 
           <div className="grid md:grid-cols-3 gap-5">
             {reviews.map((r, i) => (
-              <div key={i} className="review-card">
+              <div key={i} className="review-card bg-[#F8F5F0] border-[#8B6F47]/10">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
@@ -348,7 +352,7 @@ export default function Home() {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
             {/* Phone */}
-            <a href="tel:0502808180" className="contact-card group hover:border-[#8B6F47]">
+            <a href="tel:0502808180" className="contact-card group hover:border-[#8B6F47] bg-transparent border-[#8B6F47]/25 hover:bg-white/70">
               <div className="w-16 h-16 rounded-2xl bg-[#8B6F47]/10 group-hover:bg-[#8B6F47] flex items-center justify-center transition-all">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8B6F47" strokeWidth="1.8" strokeLinecap="round" className="group-hover:stroke-white transition-colors">
                   <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.67A2 2 0 012 0h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 14.92v2z"/>
@@ -360,7 +364,7 @@ export default function Home() {
 
             {/* WhatsApp */}
             <a href="https://wa.me/972502808180?text=שלום%20ארז%2C%20אני%20מעוניין%20לקבל%20הצעת%20מחיר" target="_blank" rel="noopener noreferrer"
-              className="contact-card group hover:border-[#25D366]">
+              className="contact-card group hover:border-[#25D366] bg-transparent border-[#8B6F47]/25 hover:bg-white/70">
               <div className="w-16 h-16 rounded-2xl bg-[#25D366]/10 group-hover:bg-[#25D366] flex items-center justify-center transition-all">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="#25D366" className="group-hover:fill-white transition-colors">
                   <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
@@ -372,7 +376,7 @@ export default function Home() {
 
             {/* Facebook */}
             <a href="https://www.facebook.com/profile.php?id=100054656460007" target="_blank" rel="noopener noreferrer"
-              className="contact-card group hover:border-[#1877F2]">
+              className="contact-card group hover:border-[#1877F2] bg-transparent border-[#8B6F47]/25 hover:bg-white/70">
               <div className="w-16 h-16 rounded-2xl bg-[#1877F2]/10 group-hover:bg-[#1877F2] flex items-center justify-center transition-all">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="#1877F2" className="group-hover:fill-white transition-colors">
                   <path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/>
