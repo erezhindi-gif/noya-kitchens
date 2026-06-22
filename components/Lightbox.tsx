@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useCallback } from "react";
-import Image from "next/image";
 
 interface Props {
   images: string[];
@@ -77,16 +76,14 @@ export default function Lightbox({ images, index, alt, onClose, onNext, onPrev }
 
       {/* Image */}
       <div
-        className="relative max-w-5xl max-h-[90vh] w-full h-full mx-16 flex items-center justify-center"
+        className="max-w-5xl max-h-[90vh] mx-16 flex items-center justify-center"
         onClick={(e) => e.stopPropagation()}
       >
-        <Image
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src={images[index]}
           alt={`${alt} ${index + 1}`}
-          fill
-          className="object-contain"
-          sizes="90vw"
-          priority
+          className="max-w-full max-h-[90vh] object-contain"
         />
       </div>
 
