@@ -4,6 +4,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import HeroSlider from "@/components/HeroSlider";
+import { getSiteSettings } from "@/lib/sanity";
 
 const categories = [
   { id: "kitchens", title: "מטבחים", href: "/projects/kitchens", img: "/images/kitchens/kitchen-2.jpg" },
@@ -106,7 +107,13 @@ const GoogleIcon = () => (
   </svg>
 );
 
-export default function Home() {
+export default async function Home() {
+  const settings = await getSiteSettings();
+  const heroTitle = settings?.heroTitle || "מטבחים שמספרים את הסיפור שלך";
+  const heroSubtitle = settings?.heroSubtitle || "ארז הנדי — נגר מקצועי עם למעלה מ־30 שנות ניסיון.\nכל פרויקט מתוכנן, מיוצר ומותקן על ידי ארז עצמו.";
+  const phone = settings?.phone || "050-2808180";
+  const whatsapp = settings?.whatsapp || "972502808180";
+
   return (
     <>
       <Navbar />
@@ -119,12 +126,10 @@ export default function Home() {
           <div className="max-w-xl md:max-w-2xl">
             <p className="text-[#C9A96E] text-xs tracking-[0.35em] uppercase mb-4 font-semibold">נגרות יוקרתית בהתאמה אישית</p>
             <h1 className="font-['Playfair_Display'] text-white text-4xl md:text-6xl font-bold mb-5 leading-tight">
-              מטבחים שמספרים<br />
-              <span className="text-[#C9A96E]">את הסיפור שלך</span>
+              {heroTitle}
             </h1>
             <p className="text-white/75 text-base md:text-lg mb-8 leading-relaxed font-light">
-              ארז הנדי — נגר מקצועי עם למעלה מ־30 שנות ניסיון.<br />
-              כל פרויקט מתוכנן, מיוצר ומותקן על ידי ארז עצמו.
+              {heroSubtitle}
             </p>
             <div className="flex flex-wrap gap-3">
               <a href="#contact" className="btn-gold">קבל הצעת מחיר חינם</a>
