@@ -284,7 +284,7 @@ export default function Home() {
 
           <div className="text-center mt-10">
             <a
-              href="https://www.google.com/search?q=נויה+מטבחים+ארז+הנדי+נתניה"
+              href="https://share.google/DlkIEwVynx7sEg1Su"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-[#8B6F47] border border-[#8B6F47]/30 hover:border-[#8B6F47] px-6 py-3 text-sm font-medium transition-all hover:bg-[#F0EBE1] rounded-sm"
