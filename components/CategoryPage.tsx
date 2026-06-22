@@ -14,12 +14,13 @@ interface Props {
 }
 
 export default function CategoryPage({ title, subtitle, images }: Props) {
+  const validImages = images.filter((src) => typeof src === "string" && src.length > 0);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const openLightbox = (i: number) => setLightboxIndex(i);
   const closeLightbox = () => setLightboxIndex(null);
-  const next = () => setLightboxIndex((i) => (i === null ? 0 : (i + 1) % images.length));
-  const prev = () => setLightboxIndex((i) => (i === null ? 0 : (i - 1 + images.length) % images.length));
+  const next = () => setLightboxIndex((i) => (i === null ? 0 : (i + 1) % validImages.length));
+  const prev = () => setLightboxIndex((i) => (i === null ? 0 : (i - 1 + validImages.length) % validImages.length));
 
   return (
     <>
@@ -28,7 +29,7 @@ export default function CategoryPage({ title, subtitle, images }: Props) {
 
       {lightboxIndex !== null && (
         <Lightbox
-          images={images}
+          images={validImages}
           index={lightboxIndex}
           alt={title}
           onClose={closeLightbox}
@@ -55,7 +56,7 @@ export default function CategoryPage({ title, subtitle, images }: Props) {
       <section className="py-12 md:py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 md:px-8">
           <div className="columns-2 md:columns-3 gap-3 md:gap-4 space-y-3 md:space-y-4">
-            {images.map((src, i) => (
+            {validImages.map((src, i) => (
               <button
                 key={i}
                 onClick={() => openLightbox(i)}
@@ -73,7 +74,7 @@ export default function CategoryPage({ title, subtitle, images }: Props) {
             ))}
           </div>
 
-          {images.length === 0 && (
+          {validImages.length === 0 && (
             <p className="text-center text-[#9a9a9a] py-20">אין תמונות עדיין בקטגוריה זו</p>
           )}
         </div>
