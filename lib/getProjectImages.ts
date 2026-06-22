@@ -8,9 +8,16 @@ export async function getProjectImages(categoryName: string): Promise<string[]> 
   );
 
   if (project?.images?.length) {
-    return project.images.map((img: { asset: { _ref: string } }) =>
-      urlFor(img).width(1200).quality(85).url()
-    );
+    return project.images
+      .filter((img: { asset?: { _ref?: string } }) => img?.asset?._ref)
+      .map((img: { asset: { _ref: string } }) => {
+        try {
+          return urlFor(img).width(1200).quality(85).url();
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean) as string[];
   }
   return [];
 }
