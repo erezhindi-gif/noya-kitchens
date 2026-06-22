@@ -14,7 +14,7 @@ export default function Footer() {
                 alt="NOYA Kitchens"
                 width={200}
                 height={80}
-                className="h-[125px] w-auto block"
+                className="h-[150px] w-auto block"
               />
             </div>
             <p className="text-[#6b6b6b] text-sm leading-relaxed">
