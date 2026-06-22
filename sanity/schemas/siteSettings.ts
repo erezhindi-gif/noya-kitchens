@@ -53,8 +53,18 @@ export const siteSettingsSchema = defineType({
     defineField({ name: "address", title: "כתובת", type: "string", group: "contact", initialValue: "המלאכה 4, נתניה" }),
     defineField({ name: "facebookUrl", title: "קישור פייסבוק", type: "url", group: "contact" }),
 
+    // STATS
+    defineField({ name: "stat1Number", title: "סטטיסטיקה 1 — מספר", type: "string", group: "hero", initialValue: "30+" }),
+    defineField({ name: "stat1Label", title: "סטטיסטיקה 1 — תווית", type: "string", group: "hero", initialValue: "שנות ניסיון" }),
+    defineField({ name: "stat2Number", title: "סטטיסטיקה 2 — מספר", type: "string", group: "hero", initialValue: "500+" }),
+    defineField({ name: "stat2Label", title: "סטטיסטיקה 2 — תווית", type: "string", group: "hero", initialValue: "פרויקטים" }),
+    defineField({ name: "stat3Number", title: "סטטיסטיקה 3 — מספר", type: "string", group: "hero", initialValue: "BLUM" }),
+    defineField({ name: "stat3Label", title: "סטטיסטיקה 3 — תווית", type: "string", group: "hero", initialValue: "פרזול אוסטרי" }),
+    defineField({ name: "stat4Number", title: "סטטיסטיקה 4 — מספר", type: "string", group: "hero", initialValue: "100%" }),
+    defineField({ name: "stat4Label", title: "סטטיסטיקה 4 — תווית", type: "string", group: "hero", initialValue: "עבודה אישית" }),
+
     // FOOTER
-    defineField({ name: "footerTagline", title: "סלוגן בכותרת תחתונה", type: "string", group: "footer", initialValue: "נגרות יוקרתית בהתאמה אישית — מעל 30 שנות ניסיון" }),
-    defineField({ name: "footerCopyright", title: "טקסט זכויות יוצרים", type: "string", group: "footer", initialValue: "© 2025 NOYA מטבחים — ארז הנדי. כל הזכויות שמורות." }),
+    defineField({ name: "footerTagline", title: "סלוגן בכותרת תחתונה", type: "string", group: "footer", initialValue: "מטבחים ונגרות בהתאמה אישית.\nמעל 30 שנות ניסיון — ארז הנדי." }),
+    defineField({ name: "footerCopyright", title: "טקסט זכויות יוצרים", type: "string", group: "footer", initialValue: "© 2025 NOYA מטבחים ונגרות — ארז הנדי. כל הזכויות שמורות." }),
   ],
 });

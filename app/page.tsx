@@ -122,6 +122,12 @@ export default async function Home() {
   const benefit3Text  = s?.benefit3Text  || "שליטה מלקיחת מידות ועד ההתקנה הסופית";
   const benefit4Title = s?.benefit4Title || "ארז עצמו אצלך";
   const benefit4Text  = s?.benefit4Text  || "ללא קבלני משנה — שירות אישי וישיר ממני";
+  const stat1Number = s?.stat1Number || "30+"; const stat1Label = s?.stat1Label || "שנות ניסיון";
+  const stat2Number = s?.stat2Number || "500+"; const stat2Label = s?.stat2Label || "פרויקטים";
+  const stat3Number = s?.stat3Number || "BLUM"; const stat3Label = s?.stat3Label || "פרזול אוסטרי";
+  const stat4Number = s?.stat4Number || "100%"; const stat4Label = s?.stat4Label || "עבודה אישית";
+  const footerTagline   = s?.footerTagline   || "מטבחים ונגרות בהתאמה אישית.\nמעל 30 שנות ניסיון — ארז הנדי.";
+  const footerCopyright = s?.footerCopyright || "© 2025 NOYA מטבחים ונגרות — ארז הנדי. כל הזכויות שמורות.";
   const aboutLabel   = s?.aboutLabel   || "הסיפור שלי";
   const aboutTitle   = s?.aboutTitle   || "ארז הנדי — נגר שאוהב את המלאכה";
   const aboutText1   = s?.aboutText1   || "נויה – מטבחים ונגרות בהתאמה אישית, מנוהלת על-ידי ארז הנדי, נגר מקצועי בעל ניסיון של למעלה מ־30 שנה בתחום התכנון, העיצוב והייצור של מטבחים ופתרונות נגרות ברמה הגבוהה ביותר.";
@@ -171,10 +177,10 @@ export default async function Home() {
         <div className="max-w-7xl mx-auto px-5 md:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-x-reverse divide-[#8B6F47]/12">
             {[
-              { number: "30+", label: "שנות ניסיון" },
-              { number: "500+", label: "פרויקטים" },
-              { number: "BLUM", label: "פרזול אוסטרי" },
-              { number: "100%", label: "עבודה אישית" },
+              { number: stat1Number, label: stat1Label },
+              { number: stat2Number, label: stat2Label },
+              { number: stat3Number, label: stat3Label },
+              { number: stat4Number, label: stat4Label },
             ].map((stat, i) => (
               <div key={i} className="py-8 md:py-10 px-4 md:px-6 text-center">
                 <div className="font-['Playfair_Display'] text-2xl md:text-4xl font-bold text-[#8B6F47] mb-1">{stat.number}</div>
@@ -348,7 +354,7 @@ export default async function Home() {
                 </svg>
               </div>
               <div className="text-right">
-                <p className="font-bold text-base leading-tight">050-2808180</p>
+                <p className="font-bold text-base leading-tight">{phone}</p>
                 <p className="text-sm opacity-60">שיחת טלפון</p>
               </div>
             </a>
@@ -382,7 +388,7 @@ export default async function Home() {
             </a>
           </div>
 
-          <p className="text-[#8B6F47] text-sm font-medium">📍 המלאכה 4, נתניה | אזור השרון והמרכז</p>
+          <p className="text-[#8B6F47] text-sm font-medium">📍 {s?.address || "המלאכה 4, נתניה"} | אזור השרון והמרכז</p>
         </div>
       </section>
 
