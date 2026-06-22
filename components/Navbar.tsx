@@ -40,19 +40,23 @@ export default function Navbar() {
 
         {/* Logo — seamless with strip */}
         <Link href="/" className="flex items-center">
-          <Image
-            src="/images/logo-new.jpg"
-            alt="NOYA Kitchens by Erez Hindi"
-            width={300}
-            height={120}
-            className="h-[104px] w-auto object-contain"
-            style={{ mixBlendMode: "multiply" }}
-            priority
-          />
+          <div style={{ backgroundColor: '#FAF3EB', lineHeight: 0 }}>
+            <Image
+              src="/images/logo-new.jpg"
+              alt="NOYA Kitchens by Erez Hindi"
+              width={300}
+              height={120}
+              className="h-[104px] w-auto block"
+              priority
+            />
+          </div>
         </Link>
 
         {/* Desktop nav */}
         <ul className="hidden md:flex items-center gap-7">
+          <li>
+            <Link href="/" className="text-[#3a3a3a] hover:text-[#8B6F47] transition-colors text-sm font-medium">דף הבית</Link>
+          </li>
           <li>
             <Link href="/#about" className="text-[#3a3a3a] hover:text-[#8B6F47] transition-colors text-sm font-medium">אודות</Link>
           </li>
@@ -103,6 +107,7 @@ export default function Navbar() {
       {/* Mobile menu */}
       {menuOpen && (
         <div className="md:hidden bg-[#FAF3EB] border-t border-[#8B6F47]/12 px-5 py-3 shadow-lg">
+          <Link href="/" className="block py-3.5 text-[#3a3a3a] border-b border-[#8B6F47]/10 text-sm font-medium" onClick={() => setMenuOpen(false)}>דף הבית</Link>
           <Link href="/#about" className="block py-3.5 text-[#3a3a3a] border-b border-[#8B6F47]/10 text-sm font-medium" onClick={() => setMenuOpen(false)}>אודות</Link>
           <div className="py-2 border-b border-[#8B6F47]/10">
             <p className="text-[#8B6F47] text-[10px] font-bold tracking-widest uppercase mb-2 pt-1">פרויקטים</p>

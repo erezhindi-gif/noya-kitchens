@@ -8,14 +8,15 @@ export default function Footer() {
 
           {/* Logo — seamless, no border */}
           <div>
-            <Image
-              src="/images/logo-new.jpg"
-              alt="NOYA Kitchens"
-              width={150}
-              height={60}
-              className="h-14 w-auto object-contain mb-4"
-              style={{ mixBlendMode: "multiply" }}
-            />
+            <div style={{ backgroundColor: '#FAF3EB', lineHeight: 0, display: 'inline-block', marginBottom: '16px' }}>
+              <Image
+                src="/images/logo-new.jpg"
+                alt="NOYA Kitchens"
+                width={200}
+                height={80}
+                className="h-20 w-auto block"
+              />
+            </div>
             <p className="text-[#6b6b6b] text-sm leading-relaxed">
               מטבחים ונגרות בהתאמה אישית.<br />
               מעל 30 שנות ניסיון — ארז הנדי.
