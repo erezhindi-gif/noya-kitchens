@@ -122,6 +122,16 @@ export default async function Home() {
   const benefit3Text  = s?.benefit3Text  || "שליטה מלקיחת מידות ועד ההתקנה הסופית";
   const benefit4Title = s?.benefit4Title || "ארז עצמו אצלך";
   const benefit4Text  = s?.benefit4Text  || "ללא קבלני משנה — שירות אישי וישיר ממני";
+  const aboutLabel   = s?.aboutLabel   || "הסיפור שלי";
+  const aboutTitle   = s?.aboutTitle   || "ארז הנדי — נגר שאוהב את המלאכה";
+  const aboutText1   = s?.aboutText1   || "נויה – מטבחים ונגרות בהתאמה אישית, מנוהלת על-ידי ארז הנדי, נגר מקצועי בעל ניסיון של למעלה מ־30 שנה בתחום התכנון, העיצוב והייצור של מטבחים ופתרונות נגרות ברמה הגבוהה ביותר.";
+  const aboutText2   = s?.aboutText2   || "כל מטבח ופרויקט נגרות נבנים בעבודת יד מלאה – על-ידי ארז עצמו. ללא קבלני משנה, ללא פשרות, ועם שליטה מלאה בכל שלבי העבודה: תכנון, מדידות, בחירת חומרים, ייצור והתקנה.";
+  const aboutText3   = s?.aboutText3   || "כל פרויקט מתחיל בהקשבה לצרכים שלך ומסתיים ביצירה מדויקת, עם חומרים נבחרים, צבע איכותי, ופרזול Blum האוסטרי – מהאיכותיים בעולם.";
+  const aboutArea    = s?.aboutArea    || "נתניה, קיסריה, חדרה, פרדס חנה, זכרון יעקב, מושבי השרון וגוש דן";
+  const aboutBullet1 = s?.aboutBullet1 || "פרזול Blum האוסטרי המקורי — מהאיכותיים בעולם";
+  const aboutBullet2 = s?.aboutBullet2 || "שליטה מלאה מלקיחת מידות ועד ההתקנה";
+  const aboutBullet3 = s?.aboutBullet3 || "ללא קבלני משנה — ארז עצמו בכל שלב";
+  const aboutBullet4 = s?.aboutBullet4 || "ייצור מקומי עם גימור ברמה הגבוהה ביותר";
   const contactTitle    = s?.contactTitle    || "בואו נדבר על הפרויקט שלכם";
   const contactSubtitle = s?.contactSubtitle || "זמינים לכם בטלפון, בוואטסאפ ובאימייל";
   const phone    = s?.phone    || "050-2808180";
@@ -189,28 +199,15 @@ export default async function Home() {
               </div>
             </div>
             <div className="pt-2 order-1 md:order-2">
-              <p className="section-label mb-2">אודות</p>
-              <h2 className="section-title mb-3">ארז הנדי —<br /><span className="text-[#8B6F47]">נגר מקצועי</span></h2>
+              <p className="section-label mb-2">{aboutLabel}</p>
+              <h2 className="section-title mb-3">{aboutTitle}</h2>
               <div className="gold-divider mb-6" />
-              <p className="text-[#6b6b6b] leading-relaxed mb-4 text-sm md:text-base">
-                נויה – מטבחים ונגרות בהתאמה אישית, מנוהלת על-ידי ארז הנדי, נגר מקצועי בעל ניסיון של למעלה מ־30 שנה בתחום התכנון, העיצוב והייצור של מטבחים ופתרונות נגרות ברמה הגבוהה ביותר.
-              </p>
-              <p className="text-[#6b6b6b] leading-relaxed mb-4 text-sm md:text-base">
-                כל מטבח ופרויקט נגרות נבנים בעבודת יד מלאה – על-ידי ארז עצמו. ללא קבלני משנה, ללא פשרות, ועם שליטה מלאה בכל שלבי העבודה: תכנון, מדידות, בחירת חומרים, ייצור והתקנה.
-              </p>
-              <p className="text-[#6b6b6b] leading-relaxed mb-5 text-sm md:text-base">
-                כל פרויקט מתחיל בהקשבה לצרכים שלך ומסתיים ביצירה מדויקת, עם חומרים נבחרים, צבע איכותי, ופרזול Blum האוסטרי – מהאיכותיים בעולם.
-              </p>
-              <p className="text-[#8B6F47] text-sm font-medium mb-6">
-                📍 נתניה, קיסריה, חדרה, פרדס חנה, זכרון יעקב, מושבי השרון וגוש דן
-              </p>
+              <p className="text-[#6b6b6b] leading-relaxed mb-4 text-sm md:text-base">{aboutText1}</p>
+              <p className="text-[#6b6b6b] leading-relaxed mb-4 text-sm md:text-base">{aboutText2}</p>
+              <p className="text-[#6b6b6b] leading-relaxed mb-5 text-sm md:text-base">{aboutText3}</p>
+              <p className="text-[#8B6F47] text-sm font-medium mb-6">📍 {aboutArea}</p>
               <ul className="space-y-2.5 mb-8">
-                {[
-                  "פרזול Blum האוסטרי המקורי — מהאיכותיים בעולם",
-                  "שליטה מלאה מלקיחת מידות ועד ההתקנה",
-                  "ללא קבלני משנה — ארז עצמו בכל שלב",
-                  "ייצור מקומי עם גימור ברמה הגבוהה ביותר",
-                ].map((item) => (
+                {[aboutBullet1, aboutBullet2, aboutBullet3, aboutBullet4].map((item) => (
                   <li key={item} className="flex items-start gap-3 text-[#6b6b6b] text-sm">
                     <span className="w-5 h-5 rounded-full border border-[#8B6F47] flex items-center justify-center flex-shrink-0 mt-0.5 bg-[#8B6F47]/8">
                       <svg width="9" height="9" viewBox="0 0 12 12" fill="none">

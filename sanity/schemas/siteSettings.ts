@@ -23,7 +23,14 @@ export const siteSettingsSchema = defineType({
     // ABOUT
     defineField({ name: "aboutLabel", title: "תווית מעל כותרת אודות", type: "string", group: "about", initialValue: "הסיפור שלי" }),
     defineField({ name: "aboutTitle", title: "כותרת אודות", type: "string", group: "about", initialValue: "ארז הנדי — נגר שאוהב את המלאכה" }),
-    defineField({ name: "aboutText", title: "טקסט אודות", type: "text", rows: 5, group: "about", initialValue: "מעל 30 שנה אני בונה מטבחים, ארונות וריהוט בהתאמה אישית. כל פרויקט מתחיל בשיחה אישית, עובר דרך תכנון מדויק, ייצור בסדנה שלי ומסתיים בהתקנה ללא דאגה. הכל על ידי — ללא קבלני משנה." }),
+    defineField({ name: "aboutText1", title: "פסקה 1", type: "text", rows: 3, group: "about", initialValue: "נויה – מטבחים ונגרות בהתאמה אישית, מנוהלת על-ידי ארז הנדי, נגר מקצועי בעל ניסיון של למעלה מ־30 שנה בתחום התכנון, העיצוב והייצור של מטבחים ופתרונות נגרות ברמה הגבוהה ביותר." }),
+    defineField({ name: "aboutText2", title: "פסקה 2", type: "text", rows: 3, group: "about", initialValue: "כל מטבח ופרויקט נגרות נבנים בעבודת יד מלאה – על-ידי ארז עצמו. ללא קבלני משנה, ללא פשרות, ועם שליטה מלאה בכל שלבי העבודה: תכנון, מדידות, בחירת חומרים, ייצור והתקנה." }),
+    defineField({ name: "aboutText3", title: "פסקה 3", type: "text", rows: 3, group: "about", initialValue: "כל פרויקט מתחיל בהקשבה לצרכים שלך ומסתיים ביצירה מדויקת, עם חומרים נבחרים, צבע איכותי, ופרזול Blum האוסטרי – מהאיכותיים בעולם." }),
+    defineField({ name: "aboutArea", title: "אזורי שירות", type: "string", group: "about", initialValue: "נתניה, קיסריה, חדרה, פרדס חנה, זכרון יעקב, מושבי השרון וגוש דן" }),
+    defineField({ name: "aboutBullet1", title: "נקודה 1 ברשימה", type: "string", group: "about", initialValue: "פרזול Blum האוסטרי המקורי — מהאיכותיים בעולם" }),
+    defineField({ name: "aboutBullet2", title: "נקודה 2 ברשימה", type: "string", group: "about", initialValue: "שליטה מלאה מלקיחת מידות ועד ההתקנה" }),
+    defineField({ name: "aboutBullet3", title: "נקודה 3 ברשימה", type: "string", group: "about", initialValue: "ללא קבלני משנה — ארז עצמו בכל שלב" }),
+    defineField({ name: "aboutBullet4", title: "נקודה 4 ברשימה", type: "string", group: "about", initialValue: "ייצור מקומי עם גימור ברמה הגבוהה ביותר" }),
     defineField({ name: "aboutImage", title: "תמונת אודות", type: "image", options: { hotspot: true }, group: "about" }),
 
     // BENEFITS
