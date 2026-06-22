@@ -36,7 +36,7 @@ export default function Navbar() {
 
   return (
     <nav className={`fixed top-0 w-full z-50 transition-all duration-300 navbar-strip ${scrolled ? "shadow-sm" : ""}`}>
-      <div className="max-w-7xl mx-auto px-4 md:px-8 flex items-center justify-between h-[114px]">
+      <div className="max-w-7xl mx-auto px-4 md:px-8 flex items-center justify-between h-[135px]">
 
         {/* Logo — seamless with strip */}
         <Link href="/" className="flex items-center">
@@ -46,7 +46,7 @@ export default function Navbar() {
               alt="NOYA Kitchens by Erez Hindi"
               width={300}
               height={120}
-              className="h-[104px] w-auto block"
+              className="h-[125px] w-auto block"
               priority
             />
           </div>
