@@ -19,7 +19,7 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://noya-kitchens.vercel.app"),
+  metadataBase: new URL("https://www.noya-k.co.il"),
   title: {
     default: "NOYA מטבחים | ארז הנדי — מטבחים ונגרות בהתאמה אישית נתניה",
     template: "%s | NOYA מטבחים",
@@ -39,22 +39,22 @@ export const metadata: Metadata = {
     description: "מעל 30 שנות ניסיון — מטבחים, ארונות וריהוט בהתאמה אישית. נתניה והסביבה.",
     locale: "he_IL",
     type: "website",
-    url: "https://noya-kitchens.vercel.app",
+    url: "https://www.noya-k.co.il",
     siteName: "NOYA מטבחים",
     images: [{ url: "/images/kitchens/kitchen-1.jpg", width: 1200, height: 630, alt: "מטבח מעוצב — NOYA מטבחים" }],
   },
   alternates: {
-    canonical: "https://noya-kitchens.vercel.app",
+    canonical: "https://www.noya-k.co.il",
   },
 };
 
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "LocalBusiness",
-  "@id": "https://noya-kitchens.vercel.app",
+  "@id": "https://www.noya-k.co.il",
   name: "NOYA מטבחים — ארז הנדי",
   description: "מטבחים ונגרות בהתאמה אישית. מעל 30 שנות ניסיון.",
-  url: "https://noya-kitchens.vercel.app",
+  url: "https://www.noya-k.co.il",
   telephone: "+972-50-2808180",
   email: "erezhindi@gmail.com",
   address: {
