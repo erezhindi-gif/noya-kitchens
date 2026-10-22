@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   STATUS_LABEL, UNIT_LABEL, ancestors, calc, descendantIds, fdate, kids, leafCount, lineFrom, lineTotal,
-  money, pathOf, qnum, todayIL, uid, waLink,
+  label, money, pathOf, qnum, todayIL, uid, waLink,
 } from "@/lib/quotes/calc";
 import type { AppData, CatNode, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
 import QuoteDoc from "./QuoteDoc";
@@ -455,7 +455,7 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash }: {
 
       {picker && (
         <Picker cat={data.cat} onClose={() => setPicker(false)}
-          onPick={(n) => { upd((x) => { x.lines.push(lineFrom(data.cat, n)); }); flash("נוסף: " + n.name); setPicker(false); }} />
+          onPick={(n) => { upd((x) => { x.lines.push(lineFrom(data.cat, n)); }); flash("נוסף לרשימה"); setPicker(false); }} />
       )}
     </>
   );
@@ -487,7 +487,7 @@ function Picker({ cat, onPick, onClose }: { cat: CatNode[]; onPick: (n: CatNode)
   }, [onClose]);
   const leaf = (c: CatNode, withPath: boolean) => (
     <button key={c.id} className="nq-pick" onClick={() => onPick(c)}>
-      <span><b>{c.name}</b><br /><small>{withPath ? pathOf(cat, c) : c.desc}</small></span>
+      <span><b>{label(c)}</b>{(withPath || c.name) && <><br /><small>{withPath ? pathOf(cat, c) : c.desc}</small></>}</span>
       <span className="pr num">{money(c.price || 0)} {c.unit === "m" ? "למטר" : "ליח'"}</span>
     </button>
   );
@@ -625,18 +625,23 @@ function CatalogView({ cat, upd }: { cat: CatNode[]; upd: (fn: (cat: CatNode[]) 
           ) : (
             <div key={c.id} className="nq-crow">
               <div className="nq-cf">
-                <label className="f name">שם הפריט (לחיפוש שלך, לא מופיע בהצעה)
-                  <input className="in" style={{ fontWeight: 700 }} value={c.name} placeholder="לדוגמה: מריוובוקס" onChange={(e) => set(c.id, { name: e.target.value })} /></label>
+                <label className="f name">התיאור בהצעה (זה מה שהלקוח רואה)
+                  <textarea className="in" rows={2} value={c.desc || ""} placeholder="לדוגמה: מגירת בלום, דגם מריוובוקס, צבע אוריון (גרפיט)" onChange={(e) => set(c.id, { desc: e.target.value })} /></label>
                 <label className="f">מחיר ₪
                   <input className="in num" type="number" inputMode="decimal" value={c.price ?? 0} onChange={(e) => set(c.id, { price: e.target.value === "" ? 0 : Number(e.target.value) })} /></label>
                 <label className="f">יחידה
                   <select className="in" value={c.unit || "u"} onChange={(e) => set(c.id, { unit: e.target.value as CatNode["unit"] })}>
                     <option value="m">למטר</option><option value="u">ליחידה</option>
                   </select></label>
-                <label className="f wide">התיאור בהצעה (רק זה נכתב ללקוח)
-                  <textarea className="in" rows={2} value={c.desc || ""} placeholder="לדוגמה: מגירת בלום, דגם מריוובוקס, צבע אוריון (גרפיט)" onChange={(e) => set(c.id, { desc: e.target.value })} /></label>
-                <label className="f wide">כינויים (רשות: איך אתה קורא לזה בדיבור, מופרדים בפסיק)
-                  <input className="in" value={c.aliases || ""} placeholder="לדוגמה: מריבו, מריוו" onChange={(e) => set(c.id, { aliases: e.target.value })} /></label>
+                <details className="wide" open={!!(c.name || c.aliases) || undefined}>
+                  <summary className="hint" style={{ cursor: "pointer" }}>עוד אפשרויות (רשות): שם קצר וכינויים</summary>
+                  <div className="nq-fields" style={{ marginTop: 8 }}>
+                    <label className="f">שם קצר לרשימה (לא מופיע בהצעה)
+                      <input className="in" value={c.name} placeholder="לדוגמה: מריוובוקס" onChange={(e) => set(c.id, { name: e.target.value })} /></label>
+                    <label className="f">כינויים לחיפוש, מופרדים בפסיק
+                      <input className="in" value={c.aliases || ""} placeholder="לדוגמה: מריבו, מריוו" onChange={(e) => set(c.id, { aliases: e.target.value })} /></label>
+                  </div>
+                </details>
               </div>
               <button className="nq-btn sm ghost" onClick={() => del(c.id)} aria-label="מחק פריט">✕</button>
             </div>

@@ -63,7 +63,8 @@ export function ancestors(cat: CatNode[], n: CatNode) {
   return out;
 }
 
-export const pathOf = (cat: CatNode[], n: CatNode) => [...ancestors(cat, n), n].map((x) => x.name).join(" › ");
+export const label = (n: CatNode) => n.name || n.desc || "פריט ללא תיאור";
+export const pathOf = (cat: CatNode[], n: CatNode) => [...ancestors(cat, n), n].map(label).join(" › ");
 
 export const showQtyOf = (cat: CatNode[], n: CatNode) => [n, ...ancestors(cat, n)].some((x) => x.showQty);
 
