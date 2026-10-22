@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   STATUS_LABEL, UNIT_LABEL, ancestors, calc, descendantIds, fdate, kids, leafCount, lineFrom, lineTotal,
-  label, money, optPrice, pathOf, qnum, todayIL, uid, waLink,
+  label, money, normalizeCat, optPrice, pathOf, qnum, todayIL, uid, waLink,
 } from "@/lib/quotes/calc";
 import type { AppData, CatNode, CatOption, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
 import QuoteDoc from "./QuoteDoc";
@@ -45,7 +45,7 @@ export default function AdminApp() {
 
   useEffect(() => {
     api("/api/admin/data", "GET")
-      .then((d) => setData(d))
+      .then((d) => setData({ ...d, cat: normalizeCat(d.cat) }))
       .catch(() => setLoadErr("לא הצלחתי לטעון את הנתונים. רענן את העמוד."));
   }, []);
 
@@ -123,7 +123,7 @@ export default function AdminApp() {
   const updCat = (fn: (cat: CatNode[]) => CatNode[]) => {
     setData((d) => {
       if (!d) return d;
-      const next = { ...d, cat: fn(structuredClone(d.cat)) };
+      const next = { ...d, cat: normalizeCat(fn(structuredClone(d.cat))) };
       dataRef.current = next;
       return next;
     });
@@ -436,6 +436,14 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash }: {
             <div key={i} className="nq-lg com"><span>{x.pro?.name} · {x.pct}%</span><span className="num">−{money(x.amount)}</span></div>
           ))}
           {c.pct >= 95 && <div className="hint" style={{ color: "var(--bad)" }}>סך העמלות גבוה מדי</div>}
+          <div className="nq-adj">
+            <label className="f">תוספת פנימית % <span className="hint">(לא מופיעה ללקוח)</span>
+              <input className="in num" type="number" inputMode="decimal" value={q.markup ?? 0} onChange={(e) => upd((x) => { x.markup = num(e.target.value); })} /></label>
+            <label className="f">הנחה ללקוח % <span className="hint">(מופיעה ב-PDF)</span>
+              <input className="in num" type="number" inputMode="decimal" value={q.discount ?? 0} onChange={(e) => upd((x) => { x.discount = num(e.target.value); })} /></label>
+          </div>
+          {c.markup > 0 && <div className="nq-lg"><span>תוספת פנימית</span><span className="num">+{money(c.markup)}</span></div>}
+          {c.discountPct > 0 && <div className="nq-lg"><span>הנחה {c.discountPct}% (מחיר לפני הנחה {money(c.list)})</span><span className="num">−{money(c.discount)}</span></div>}
           <label className="nq-chk"><input type="checkbox" checked={q.round} onChange={(e) => upd((x) => { x.round = e.target.checked; })} /> עיגול כלפי מעלה ל-{data.settings.roundTo} ₪</label>
           <div className="nq-lg sep"><span>ללקוח, לפני מע״מ</span><span className="num">{money(c.price)}</span></div>
           <div className="nq-lg"><span>מע״מ {data.settings.vat}%</span><span className="num">{money(c.vat)}</span></div>
@@ -475,12 +483,14 @@ function Crumbs({ cat, folder, onGo }: { cat: CatNode[]; folder: string; onGo: (
   );
 }
 
+const usable = (c: CatNode) => c.folder || !!c.desc || !!c.price;
+
 function Picker({ cat, onPick, onClose }: { cat: CatNode[]; onPick: (n: CatNode, o?: CatOption) => void; onClose: () => void }) {
   const [optFor, setOptFor] = useState<CatNode | null>(null);
   const [folder, setFolder] = useState("");
   const [term, setTerm] = useState("");
   const t = term.trim().toLowerCase();
-  const hits = t ? cat.filter((c) => !c.folder && `${pathOf(cat, c)} ${c.desc || ""} ${c.aliases || ""}`.toLowerCase().includes(t)) : [];
+  const hits = t ? cat.filter((c) => !c.folder && usable(c) && `${pathOf(cat, c)} ${c.desc || ""} ${c.aliases || ""}`.toLowerCase().includes(t)) : [];
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     addEventListener("keydown", onKey);
@@ -518,8 +528,8 @@ function Picker({ cat, onPick, onClose }: { cat: CatNode[]; onPick: (n: CatNode,
             </>
           ) : t
             ? hits.length ? hits.map((c) => leaf(c, true)) : <div className="nq-empty">לא נמצא פריט. אפשר להוסיף אותו במסך הקטלוג</div>
-            : kids(cat, folder).length
-              ? kids(cat, folder).map((c) => c.folder ? (
+            : kids(cat, folder).filter(usable).length
+              ? kids(cat, folder).filter(usable).map((c) => c.folder ? (
                   <button key={c.id} className="nq-pick fold" onClick={() => setFolder(c.id)}>
                     <span>{c.name} <small>· {leafCount(cat, c.id)} פריטים</small></span><span>‹</span>
                   </button>
@@ -585,108 +595,92 @@ function Preview({ data, q, onBack, flash, markSent }: { data: AppData; q: Quote
 }
 
 /* =================== catalog editor =================== */
+// One uniform tree, like V6: every item can get sub-items; price and description live on the last one.
 function CatalogView({ cat, upd }: { cat: CatNode[]; upd: (fn: (cat: CatNode[]) => CatNode[]) => void }) {
-  const [folder, setFolder] = useState("");
+  const [at, setAt] = useState("");
   const [confirm, setConfirm] = useState<string | null>(null);
-  const f = cat.find((c) => c.id === folder);
-  const inherited = f ? ancestors(cat, f).some((a) => a.showQty) : false;
+  const cur = cat.find((c) => c.id === at);
+  const inherited = cur ? ancestors(cat, cur).some((a) => a.showQty) : false;
   const set = (id: string, patch: Partial<CatNode>) =>
     upd((all) => all.map((c) => (c.id === id ? { ...c, ...patch } : c)));
-  const add = (isFolder: boolean) =>
-    upd((all) => [...all, isFolder
-      ? { id: uid(), parentId: folder, name: "תיקייה חדשה", folder: true }
-      : { id: uid(), parentId: folder, name: "", folder: false, unit: "u", price: 0, desc: "", aliases: "" }]);
+  const blank = (parentId: string, desc = ""): CatNode =>
+    ({ id: uid(), parentId, name: "", folder: false, unit: "u", price: 0, desc, aliases: "" });
+  const addHere = () => upd((all) => [...all, blank(at)]);
+  const addSub = (c: CatNode) => {
+    // The sub-item starts from its parent's description, so only the difference needs typing.
+    upd((all) => [...all, blank(c.id, c.desc ? c.desc + ", " : "")]);
+    setAt(c.id);
+  };
   const del = (id: string) => {
     const ids = new Set([id, ...descendantIds(cat, id)]);
     upd((all) => all.filter((c) => !ids.has(c.id)));
     setConfirm(null);
   };
-  const list = kids(cat, folder);
+  const list = kids(cat, at);
 
   return (
     <>
       <div className="nq-head">
-        <div><h1>קטלוג ומחירון</h1><div className="sub">תיקיות ותתי-פריטים. לכל פריט: שם קצר, מחיר, התיאור שייכתב בהצעה וכינויים. שינוי מחיר משפיע רק על הצעות חדשות</div></div>
+        <div>
+          <h1>קטלוג ומחירון</h1>
+          <div className="sub">כל פריט יכול לקבל תתי-פריטים בלי הגבלה. מחיר ותיאור ממלאים בפריט האחרון. שינוי מחיר משפיע רק על הצעות חדשות</div>
+        </div>
       </div>
       <section className="nq-card nq-stack">
-        <Crumbs cat={cat} folder={folder} onGo={setFolder} />
-        {f && (
+        <Crumbs cat={cat} folder={at} onGo={setAt} />
+        {cur && (
           <div className="nq-fields">
-            <label className="f">שם התיקייה<input className="in" value={f.name} onChange={(e) => set(f.id, { name: e.target.value })} /></label>
+            <label className="f">שם<input className="in" value={cur.name} onChange={(e) => set(cur.id, { name: e.target.value })} /></label>
             <label className="nq-chk">
-              <input type="checkbox" checked={!!f.showQty || inherited} disabled={inherited} onChange={(e) => set(f.id, { showQty: e.target.checked })} />
-              להציג ללקוח כמות לכל הפריטים בתיקייה{inherited ? " (נקבע בתיקייה מעליה)" : ""}
+              <input type="checkbox" checked={!!cur.showQty || inherited} disabled={inherited} onChange={(e) => set(cur.id, { showQty: e.target.checked })} />
+              להציג ללקוח כמות לכל מה שמתחת{inherited ? " (נקבע ברמה מעל)" : ""}
             </label>
           </div>
         )}
         <div className="nq-ctree">
-          {list.map((c) => c.folder ? (
-            <div key={c.id} className="nq-crow folder">
-              <input className="in" style={{ fontWeight: 700 }} value={c.name} onChange={(e) => set(c.id, { name: e.target.value })} aria-label="שם התיקייה" />
-              <div style={{ display: "flex", gap: 4 }}>
-                <button className="nq-btn sm" onClick={() => setFolder(c.id)}>פתח · {leafCount(cat, c.id)} ‹</button>
-                <button className="nq-btn sm ghost" onClick={() => setConfirm(c.id)} aria-label="מחק תיקייה">✕</button>
-              </div>
-              {confirm === c.id && (
-                <div className="nq-confirm" style={{ gridColumn: "1 / -1" }}>
-                  למחוק את &quot;{c.name}&quot; עם כל {leafCount(cat, c.id)} הפריטים שבה?
-                  <button className="nq-btn sm danger" onClick={() => del(c.id)}>כן, למחוק</button>
-                  <button className="nq-btn sm" onClick={() => setConfirm(null)}>ביטול</button>
+          {list.map((c) => {
+            const n = leafCount(cat, c.id);
+            return (
+              <div key={c.id} className={`nq-crow ${c.folder ? "folder" : ""}`}>
+                <div className="nq-cf">
+                  <label className="f name">{c.folder ? "שם" : "שם הפריט"}
+                    <input className="in" style={{ fontWeight: 700 }} value={c.name} placeholder="לדוגמה: שמפניה" onChange={(e) => set(c.id, { name: e.target.value })} /></label>
+                  {!c.folder && (
+                    <>
+                      <label className="f">מחיר ₪
+                        <input className="in num" type="number" inputMode="decimal" value={c.price ?? 0} onChange={(e) => set(c.id, { price: e.target.value === "" ? 0 : Number(e.target.value) })} /></label>
+                      <label className="f">יחידה
+                        <select className="in" value={c.unit || "u"} onChange={(e) => set(c.id, { unit: e.target.value as CatNode["unit"] })}>
+                          <option value="m">למטר</option><option value="u">ליחידה</option>
+                        </select></label>
+                      <label className="f wide">התיאור בהצעה (זה מה שהלקוח רואה)
+                        <textarea className="in" rows={2} value={c.desc || ""} placeholder="לדוגמה: גוף הארונות סנדוויץ' פרימיום בציפוי פורמייקה, צבע שמפניה" onChange={(e) => set(c.id, { desc: e.target.value })} /></label>
+                      <details className="wide" open={!!c.aliases || undefined}>
+                        <summary className="hint" style={{ cursor: "pointer" }}>כינויים לחיפוש (רשות)</summary>
+                        <input className="in" style={{ marginTop: 6 }} value={c.aliases || ""} placeholder="לדוגמה: מריבו, מריוו" onChange={(e) => set(c.id, { aliases: e.target.value })} />
+                      </details>
+                    </>
+                  )}
+                  <div className="wide nq-opt-add">
+                    {c.folder && <button className="nq-btn sm" onClick={() => setAt(c.id)}>פתח · {n} ‹</button>}
+                    <button className="nq-btn sm" onClick={() => addSub(c)}>+ תת-פריט</button>
+                  </div>
                 </div>
-              )}
-            </div>
-          ) : (
-            <div key={c.id} className="nq-crow">
-              <div className="nq-cf">
-                <label className="f name">התיאור בהצעה (זה מה שהלקוח רואה)
-                  <textarea className="in" rows={2} value={c.desc || ""} placeholder="לדוגמה: מגירת בלום, דגם מריוובוקס, צבע אוריון (גרפיט)" onChange={(e) => set(c.id, { desc: e.target.value })} /></label>
-                <label className="f">מחיר ₪
-                  <input className="in num" type="number" inputMode="decimal" value={c.price ?? 0} onChange={(e) => set(c.id, { price: e.target.value === "" ? 0 : Number(e.target.value) })} /></label>
-                <label className="f">יחידה
-                  <select className="in" value={c.unit || "u"} onChange={(e) => set(c.id, { unit: e.target.value as CatNode["unit"] })}>
-                    <option value="m">למטר</option><option value="u">ליחידה</option>
-                  </select></label>
-                <div className="wide nq-opts">
-                  <div className="nq-opts-h">
-                    <b>אפשרויות לבחירה</b>
-                    <span className="hint">למשל צבעים. בהצעה ייכתב: התיאור, ואחריו {c.optLabel ? `"${c.optLabel}" ו` : ""}האפשרות שנבחרה</span>
+                <button className="nq-btn sm ghost" onClick={() => (c.folder ? setConfirm(c.id) : del(c.id))} aria-label="מחק">✕</button>
+                {confirm === c.id && (
+                  <div className="nq-confirm" style={{ gridColumn: "1 / -1" }}>
+                    למחוק את &quot;{label(c)}&quot; עם כל {n} הפריטים שמתחתיו?
+                    <button className="nq-btn sm danger" onClick={() => del(c.id)}>כן, למחוק</button>
+                    <button className="nq-btn sm" onClick={() => setConfirm(null)}>ביטול</button>
                   </div>
-                  {(c.options || []).map((o, oi) => (
-                    <div key={o.id} className="nq-opt">
-                      <input className="in" value={o.name} placeholder="לדוגמה: שמפניה" aria-label="שם האפשרות"
-                        onChange={(e) => set(c.id, { options: (c.options || []).map((x, xi) => (xi === oi ? { ...x, name: e.target.value } : x)) })} />
-                      <input className="in num" type="number" inputMode="decimal" value={o.price ?? ""} placeholder={`₪ ${c.price || 0}`} aria-label="מחיר שונה (רשות)"
-                        onChange={(e) => set(c.id, { options: (c.options || []).map((x, xi) => (xi === oi ? { ...x, price: e.target.value === "" ? null : Number(e.target.value) } : x)) })} />
-                      <button className="nq-btn sm ghost" aria-label="מחק אפשרות" onClick={() => set(c.id, { options: (c.options || []).filter((_, xi) => xi !== oi) })}>✕</button>
-                    </div>
-                  ))}
-                  <div className="nq-opt-add">
-                    <button className="nq-btn sm" onClick={() => set(c.id, { options: [...(c.options || []), { id: uid(), name: "", price: null }] })}>+ אפשרות</button>
-                    {!!c.options?.length && (
-                      <label className="f" style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>מילה לפני האפשרות
-                        <input className="in" style={{ width: 110 }} value={c.optLabel || ""} placeholder="צבע" onChange={(e) => set(c.id, { optLabel: e.target.value })} /></label>
-                    )}
-                  </div>
-                  {!!c.options?.length && <div className="hint">מחיר ריק באפשרות = המחיר של הפריט</div>}
-                </div>
-                <details className="wide" open={!!(c.name || c.aliases) || undefined}>
-                  <summary className="hint" style={{ cursor: "pointer" }}>עוד אפשרויות (רשות): שם קצר וכינויים</summary>
-                  <div className="nq-fields" style={{ marginTop: 8 }}>
-                    <label className="f">שם קצר לרשימה (לא מופיע בהצעה)
-                      <input className="in" value={c.name} placeholder="לדוגמה: מריוובוקס" onChange={(e) => set(c.id, { name: e.target.value })} /></label>
-                    <label className="f">כינויים לחיפוש, מופרדים בפסיק
-                      <input className="in" value={c.aliases || ""} placeholder="לדוגמה: מריבו, מריוו" onChange={(e) => set(c.id, { aliases: e.target.value })} /></label>
-                  </div>
-                </details>
+                )}
               </div>
-              <button className="nq-btn sm ghost" onClick={() => del(c.id)} aria-label="מחק פריט">✕</button>
-            </div>
-          ))}
-          {!list.length && <div className="nq-empty">התיקייה ריקה. הוסף תת-תיקייה או פריט</div>}
+            );
+          })}
+          {!list.length && <div className="nq-empty">אין כאן פריטים עדיין</div>}
         </div>
         <div className="nq-adds">
-          <button className="nq-btn sm" onClick={() => add(true)}>+ תיקייה</button>
-          <button className="nq-btn sm pri" onClick={() => add(false)}>+ פריט</button>
+          <button className="nq-btn sm pri" onClick={addHere}>+ פריט{cur ? ` ב"${label(cur)}"` : " ראשי"}</button>
         </div>
       </section>
     </>

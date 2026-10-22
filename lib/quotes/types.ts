@@ -51,6 +51,10 @@ export type Quote = {
   lines: Line[];
   pros: QuotePro[];
   round: boolean;
+  /** Hidden markup % on the work cost */
+  markup?: number;
+  /** Discount % shown to the client */
+  discount?: number;
   delivery: string;
   notes: string;
   approvedBy?: string;

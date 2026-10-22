@@ -37,15 +37,21 @@ export const lineTotal = (l: Line) =>
 
 export function calc(q: Quote, settings: Settings, pros: Pro[]) {
   const base = q.lines.reduce((s, l) => s + lineTotal(l), 0);
+  // Hidden markup on top of the work cost; the client never sees it.
+  const markup = (base * (+q.markup! || 0)) / 100;
   const pct = q.pros.reduce((s, p) => s + (+p.pct || 0), 0);
-  // Commission is a share of what the client pays, so after paying it Erez keeps the base.
-  let price = pct < 95 ? base / (1 - pct / 100) : base;
+  // Commission is a share of what the client pays, so after paying it Erez keeps base + markup.
+  const listRaw = pct < 95 ? (base + markup) / (1 - pct / 100) : base + markup;
+  // Client discount is shown on the PDF and comes off the price.
+  const d = Math.min(Math.max(+q.discount! || 0, 0), 90);
+  let price = listRaw * (1 - d / 100);
   const step = +settings.roundTo || 0;
   if (q.round && step > 0) price = Math.ceil(price / step) * step;
+  const list = d ? price / (1 - d / 100) : price; // list price consistent with the rounded total
   const coms = q.pros.map((p) => ({ ...p, pro: pros.find((x) => x.id === p.proId), amount: (price * (+p.pct || 0)) / 100 }));
   const comTotal = coms.reduce((s, c) => s + c.amount, 0);
   const vat = (price * (+settings.vat || 0)) / 100;
-  return { base, pct, price, coms, comTotal, vat, total: price + vat, net: price - comTotal };
+  return { base, markup, pct, discountPct: d, list, discount: list - price, price, coms, comTotal, vat, total: price + vat, net: price - comTotal };
 }
 
 /* ---------- catalog tree ---------- */
@@ -89,6 +95,24 @@ export const lineFrom = (cat: CatNode[], n: CatNode, o?: CatOption): Line => {
     showQty: showQtyOf(cat, n),
   };
 };
+
+/** Keeps the tree uniform: an item is a "folder" exactly when it has sub-items.
+ *  Older catalogs stored colors as `options` on an item; those become sub-items. */
+export function normalizeCat(cat: CatNode[]): CatNode[] {
+  let out = [...cat];
+  for (const n of cat) {
+    if (!n.options?.length) continue;
+    const base = n.desc || n.name;
+    for (const o of n.options)
+      out.push({
+        id: o.id, parentId: n.id, name: o.name, folder: false, unit: n.unit, price: optPrice(n, o),
+        desc: [base, [n.optLabel?.trim(), o.name.trim()].filter(Boolean).join(" ")].filter(Boolean).join(", "),
+      });
+    out = out.map((x) => (x.id === n.id ? { ...x, options: undefined, optLabel: undefined } : x));
+  }
+  const parents = new Set(out.map((x) => x.parentId));
+  return out.map((x) => (x.folder === parents.has(x.id) ? x : { ...x, folder: parents.has(x.id) }));
+}
 
 export function descendantIds(cat: CatNode[], id: string): string[] {
   return kids(cat, id).flatMap((c) => [c.id, ...descendantIds(cat, c.id)]);

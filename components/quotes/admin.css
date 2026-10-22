@@ -184,3 +184,5 @@
 .nq-opts-h { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-size: 13px; }
 .nq-opt { display: grid; grid-template-columns: minmax(0, 1fr) 120px auto; gap: 8px; align-items: center; }
 .nq-opt-add { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.nq-adj { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
+.nq-adj .in { padding: 7px 9px; }
