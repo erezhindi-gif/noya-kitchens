@@ -1,0 +1,79 @@
+"use client";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { qnum } from "@/lib/quotes/calc";
+import type { Quote, Settings } from "@/lib/quotes/types";
+import DocFrame from "./DocFrame";
+import { downloadBlob, pdfName, quotePdf, sharePdf } from "./pdf";
+
+/** The client's view of their quote: the sheet, a PDF download and the approve form.
+ *  `quote` arrives already stripped of prices; the sheet itself is rendered on the server. */
+export default function ClientQuote({ quote: q, settings, doc }: { quote: Quote; settings: Settings; doc: React.ReactNode }) {
+  const router = useRouter();
+  const box = useRef<HTMLDivElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [name, setName] = useState("");
+  const [sending, setSending] = useState(false);
+  const [err, setErr] = useState("");
+  const approved = q.status === "approved";
+  const isPhone = typeof navigator !== "undefined" && /Android|iPhone|iPad/i.test(navigator.userAgent);
+
+  const onPdf = async () => {
+    const el = box.current?.querySelector(".nq-doc") as HTMLElement | null;
+    if (!el) return;
+    setBusy(true);
+    try {
+      const blob = await quotePdf(el);
+      const file = pdfName(qnum(q), q.client.name);
+      if (!(isPhone && (await sharePdf(blob, file)))) downloadBlob(blob, file);
+    } catch {
+      setErr("לא הצלחנו להכין את הקובץ. נסו שוב");
+    }
+    setBusy(false);
+  };
+
+  const approve = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSending(true);
+    setErr("");
+    const res = await fetch(`/api/q/${q.id}/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    }).catch(() => null);
+    setSending(false);
+    if (res?.ok) router.refresh();
+    else setErr("האישור לא נשלח. בדקו את החיבור ונסו שוב");
+  };
+
+  return (
+    <div className="nq">
+      <div className="nq-client-top">
+        <h1 style={{ fontSize: 20 }}>הצעת מחיר מנויה מטבחים</h1>
+        <div className="sub">לכבוד {q.client.name}</div>
+      </div>
+      <div className="nq-wrap">
+        <div className="nq-client-acts">
+          <button className="nq-btn" disabled={busy} onClick={onPdf}>{busy ? "מכין קובץ…" : "הורדת PDF"}</button>
+          <a className="nq-btn" href={`https://wa.me/972${settings.phone.replace(/\D/g, "").replace(/^0/, "")}`} target="_blank" rel="noopener">שאלה לארז בוואטסאפ</a>
+        </div>
+        <div ref={box}><DocFrame>{doc}</DocFrame></div>
+        <div className="nq-approve nq-card">
+          {approved ? (
+            <b style={{ color: "var(--ok)" }}>✓ ההצעה אושרה על ידי {q.approvedBy}. ארז יחזור אליכם לתיאום ההזמנה.</b>
+          ) : (
+            <form className="nq-stack" onSubmit={approve}>
+              <h2>אישור ההצעה</h2>
+              <div className="sub">אחרי האישור ארז יחזור אליכם לתיאום ההזמנה.</div>
+              <div className="row">
+                <input className="in" placeholder="שם מלא" value={name} onChange={(e) => setName(e.target.value)} aria-label="שם מלא" required minLength={2} />
+                <button className="nq-btn pri" disabled={sending || name.trim().length < 2}>{sending ? "שולח…" : "אני מאשר/ת את ההצעה"}</button>
+              </div>
+            </form>
+          )}
+          {err && <div className="nq-err" style={{ marginTop: 8 }}>{err}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
