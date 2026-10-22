@@ -136,7 +136,7 @@
 .nq-ctree { display: flex; flex-direction: column; gap: 8px; }
 .nq-crow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: start; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--surface-2); }
 .nq-crow.folder { background: #fff; align-items: center; }
-.nq-cf { display: grid; grid-template-columns: minmax(0, 1fr) 120px 100px; gap: 8px; }
+.nq-cf { display: grid; grid-template-columns: minmax(0, 1fr) 120px 110px; gap: 10px; align-items: end; }
 .nq-cf .wide { grid-column: 1 / -1; }
 @media (max-width: 560px) { .nq-cf { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .nq-cf .name { grid-column: 1 / -1; } }
 

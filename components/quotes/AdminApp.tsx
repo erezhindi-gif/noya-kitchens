@@ -625,13 +625,18 @@ function CatalogView({ cat, upd }: { cat: CatNode[]; upd: (fn: (cat: CatNode[]) 
           ) : (
             <div key={c.id} className="nq-crow">
               <div className="nq-cf">
-                <input className="in name" style={{ fontWeight: 700 }} value={c.name} placeholder="שם קצר, לדוגמה: מריוובוקס" onChange={(e) => set(c.id, { name: e.target.value })} aria-label="שם הפריט" />
-                <label style={{ display: "flex", alignItems: "center", gap: 4 }}>₪<input className="in num" type="number" inputMode="decimal" value={c.price ?? 0} onChange={(e) => set(c.id, { price: e.target.value === "" ? 0 : Number(e.target.value) })} aria-label="מחיר" /></label>
-                <select className="in" value={c.unit || "u"} onChange={(e) => set(c.id, { unit: e.target.value as CatNode["unit"] })} aria-label="יחידה">
-                  <option value="m">למטר</option><option value="u">ליחידה</option>
-                </select>
-                <textarea className="in wide" rows={2} value={c.desc || ""} placeholder="התיאור שייכתב בהצעה" onChange={(e) => set(c.id, { desc: e.target.value })} aria-label="תיאור בהצעה" />
-                <input className="in wide" value={c.aliases || ""} placeholder="כינויים: איך אתה קורא לזה בדיבור, מופרדים בפסיק" onChange={(e) => set(c.id, { aliases: e.target.value })} aria-label="כינויים" />
+                <label className="f name">שם הפריט (לחיפוש שלך, לא מופיע בהצעה)
+                  <input className="in" style={{ fontWeight: 700 }} value={c.name} placeholder="לדוגמה: מריוובוקס" onChange={(e) => set(c.id, { name: e.target.value })} /></label>
+                <label className="f">מחיר ₪
+                  <input className="in num" type="number" inputMode="decimal" value={c.price ?? 0} onChange={(e) => set(c.id, { price: e.target.value === "" ? 0 : Number(e.target.value) })} /></label>
+                <label className="f">יחידה
+                  <select className="in" value={c.unit || "u"} onChange={(e) => set(c.id, { unit: e.target.value as CatNode["unit"] })}>
+                    <option value="m">למטר</option><option value="u">ליחידה</option>
+                  </select></label>
+                <label className="f wide">התיאור בהצעה (רק זה נכתב ללקוח)
+                  <textarea className="in" rows={2} value={c.desc || ""} placeholder="לדוגמה: מגירת בלום, דגם מריוובוקס, צבע אוריון (גרפיט)" onChange={(e) => set(c.id, { desc: e.target.value })} /></label>
+                <label className="f wide">כינויים (רשות: איך אתה קורא לזה בדיבור, מופרדים בפסיק)
+                  <input className="in" value={c.aliases || ""} placeholder="לדוגמה: מריבו, מריוו" onChange={(e) => set(c.id, { aliases: e.target.value })} /></label>
               </div>
               <button className="nq-btn sm ghost" onClick={() => del(c.id)} aria-label="מחק פריט">✕</button>
             </div>
