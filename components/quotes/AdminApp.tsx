@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   STATUS_LABEL, UNIT_LABEL, ancestors, calc, descendantIds, fdate, kids, leafCount, lineFrom, lineTotal,
-  label, money, normalizeCat, optPrice, pathOf, qnum, todayIL, uid, waLink,
+  autoDesc, label, money, normalizeCat, optPrice, pathOf, tidyCat, qnum, todayIL, uid, waLink,
 } from "@/lib/quotes/calc";
 import type { AppData, CatNode, CatOption, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
 import QuoteDoc from "./QuoteDoc";
@@ -45,7 +45,7 @@ export default function AdminApp() {
 
   useEffect(() => {
     api("/api/admin/data", "GET")
-      .then((d) => setData({ ...d, cat: normalizeCat(d.cat) }))
+      .then((d) => setData({ ...d, cat: normalizeCat(tidyCat(d.cat)) }))
       .catch(() => setLoadErr("לא הצלחתי לטעון את הנתונים. רענן את העמוד."));
   }, []);
 
@@ -477,13 +477,13 @@ function Crumbs({ cat, folder, onGo }: { cat: CatNode[]; folder: string; onGo: (
     <div className="nq-crumbs">
       <button onClick={() => onGo("")}>כל הקטלוג</button>
       {trail.map((n) => (
-        <span key={n.id} style={{ display: "contents" }}><span>›</span><button onClick={() => onGo(n.id)}>{n.name}</button></span>
+        <span key={n.id} style={{ display: "contents" }}><span>›</span><button onClick={() => onGo(n.id)}>{label(n)}</button></span>
       ))}
     </div>
   );
 }
 
-const usable = (c: CatNode) => c.folder || !!c.desc || !!c.price;
+const usable = (c: CatNode) => c.folder || !!c.name.trim() || !!c.desc || !!c.price;
 
 function Picker({ cat, onPick, onClose }: { cat: CatNode[]; onPick: (n: CatNode, o?: CatOption) => void; onClose: () => void }) {
   const [optFor, setOptFor] = useState<CatNode | null>(null);
@@ -595,7 +595,7 @@ function Preview({ data, q, onBack, flash, markSent }: { data: AppData; q: Quote
 }
 
 /* =================== catalog editor =================== */
-// One uniform tree, like V6: every item can get sub-items; price and description live on the last one.
+// One uniform tree, like V6: every item has a name and can get sub-items; the last item gets a price.
 function CatalogView({ cat, upd }: { cat: CatNode[]; upd: (fn: (cat: CatNode[]) => CatNode[]) => void }) {
   const [at, setAt] = useState("");
   const [confirm, setConfirm] = useState<string | null>(null);
@@ -603,12 +603,9 @@ function CatalogView({ cat, upd }: { cat: CatNode[]; upd: (fn: (cat: CatNode[]) 
   const inherited = cur ? ancestors(cat, cur).some((a) => a.showQty) : false;
   const set = (id: string, patch: Partial<CatNode>) =>
     upd((all) => all.map((c) => (c.id === id ? { ...c, ...patch } : c)));
-  const blank = (parentId: string, desc = ""): CatNode =>
-    ({ id: uid(), parentId, name: "", folder: false, unit: "u", price: 0, desc, aliases: "" });
-  const addHere = () => upd((all) => [...all, blank(at)]);
+  const blank = (parentId: string): CatNode => ({ id: uid(), parentId, name: "", folder: false, unit: "u", price: 0, desc: "" });
   const addSub = (c: CatNode) => {
-    // The sub-item starts from its parent's description, so only the difference needs typing.
-    upd((all) => [...all, blank(c.id, c.desc ? c.desc + ", " : "")]);
+    upd((all) => [...all, blank(c.id)]);
     setAt(c.id);
   };
   const del = (id: string) => {
@@ -623,19 +620,16 @@ function CatalogView({ cat, upd }: { cat: CatNode[]; upd: (fn: (cat: CatNode[]) 
       <div className="nq-head">
         <div>
           <h1>קטלוג ומחירון</h1>
-          <div className="sub">כל פריט יכול לקבל תתי-פריטים בלי הגבלה. מחיר ותיאור ממלאים בפריט האחרון. שינוי מחיר משפיע רק על הצעות חדשות</div>
+          <div className="sub">לכל פריט יש שם, ואפשר להוסיף לו תתי-פריטים. מחיר מוסיפים רק בפריט האחרון</div>
         </div>
       </div>
       <section className="nq-card nq-stack">
         <Crumbs cat={cat} folder={at} onGo={setAt} />
         {cur && (
-          <div className="nq-fields">
-            <label className="f">שם<input className="in" value={cur.name} onChange={(e) => set(cur.id, { name: e.target.value })} /></label>
-            <label className="nq-chk">
-              <input type="checkbox" checked={!!cur.showQty || inherited} disabled={inherited} onChange={(e) => set(cur.id, { showQty: e.target.checked })} />
-              להציג ללקוח כמות לכל מה שמתחת{inherited ? " (נקבע ברמה מעל)" : ""}
-            </label>
-          </div>
+          <label className="nq-chk">
+            <input type="checkbox" checked={!!cur.showQty || inherited} disabled={inherited} onChange={(e) => set(cur.id, { showQty: e.target.checked })} />
+            להציג ללקוח כמות לכל מה שמתחת ל&quot;{label(cur)}&quot;{inherited ? " (נקבע ברמה מעל)" : ""}
+          </label>
         )}
         <div className="nq-ctree">
           {list.map((c) => {
@@ -643,8 +637,8 @@ function CatalogView({ cat, upd }: { cat: CatNode[]; upd: (fn: (cat: CatNode[]) 
             return (
               <div key={c.id} className={`nq-crow ${c.folder ? "folder" : ""}`}>
                 <div className="nq-cf">
-                  <label className="f name">{c.folder ? "שם" : "שם הפריט"}
-                    <input className="in" style={{ fontWeight: 700 }} value={c.name} placeholder="לדוגמה: שמפניה" onChange={(e) => set(c.id, { name: e.target.value })} /></label>
+                  <label className="f name">שם
+                    <input className="in" style={{ fontWeight: 700 }} value={c.name} placeholder="לדוגמה: סנדוויץ' פרימיום" onChange={(e) => set(c.id, { name: e.target.value })} /></label>
                   {!c.folder && (
                     <>
                       <label className="f">מחיר ₪
@@ -653,16 +647,14 @@ function CatalogView({ cat, upd }: { cat: CatNode[]; upd: (fn: (cat: CatNode[]) 
                         <select className="in" value={c.unit || "u"} onChange={(e) => set(c.id, { unit: e.target.value as CatNode["unit"] })}>
                           <option value="m">למטר</option><option value="u">ליחידה</option>
                         </select></label>
-                      <label className="f wide">התיאור בהצעה (זה מה שהלקוח רואה)
-                        <textarea className="in" rows={2} value={c.desc || ""} placeholder="לדוגמה: גוף הארונות סנדוויץ' פרימיום בציפוי פורמייקה, צבע שמפניה" onChange={(e) => set(c.id, { desc: e.target.value })} /></label>
-                      <details className="wide" open={!!c.aliases || undefined}>
-                        <summary className="hint" style={{ cursor: "pointer" }}>כינויים לחיפוש (רשות)</summary>
-                        <input className="in" style={{ marginTop: 6 }} value={c.aliases || ""} placeholder="לדוגמה: מריבו, מריוו" onChange={(e) => set(c.id, { aliases: e.target.value })} />
+                      <details className="wide" open={!!c.desc || undefined}>
+                        <summary className="hint" style={{ cursor: "pointer" }}>בהצעה ייכתב: &quot;{c.desc?.trim() || autoDesc(cat, c) || "…"}&quot; · לשינוי הניסוח</summary>
+                        <textarea className="in" style={{ marginTop: 6 }} rows={2} value={c.desc || ""} placeholder={autoDesc(cat, c)} onChange={(e) => set(c.id, { desc: e.target.value })} />
                       </details>
                     </>
                   )}
                   <div className="wide nq-opt-add">
-                    {c.folder && <button className="nq-btn sm" onClick={() => setAt(c.id)}>פתח · {n} ‹</button>}
+                    {c.folder && <button className="nq-btn sm pri" onClick={() => setAt(c.id)}>פתח · {n} ‹</button>}
                     <button className="nq-btn sm" onClick={() => addSub(c)}>+ תת-פריט</button>
                   </div>
                 </div>
@@ -680,7 +672,7 @@ function CatalogView({ cat, upd }: { cat: CatNode[]; upd: (fn: (cat: CatNode[]) 
           {!list.length && <div className="nq-empty">אין כאן פריטים עדיין</div>}
         </div>
         <div className="nq-adds">
-          <button className="nq-btn sm pri" onClick={addHere}>+ פריט{cur ? ` ב"${label(cur)}"` : " ראשי"}</button>
+          <button className="nq-btn sm" onClick={() => upd((all) => [...all, blank(at)])}>+ פריט{cur ? ` ב"${label(cur)}"` : " ראשי"}</button>
         </div>
       </section>
     </>

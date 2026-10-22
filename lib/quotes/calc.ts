@@ -72,6 +72,14 @@ export function ancestors(cat: CatNode[], n: CatNode) {
 export const label = (n: CatNode) => n.name || n.desc || "פריט ללא תיאור";
 export const pathOf = (cat: CatNode[], n: CatNode) => [...ancestors(cat, n), n].map(label).join(" › ");
 
+/** Quote text when the item has no custom description: its names down the tree. */
+export const autoDesc = (cat: CatNode[], n: CatNode) =>
+  [...ancestors(cat, n), n].map((x) => x.name.trim()).filter(Boolean).join(", ");
+
+/** One-time tidy on load: earlier versions could leave trailing ", , ," in descriptions. */
+export const tidyCat = (cat: CatNode[]) =>
+  cat.map((c) => (c.desc && /[,\s]+$/.test(c.desc) ? { ...c, desc: c.desc.replace(/[,\s]+$/, "") } : c));
+
 export const showQtyOf = (cat: CatNode[], n: CatNode) => [n, ...ancestors(cat, n)].some((x) => x.showQty);
 
 export const leafCount = (cat: CatNode[], id: string): number =>
@@ -81,7 +89,7 @@ export const optPrice = (n: CatNode, o?: CatOption) =>
   o && o.price != null && String(o.price) !== "" ? Number(o.price) : n.price || 0;
 
 export const lineFrom = (cat: CatNode[], n: CatNode, o?: CatOption): Line => {
-  const base = n.desc || n.name;
+  const base = n.desc?.trim() || autoDesc(cat, n);
   const opt = o ? [n.optLabel?.trim(), o.name.trim()].filter(Boolean).join(" ") : "";
   return {
     id: uid(),
