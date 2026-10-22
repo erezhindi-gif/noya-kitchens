@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   STATUS_LABEL, UNIT_LABEL, ancestors, calc, descendantIds, fdate, kids, leafCount, lineFrom, lineTotal,
-  autoDesc, label, money, normalizeCat, optPrice, pathOf, tidyCat, qnum, todayIL, uid, waLink,
+  autoDesc, label, money, priceOf, normalizeCat, optPrice, pathOf, tidyCat, qnum, todayIL, uid, waLink,
 } from "@/lib/quotes/calc";
 import type { AppData, CatNode, CatOption, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
 import QuoteDoc from "./QuoteDoc";
@@ -490,7 +490,7 @@ function Picker({ cat, onPick, onClose }: { cat: CatNode[]; onPick: (n: CatNode,
   const [folder, setFolder] = useState("");
   const [term, setTerm] = useState("");
   const t = term.trim().toLowerCase();
-  const hits = t ? cat.filter((c) => !c.folder && usable(c) && `${pathOf(cat, c)} ${c.desc || ""} ${c.aliases || ""}`.toLowerCase().includes(t)) : [];
+  const hits = t ? cat.filter((c) => (!c.folder || +(c.price || 0) > 0) && usable(c) && `${pathOf(cat, c)} ${c.desc || ""} ${c.aliases || ""}`.toLowerCase().includes(t)) : [];
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     addEventListener("keydown", onKey);
@@ -499,7 +499,7 @@ function Picker({ cat, onPick, onClose }: { cat: CatNode[]; onPick: (n: CatNode,
   const leaf = (c: CatNode, withPath: boolean) => (
     <button key={c.id} className="nq-pick" onClick={() => (c.options?.length ? setOptFor(c) : onPick(c))}>
       <span><b>{label(c)}</b>{(withPath || c.name) && <><br /><small>{withPath ? pathOf(cat, c) : c.desc}</small></>}</span>
-      <span className="pr num">{money(c.price || 0)} {c.unit === "m" ? "למטר" : "ליח'"}</span>
+      <span className="pr num">{money(priceOf(cat, c).price)} {priceOf(cat, c).unit === "m" ? "למטר" : "ליח'"}</span>
     </button>
   );
   return (
@@ -512,6 +512,9 @@ function Picker({ cat, onPick, onClose }: { cat: CatNode[]; onPick: (n: CatNode,
           </div>
           <input className="in" autoFocus placeholder="חיפוש בכל הקטלוג, גם לפי כינוי" value={term} onChange={(e) => setTerm(e.target.value)} />
           {!t && <Crumbs cat={cat} folder={folder} onGo={setFolder} />}
+          {!t && !optFor && (() => { const fn = cat.find((x) => x.id === folder); return fn && +(fn.price || 0) > 0 ? (
+            <button className="nq-btn sm pri" onClick={() => onPick(fn)}>+ הוסף את &quot;{label(fn)}&quot; עצמו · {money(fn.price || 0)}</button>
+          ) : null; })()}
         </div>
         <div className="nq-sheet-list">
           {optFor ? (
@@ -620,7 +623,7 @@ function CatalogView({ cat, upd }: { cat: CatNode[]; upd: (fn: (cat: CatNode[]) 
       <div className="nq-head">
         <div>
           <h1>קטלוג ומחירון</h1>
-          <div className="sub">לכל פריט יש שם, ואפשר להוסיף לו תתי-פריטים. מחיר מוסיפים רק בפריט האחרון</div>
+          <div className="sub">לכל פריט יש שם, ואפשר להוסיף לו תתי-פריטים. מחיר שמים באיזו רמה שרוצים, ותת-פריט בלי מחיר יורש את המחיר מעליו</div>
         </div>
       </div>
       <section className="nq-card nq-stack">
@@ -639,10 +642,14 @@ function CatalogView({ cat, upd }: { cat: CatNode[]; upd: (fn: (cat: CatNode[]) 
                 <div className="nq-cf">
                   <label className="f name">שם
                     <input className="in" style={{ fontWeight: 700 }} value={c.name} placeholder="לדוגמה: סנדוויץ' פרימיום" onChange={(e) => set(c.id, { name: e.target.value })} /></label>
-                  {!c.folder && (
+                  {(() => {
+                    const inh = priceOf(cat, c);
+                    return (
                     <>
-                      <label className="f">מחיר ₪
-                        <input className="in num" type="number" inputMode="decimal" value={c.price ?? 0} onChange={(e) => set(c.id, { price: e.target.value === "" ? 0 : Number(e.target.value) })} /></label>
+                      <label className="f">מחיר ₪ {inh.from && <span className="hint">(ירש מלמעלה)</span>}
+                        <input className="in num" type="number" inputMode="decimal" value={c.price ? c.price : ""}
+                          placeholder={inh.from ? String(inh.price) : c.folder ? "רשות" : "0"}
+                          onChange={(e) => set(c.id, { price: e.target.value === "" ? 0 : Number(e.target.value) })} /></label>
                       <label className="f">יחידה
                         <select className="in" value={c.unit || "u"} onChange={(e) => set(c.id, { unit: e.target.value as CatNode["unit"] })}>
                           <option value="m">למטר</option><option value="u">ליחידה</option>
@@ -652,7 +659,8 @@ function CatalogView({ cat, upd }: { cat: CatNode[]; upd: (fn: (cat: CatNode[]) 
                         <textarea className="in" style={{ marginTop: 6 }} rows={2} value={c.desc || ""} placeholder={autoDesc(cat, c)} onChange={(e) => set(c.id, { desc: e.target.value })} />
                       </details>
                     </>
-                  )}
+                    );
+                  })()}
                   <div className="wide nq-opt-add">
                     {c.folder && <button className="nq-btn sm pri" onClick={() => setAt(c.id)}>פתח · {n} ‹</button>}
                     <button className="nq-btn sm" onClick={() => addSub(c)}>+ תת-פריט</button>

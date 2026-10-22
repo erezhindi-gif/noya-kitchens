@@ -72,6 +72,13 @@ export function ancestors(cat: CatNode[], n: CatNode) {
 export const label = (n: CatNode) => n.name || n.desc || "פריט ללא תיאור";
 export const pathOf = (cat: CatNode[], n: CatNode) => [...ancestors(cat, n), n].map(label).join(" › ");
 
+/** Price can sit at any level; an item without its own price takes the nearest one above it. */
+export function priceOf(cat: CatNode[], n: CatNode): { price: number; unit: CatNode["unit"]; from?: CatNode } {
+  for (const x of [n, ...ancestors(cat, n).reverse()])
+    if (+(x.price || 0) > 0) return { price: +x.price!, unit: x.unit || "u", from: x === n ? undefined : x };
+  return { price: 0, unit: n.unit || "u" };
+}
+
 /** Quote text when the item has no custom description: its names down the tree. */
 export const autoDesc = (cat: CatNode[], n: CatNode) =>
   [...ancestors(cat, n), n].map((x) => x.name.trim()).filter(Boolean).join(", ");
@@ -91,14 +98,15 @@ export const optPrice = (n: CatNode, o?: CatOption) =>
 export const lineFrom = (cat: CatNode[], n: CatNode, o?: CatOption): Line => {
   const base = n.desc?.trim() || autoDesc(cat, n);
   const opt = o ? [n.optLabel?.trim(), o.name.trim()].filter(Boolean).join(" ") : "";
+  const p = priceOf(cat, n);
   return {
     id: uid(),
     type: "cat",
     catId: n.id,
     path: pathOf(cat, n) + (o ? ` › ${o.name}` : ""),
-    unit: n.unit || "u",
+    unit: o ? n.unit || "u" : p.unit,
     qty: 1,
-    price: optPrice(n, o),
+    price: o ? optPrice(n, o) : p.price,
     desc: opt ? `${base}, ${opt}` : base,
     showQty: showQtyOf(cat, n),
   };
