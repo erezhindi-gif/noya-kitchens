@@ -2,9 +2,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   STATUS_LABEL, UNIT_LABEL, ancestors, calc, descendantIds, fdate, kids, leafCount, lineFrom, lineTotal,
-  label, money, pathOf, qnum, todayIL, uid, waLink,
+  label, money, optPrice, pathOf, qnum, todayIL, uid, waLink,
 } from "@/lib/quotes/calc";
-import type { AppData, CatNode, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
+import type { AppData, CatNode, CatOption, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
 import QuoteDoc from "./QuoteDoc";
 import DocFrame from "./DocFrame";
 import { downloadBlob, pdfName, quotePdf, sharePdf } from "./pdf";
@@ -455,7 +455,7 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash }: {
 
       {picker && (
         <Picker cat={data.cat} onClose={() => setPicker(false)}
-          onPick={(n) => { upd((x) => { x.lines.push(lineFrom(data.cat, n)); }); flash("נוסף לרשימה"); setPicker(false); }} />
+          onPick={(n, o) => { upd((x) => { x.lines.push(lineFrom(data.cat, n, o)); }); flash("נוסף לרשימה"); setPicker(false); }} />
       )}
     </>
   );
@@ -475,7 +475,8 @@ function Crumbs({ cat, folder, onGo }: { cat: CatNode[]; folder: string; onGo: (
   );
 }
 
-function Picker({ cat, onPick, onClose }: { cat: CatNode[]; onPick: (n: CatNode) => void; onClose: () => void }) {
+function Picker({ cat, onPick, onClose }: { cat: CatNode[]; onPick: (n: CatNode, o?: CatOption) => void; onClose: () => void }) {
+  const [optFor, setOptFor] = useState<CatNode | null>(null);
   const [folder, setFolder] = useState("");
   const [term, setTerm] = useState("");
   const t = term.trim().toLowerCase();
@@ -486,7 +487,7 @@ function Picker({ cat, onPick, onClose }: { cat: CatNode[]; onPick: (n: CatNode)
     return () => removeEventListener("keydown", onKey);
   }, [onClose]);
   const leaf = (c: CatNode, withPath: boolean) => (
-    <button key={c.id} className="nq-pick" onClick={() => onPick(c)}>
+    <button key={c.id} className="nq-pick" onClick={() => (c.options?.length ? setOptFor(c) : onPick(c))}>
       <span><b>{label(c)}</b>{(withPath || c.name) && <><br /><small>{withPath ? pathOf(cat, c) : c.desc}</small></>}</span>
       <span className="pr num">{money(c.price || 0)} {c.unit === "m" ? "למטר" : "ליח'"}</span>
     </button>
@@ -503,7 +504,19 @@ function Picker({ cat, onPick, onClose }: { cat: CatNode[]; onPick: (n: CatNode)
           {!t && <Crumbs cat={cat} folder={folder} onGo={setFolder} />}
         </div>
         <div className="nq-sheet-list">
-          {t
+          {optFor ? (
+            <>
+              <button className="nq-btn sm ghost" onClick={() => setOptFor(null)}>→ חזרה</button>
+              <div style={{ padding: "8px 10px" }}><b>{label(optFor)}</b><div className="hint">בחר {optFor.optLabel || "אפשרות"}:</div></div>
+              {optFor.options!.map((o) => (
+                <button key={o.id} className="nq-pick" onClick={() => onPick(optFor, o)}>
+                  <span><b>{o.name || "ללא שם"}</b></span>
+                  <span className="pr num">{money(optPrice(optFor, o))} {optFor.unit === "m" ? "למטר" : "ליח'"}</span>
+                </button>
+              ))}
+              <button className="nq-pick" onClick={() => onPick(optFor)}><span className="hint">בלי לבחור אפשרות</span><span /></button>
+            </>
+          ) : t
             ? hits.length ? hits.map((c) => leaf(c, true)) : <div className="nq-empty">לא נמצא פריט. אפשר להוסיף אותו במסך הקטלוג</div>
             : kids(cat, folder).length
               ? kids(cat, folder).map((c) => c.folder ? (
@@ -633,6 +646,29 @@ function CatalogView({ cat, upd }: { cat: CatNode[]; upd: (fn: (cat: CatNode[]) 
                   <select className="in" value={c.unit || "u"} onChange={(e) => set(c.id, { unit: e.target.value as CatNode["unit"] })}>
                     <option value="m">למטר</option><option value="u">ליחידה</option>
                   </select></label>
+                <div className="wide nq-opts">
+                  <div className="nq-opts-h">
+                    <b>אפשרויות לבחירה</b>
+                    <span className="hint">למשל צבעים. בהצעה ייכתב: התיאור, ואחריו {c.optLabel ? `"${c.optLabel}" ו` : ""}האפשרות שנבחרה</span>
+                  </div>
+                  {(c.options || []).map((o, oi) => (
+                    <div key={o.id} className="nq-opt">
+                      <input className="in" value={o.name} placeholder="לדוגמה: שמפניה" aria-label="שם האפשרות"
+                        onChange={(e) => set(c.id, { options: (c.options || []).map((x, xi) => (xi === oi ? { ...x, name: e.target.value } : x)) })} />
+                      <input className="in num" type="number" inputMode="decimal" value={o.price ?? ""} placeholder={`₪ ${c.price || 0}`} aria-label="מחיר שונה (רשות)"
+                        onChange={(e) => set(c.id, { options: (c.options || []).map((x, xi) => (xi === oi ? { ...x, price: e.target.value === "" ? null : Number(e.target.value) } : x)) })} />
+                      <button className="nq-btn sm ghost" aria-label="מחק אפשרות" onClick={() => set(c.id, { options: (c.options || []).filter((_, xi) => xi !== oi) })}>✕</button>
+                    </div>
+                  ))}
+                  <div className="nq-opt-add">
+                    <button className="nq-btn sm" onClick={() => set(c.id, { options: [...(c.options || []), { id: uid(), name: "", price: null }] })}>+ אפשרות</button>
+                    {!!c.options?.length && (
+                      <label className="f" style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>מילה לפני האפשרות
+                        <input className="in" style={{ width: 110 }} value={c.optLabel || ""} placeholder="צבע" onChange={(e) => set(c.id, { optLabel: e.target.value })} /></label>
+                    )}
+                  </div>
+                  {!!c.options?.length && <div className="hint">מחיר ריק באפשרות = המחיר של הפריט</div>}
+                </div>
                 <details className="wide" open={!!(c.name || c.aliases) || undefined}>
                   <summary className="hint" style={{ cursor: "pointer" }}>עוד אפשרויות (רשות): שם קצר וכינויים</summary>
                   <div className="nq-fields" style={{ marginTop: 8 }}>

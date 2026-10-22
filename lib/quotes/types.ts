@@ -12,9 +12,15 @@ export type CatNode = {
   desc?: string;
   /** How Erez calls it out loud — used by search (and later by the agent) */
   aliases?: string;
+  /** Choices picked when the item is added, e.g. colors. Empty price = the item's price. */
+  options?: CatOption[];
+  /** Word written before the chosen option, e.g. "צבע" → "…, צבע שמפניה" */
+  optLabel?: string;
   /** Folder flag: items under it show their quantity to the client */
   showQty?: boolean;
 };
+
+export type CatOption = { id: string; name: string; price?: number | null };
 
 export type LineType = "cat" | "free" | "lump" | "text" | "head";
 

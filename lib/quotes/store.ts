@@ -114,7 +114,7 @@ export async function deleteQuote(id: string) {
 }
 
 export async function putCatalog(nodes: CatNode[]) {
-  if (sanity) return void (await sanity.createOrReplace({ _id: ID.catalog, _type: "nq_catalog", nodes: withKeys(nodes) }));
+  if (sanity) return void (await sanity.createOrReplace({ _id: ID.catalog, _type: "nq_catalog", nodes: withKeys(nodes.map((n) => (n.options ? { ...n, options: withKeys(n.options) } : n))) }));
   const d = await readFile();
   d.cat = nodes;
   await writeFile(d);

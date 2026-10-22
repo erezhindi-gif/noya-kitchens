@@ -1,4 +1,4 @@
-import type { CatNode, Line, Pro, Quote, Settings } from "./types";
+import type { CatNode, CatOption, Line, Pro, Quote, Settings } from "./types";
 
 export const STATUS_LABEL: Record<Quote["status"], string> = {
   draft: "טיוטה",
@@ -71,17 +71,24 @@ export const showQtyOf = (cat: CatNode[], n: CatNode) => [n, ...ancestors(cat, n
 export const leafCount = (cat: CatNode[], id: string): number =>
   kids(cat, id).reduce((s, c) => s + (c.folder ? leafCount(cat, c.id) : 1), 0);
 
-export const lineFrom = (cat: CatNode[], n: CatNode): Line => ({
-  id: uid(),
-  type: "cat",
-  catId: n.id,
-  path: pathOf(cat, n),
-  unit: n.unit || "u",
-  qty: 1,
-  price: n.price || 0,
-  desc: n.desc || n.name,
-  showQty: showQtyOf(cat, n),
-});
+export const optPrice = (n: CatNode, o?: CatOption) =>
+  o && o.price != null && String(o.price) !== "" ? Number(o.price) : n.price || 0;
+
+export const lineFrom = (cat: CatNode[], n: CatNode, o?: CatOption): Line => {
+  const base = n.desc || n.name;
+  const opt = o ? [n.optLabel?.trim(), o.name.trim()].filter(Boolean).join(" ") : "";
+  return {
+    id: uid(),
+    type: "cat",
+    catId: n.id,
+    path: pathOf(cat, n) + (o ? ` › ${o.name}` : ""),
+    unit: n.unit || "u",
+    qty: 1,
+    price: optPrice(n, o),
+    desc: opt ? `${base}, ${opt}` : base,
+    showQty: showQtyOf(cat, n),
+  };
+};
 
 export function descendantIds(cat: CatNode[], id: string): string[] {
   return kids(cat, id).flatMap((c) => [c.id, ...descendantIds(cat, c.id)]);
