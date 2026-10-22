@@ -186,3 +186,18 @@
 .nq-opt-add { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .nq-adj { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
 .nq-adj .in { padding: 7px 9px; }
+
+/* V6-style catalog + picker */
+.nq-modal { padding: 20px 22px 22px; gap: 12px; position: relative; overflow-y: auto; }
+.nq-modal h2 { font-size: 18px; }
+.nq-x { position: absolute; top: 14px; left: 14px; width: 34px; height: 34px; padding: 0; background: var(--gold-soft); border-color: transparent; }
+.nq-lvl { display: flex; flex-direction: column; gap: 6px; font-weight: 700; font-size: 14px; }
+.nq-chosen { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+.nq-trail { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.nq-items { display: flex; flex-direction: column; gap: 10px; }
+.nq-item { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.nq-item-name { background: none; border: 0; padding: 0; text-align: right; font-size: 16px; color: var(--ink); align-self: flex-start; }
+.nq-item-name:hover b { color: var(--gold-ink); text-decoration: underline; }
+.nq-item-desc { font-size: 13.5px; color: var(--muted); }
+.nq-item-acts { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.nq-btn.danger { background: var(--bad-bg); border-color: transparent; }

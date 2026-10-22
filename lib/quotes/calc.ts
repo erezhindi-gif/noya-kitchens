@@ -96,7 +96,7 @@ export const optPrice = (n: CatNode, o?: CatOption) =>
   o && o.price != null && String(o.price) !== "" ? Number(o.price) : n.price || 0;
 
 export const lineFrom = (cat: CatNode[], n: CatNode, o?: CatOption): Line => {
-  const base = n.desc?.trim() || autoDesc(cat, n);
+  const base = n.desc?.trim() || n.name.trim();
   const opt = o ? [n.optLabel?.trim(), o.name.trim()].filter(Boolean).join(" ") : "";
   const p = priceOf(cat, n);
   return {
