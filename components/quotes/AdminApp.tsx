@@ -398,10 +398,20 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash }: {
                               onChange={(e) => upd((x) => { const y = x.lines.find((z) => z.id === l.id); if (y?.parts) y.parts[pi].price = num(e.target.value); })} />
                             <span>₪</span>
                             <span className="st num">{money((+pt.qty || 0) * (+pt.price || 0))}</span>
+                            <label className="nq-chk" style={{ padding: 0 }}>
+                              <input type="checkbox" checked={pt.showQty ?? (!!l.showQty && pi === l.parts!.length - 1)}
+                                onChange={(e) => upd((x) => {
+                                  const y = x.lines.find((z) => z.id === l.id);
+                                  if (!y?.parts) return;
+                                  // first tick on an older line: fix every component's state explicitly
+                                  y.parts.forEach((p, k) => { if (p.showQty === undefined) p.showQty = !!y.showQty && k === y.parts!.length - 1; });
+                                  y.parts[pi].showQty = e.target.checked;
+                                  y.showQty = y.parts.some((p) => p.showQty);
+                                })} /> כמות ללקוח
+                            </label>
                           </div>
                         ))}
                         <div className="nums">
-                          <label className="nq-chk" style={{ padding: 0 }}><input type="checkbox" checked={!!l.showQty} onChange={(e) => setLine(l.id, { showQty: e.target.checked })} /> כמות ללקוח</label>
                           <span className="lt num">{money(lineTotal(l))}</span>
                         </div>
                       </div>

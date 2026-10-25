@@ -40,7 +40,7 @@ export type Line = {
   parts?: LinePart[];
 };
 
-export type LinePart = { id: string; name: string; unit: Unit; price: number; qty: number };
+export type LinePart = { id: string; name: string; unit: Unit; price: number; qty: number; /** show this quantity to the client */ showQty?: boolean };
 
 /** Hidden commission: just a % and an optional note for Erez */
 export type Commission = { name: string; pct: number };

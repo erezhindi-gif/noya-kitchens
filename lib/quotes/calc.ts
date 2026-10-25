@@ -39,8 +39,14 @@ export const lineTotal = (l: Line) =>
       ? l.parts.reduce((s, p) => s + (+p.qty || 0) * (+p.price || 0), 0)
       : l.type === "lump" ? +l.price || 0 : (+l.qty || 0) * (+l.price || 0);
 
-/** Quantity shown to the client: the deepest component's (e.g. number of drawers). */
-export const shownQty = (l: Line) => (l.parts?.length ? +l.parts[l.parts.length - 1].qty : +l.qty);
+/** Quantity shown to the client. Each component has its own "show" tick; several ticked ones read "4 / 3".
+ *  Lines saved before per-component ticks fall back to the line's tick and the deepest component. */
+export function shownQty(l: Line): string {
+  if (!l.parts?.length) return l.showQty ? String(+l.qty) : "";
+  const perPart = l.parts.some((p) => p.showQty !== undefined);
+  if (!perPart) return l.showQty ? String(+l.parts[l.parts.length - 1].qty) : "";
+  return l.parts.filter((p) => p.showQty).map((p) => String(+p.qty)).join(" / ");
+}
 
 /** The quote's hidden commissions. Older quotes kept them as professionals picked from a list. */
 export const commissionsOf = (q: Quote, pros: Pro[]): Commission[] =>
@@ -137,7 +143,7 @@ export const lineFrom = (cat: CatNode[], n: CatNode, o?: CatOption): Line => {
     ? []
     : [...ancestors(cat, n), n]
         .filter((x) => +(x.price || 0) > 0)
-        .map((x) => ({ id: uid(), name: x.name.trim() || label(x), unit: x.unit || "u", price: +x.price!, qty: 1 }));
+        .map((x) => ({ id: uid(), name: x.name.trim() || label(x), unit: x.unit || "u", price: +x.price!, qty: 1, showQty: showQtyOf(cat, x) }));
   return {
     id: uid(),
     type: "cat",
@@ -147,7 +153,7 @@ export const lineFrom = (cat: CatNode[], n: CatNode, o?: CatOption): Line => {
     qty: 1,
     price: o ? optPrice(n, o) : p.price,
     desc: opt ? `${base}, ${opt}` : base,
-    showQty: showQtyOf(cat, n),
+    showQty: parts.length ? parts.some((p) => p.showQty) : showQtyOf(cat, n),
     ...(parts.length ? { parts } : {}),
   };
 };

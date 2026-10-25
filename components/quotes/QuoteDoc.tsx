@@ -60,7 +60,7 @@ export default function QuoteDoc({ quote: q, settings: st, pros = [] }: { quote:
               ) : (
                 <tr key={l.id} data-pb>
                   <td>{l.desc}</td>
-                  <td className="nq-q">{l.showQty ? shownQty(l) : ""}</td>
+                  <td className="nq-q">{shownQty(l)}</td>
                 </tr>
               )
             )}
