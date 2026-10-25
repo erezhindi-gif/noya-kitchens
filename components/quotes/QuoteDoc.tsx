@@ -16,7 +16,9 @@ export default function QuoteDoc({ quote: q, settings: st, pros = [] }: { quote:
 
       <header className="nq-d-head" data-pb>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="nq-d-logo" src="/images/quote-logo.png" alt="NOYA Kitchens by Erez Hindi" />
+        <div className="nq-d-band">
+          <img className="nq-d-logo" src="/images/quote-logo.png" alt="NOYA Kitchens by Erez Hindi" />
+        </div>
         <h1>הצעת מחיר</h1>
         <div className="nq-d-biz">
           <b>{st.biz}</b>
