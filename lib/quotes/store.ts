@@ -106,6 +106,14 @@ export async function getQuote(id: string): Promise<{ quote: Quote; settings: Se
 }
 
 export async function putQuote(q: Quote) {
+  // A save from a screen that loaded the quote before the client approved it must not wipe the
+  // approval. Erez can still change the status himself once his screen shows the approval.
+  const existing = (await getQuote(q.id).catch(() => null))?.quote;
+  if (existing?.approvedBy && !q.approvedBy) {
+    q.status = existing.status;
+    q.approvedBy = existing.approvedBy;
+    q.approvedAt = existing.approvedAt;
+  }
   q.updatedAt = new Date().toISOString();
   if (sanity) return void (await sanity.createOrReplace(quoteDoc(q)));
   const d = await readFile();
@@ -172,13 +180,14 @@ export async function approveQuote(id: string, name: string): Promise<Quote | nu
   const q = found.quote;
   if (q.status === "approved") return q;
   const approvedAt = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem" }).format(new Date());
+  const updatedAt = new Date().toISOString(); // newer than any copy Erez's browser still holds
   if (sanity) {
-    await sanity.patch(ID.quote(id)).set({ status: "approved", approvedBy: name, approvedAt }).commit();
+    await sanity.patch(ID.quote(id)).set({ status: "approved", approvedBy: name, approvedAt, updatedAt }).commit();
   } else {
     const d = await readFile();
     const x = d.quotes.find((y) => y.id === id)!;
-    Object.assign(x, { status: "approved", approvedBy: name, approvedAt });
+    Object.assign(x, { status: "approved", approvedBy: name, approvedAt, updatedAt });
     await writeFile(d);
   }
-  return { ...q, status: "approved", approvedBy: name, approvedAt };
+  return { ...q, status: "approved", approvedBy: name, approvedAt, updatedAt };
 }
