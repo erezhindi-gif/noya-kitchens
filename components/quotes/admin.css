@@ -14,7 +14,7 @@
 .nq .num { font-variant-numeric: tabular-nums; }
 .nq .ltr { direction: ltr; unicode-bidi: isolate; }
 
-.nq-top { position: sticky; top: 0; z-index: 20; background: rgba(255,255,255,.96); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
+.nq-top { position: sticky; top: 0; z-index: 20; background: rgba(255,255,255,.96); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); padding-top: env(safe-area-inset-top); }
 .nq-top-in { max-width: 1180px; margin: 0 auto; display: flex; align-items: center; gap: 14px; padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left)); }
 .nq-top img { height: 38px; width: auto; border-radius: 8px; }
 .nq-tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
@@ -174,7 +174,7 @@
 .nq-confirm { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: var(--bad-bg); color: var(--bad); padding: 8px 12px; border-radius: 10px; font-size: 13px; }
 
 /* login */
-.nq-login { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+.nq-login { min-height: 100vh; display: grid; place-items: center; padding: max(16px, env(safe-area-inset-top)) 16px 16px; }
 .nq-login form { width: min(380px, 100%); display: flex; flex-direction: column; gap: 12px; text-align: center; }
 .nq-login img { width: 180px; margin: 0 auto 6px; border-radius: 16px; border: 1px solid var(--line); }
 .nq-err { color: var(--bad); font-size: 13px; }
@@ -219,3 +219,7 @@
 .nq-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; background: #fff; }
 .nq-seg button { border: 0; background: none; padding: 5px 12px; border-radius: 999px; font-weight: 700; color: var(--muted); }
 .nq-seg button[aria-pressed="true"] { background: var(--gold); color: #fff; }
+
+/* The site's accessibility button covers the editor's bottom bar on phones; the admin is Erez's
+   private tool, so it is hidden there (it stays on every public page, including the client's quote). */
+body:has(.nq-admin) [aria-label="פתח תפריט נגישות"] { display: none; }

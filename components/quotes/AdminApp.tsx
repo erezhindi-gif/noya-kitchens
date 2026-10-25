@@ -257,7 +257,7 @@ export default function AdminApp() {
   const tab = view === "catalog" || view === "settings" ? view : "list";
 
   return (
-    <div className="nq">
+    <div className="nq nq-admin">
       <header className="nq-top">
         <div className="nq-top-in">
           {/* eslint-disable-next-line @next/next/no-img-element */}
