@@ -59,14 +59,20 @@ export function calc(q: Quote, settings: Settings, pros: Pro[]) {
   const markup = (base * (+q.markup! || 0)) / 100;
   const comList = commissionsOf(q, pros);
   const pct = comList.reduce((s, p) => s + (+p.pct || 0), 0);
-  // Commission is a share of what the client pays, so after paying it Erez keeps base + markup.
-  const listRaw = pct < 95 ? (base + markup) / (1 - pct / 100) : base + markup;
+  // Commissions stack: the first is a % of the cost, the second a % of cost + first commission.
+  let running = base + markup;
+  const comAmounts = comList.map((p) => {
+    const amount = (running * (+p.pct || 0)) / 100;
+    running += amount;
+    return amount;
+  });
+  const listRaw = running;
   // Client discount is shown on the PDF and comes off the price.
   const d = Math.min(Math.max(+q.discount! || 0, 0), 90);
   // Price before VAT rounds up to the next ten shekels (6,058.82 → 6,060), as in V6.
   const price = Math.ceil(Math.round(listRaw * (1 - d / 100) * 100) / 100 / 10) * 10;
   const list = d ? price / (1 - d / 100) : price; // list price consistent with the rounded total
-  const coms = comList.map((p) => ({ ...p, amount: (price * (+p.pct || 0)) / 100 }));
+  const coms = comList.map((p, i) => ({ ...p, amount: comAmounts[i] }));
   const comTotal = coms.reduce((s, c) => s + c.amount, 0);
   const vat = Math.round((price * (+settings.vat || 0)) / 100);
   return { base, markup, pct, discountPct: d, list, discount: list - price, price, coms, comTotal, vat, total: price + vat, net: price - comTotal };
