@@ -31,6 +31,12 @@ export async function quotePdf(docEl: HTMLElement): Promise<Blob> {
       const e = clone.querySelector(sel);
       return e ? e.getBoundingClientRect().bottom - top0 : 0;
     };
+    // Top-level blocks of the sheet (header, info, one box per part, summary…), so a part that
+    // doesn't fit in what's left of a page moves whole to the next page instead of splitting.
+    const blocks = Array.from(clone.children).map((e) => {
+      const r = e.getBoundingClientRect();
+      return { top: r.top - top0, bottom: r.bottom - top0 };
+    }).filter((b) => b.bottom > b.top);
     const bounds = Array.from(clone.querySelectorAll("[data-pb]"))
       .map((e) => e.getBoundingClientRect().bottom - top0)
       .sort((a, b) => a - b);
@@ -69,8 +75,16 @@ export async function quotePdf(docEl: HTMLElement): Promise<Blob> {
       let from = 0;
       for (let room = roomFirst; ; room = roomNext) {
         if (total - from <= room) { ranges.push([from, total]); break; }
-        const fits = bounds.filter((b) => b > from + 80 && b <= from + room);
-        const to = fits.length ? fits[fits.length - 1] : from + room;
+        const limit = from + room;
+        const cut = blocks.find((b) => b.top < limit && b.bottom > limit); // the block the page edge falls in
+        let to: number;
+        if (cut && cut.top > from + 80 && cut.bottom - cut.top <= roomNext) {
+          to = cut.top; // start that block on the next page
+        } else {
+          // the block is longer than a page (or there's no block edge): break between its rows
+          const fits = bounds.filter((b) => b > from + 80 && b <= limit);
+          to = fits.length ? fits[fits.length - 1] : limit;
+        }
         ranges.push([from, to]);
         from = to;
       }
