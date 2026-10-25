@@ -70,12 +70,15 @@ export function calc(q: Quote, settings: Settings, pros: Pro[]) {
   // Client discount is shown on the PDF and comes off the price.
   const d = Math.min(Math.max(+q.discount! || 0, 0), 90);
   // Price before VAT rounds up to the next ten shekels (6,058.82 → 6,060), as in V6.
-  const price = Math.ceil(Math.round(listRaw * (1 - d / 100) * 100) / 100 / 10) * 10;
-  const list = d ? price / (1 - d / 100) : price; // list price consistent with the rounded total
+  const afterPct = Math.ceil(Math.round(listRaw * (1 - d / 100) * 100) / 100 / 10) * 10;
+  // A fixed shekel discount comes off the total before VAT, after the % discount and rounding.
+  const amt = Math.min(Math.max(Math.round(+q.discountAmt! || 0), 0), afterPct);
+  const price = afterPct - amt;
+  const list = d ? afterPct / (1 - d / 100) : afterPct; // price before any discount
   const coms = comList.map((p, i) => ({ ...p, amount: comAmounts[i] }));
   const comTotal = coms.reduce((s, c) => s + c.amount, 0);
   const vat = Math.round((price * (+settings.vat || 0)) / 100);
-  return { base, markup, pct, discountPct: d, list, discount: list - price, price, coms, comTotal, vat, total: price + vat, net: price - comTotal };
+  return { base, markup, pct, discountPct: d, discountAmt: amt, list, discount: list - price, price, coms, comTotal, vat, total: price + vat, net: price - comTotal };
 }
 
 /* ---------- catalog tree ---------- */

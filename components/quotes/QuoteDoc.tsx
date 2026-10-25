@@ -77,10 +77,10 @@ export default function QuoteDoc({ quote: q, settings: st, pros = [] }: { quote:
       </section>
 
       <section className="nq-box nq-d-sum" data-pb>
-        {c.discountPct > 0 && (
+        {c.discount >= 1 && (
           <>
             <div><span>מחיר</span><span>{money(c.list)}</span></div>
-            <div><span>הנחה {c.discountPct}%</span><span>−{money(c.discount)}</span></div>
+            <div><span>הנחה{c.discountPct > 0 && !c.discountAmt ? ` ${c.discountPct}%` : ""}</span><span>−{money(c.discount)}</span></div>
           </>
         )}
         <div className="nq-strong"><span>סה״כ לפני מע״מ</span><span>{money(c.price)}</span></div>
