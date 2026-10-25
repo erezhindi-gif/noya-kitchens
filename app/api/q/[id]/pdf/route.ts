@@ -29,7 +29,14 @@ async function launch() {
     process.env.AWS_EXECUTION_ENV = "AWS_Lambda_nodejs22.x";
     process.env.AWS_LAMBDA_JS_RUNTIME = "nodejs22.x";
     const chromium = (await import("@sparticuz/chromium")).default;
-    return puppeteer.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true });
+    const opts = { args: chromium.args, executablePath: await chromium.executablePath(), headless: true };
+    try {
+      return await puppeteer.launch(opts);
+    } catch (e) {
+      // first run on a fresh instance: the unpacked binary can still be busy (ETXTBSY) for a moment
+      await new Promise((r) => setTimeout(r, 400));
+      return puppeteer.launch(opts);
+    }
   }
   const fs = await import("fs");
   const exe = process.env.CHROME_PATH || LOCAL_CHROME.find((p) => fs.existsSync(p));
@@ -86,14 +93,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     });
   } catch (e) {
     console.error("pdf failed", e);
-    const fsx = await import("fs");
-    const ls = (p: string) => { try { return fsx.readdirSync(p).join(","); } catch { return "missing"; } };
-    return NextResponse.json({
-      error: "pdf-failed",
-      detail: String((e as Error)?.message || e).slice(0, 300),
-      ld: process.env.LD_LIBRARY_PATH, node: process.versions.node,
-      tmp: ls("/tmp"), al2023: ls("/tmp/al2023/lib"),
-    }, { status: 500 });
+    return NextResponse.json({ error: "pdf-failed" }, { status: 500 });
   } finally {
     await browser?.close();
   }

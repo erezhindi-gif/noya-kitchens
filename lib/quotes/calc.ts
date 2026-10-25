@@ -53,6 +53,22 @@ export function shownQty(l: Line): string {
 export const commissionsOf = (q: Quote, pros: Pro[]): Commission[] =>
   q.commissions ?? q.pros.map((p) => ({ name: pros.find((x) => x.id === p.proId)?.name || "", pct: p.pct }));
 
+/** Follow-up state for the list: waiting for an answer past the follow-up date, or past validity. */
+export function followState(q: Quote, settings: Settings, today = todayIL()) {
+  const open = q.status === "draft" || q.status === "sent";
+  const expired = open && addDays(q.date, +settings.validity || 30) < today;
+  const due = q.status === "sent" && !!q.followUp && q.followUp <= today;
+  return { expired, due };
+}
+
+/** Marks a quote as sent and sets a follow-up date 5 days on, unless one is already set. */
+export function markSentFields(q: Quote) {
+  if (q.status !== "draft") return;
+  q.status = "sent";
+  q.sentAt = todayIL();
+  q.followUp ||= addDays(q.sentAt, 5);
+}
+
 export function calc(q: Quote, settings: Settings, pros: Pro[]) {
   const base = q.lines.reduce((s, l) => s + lineTotal(l), 0);
   // Hidden markup on top of the work cost; the client never sees it.

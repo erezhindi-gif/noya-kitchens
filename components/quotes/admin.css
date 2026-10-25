@@ -223,3 +223,11 @@
 /* The site's accessibility button covers the editor's bottom bar on phones; the admin is Erez's
    private tool, so it is hidden there (it stays on every public page, including the client's quote). */
 body:has(.nq-admin) [aria-label="פתח תפריט נגישות"] { display: none; }
+
+/* follow-up */
+.nq-pills { display: flex; gap: 4px; flex-wrap: wrap; }
+.nq-pill.nq-due { background: #fdecc8; color: #8a5a00; }
+.nq-pill.nq-exp { background: var(--bad-bg); color: var(--bad); }
+.nq-due-k { font-size: 13px; font-weight: 700; color: #8a5a00; }
+.nq-chip.nq-chip-due { border-color: #e9c27a; color: #8a5a00; }
+.nq-chip.nq-chip-due[aria-pressed="true"] { background: #8a5a00; color: #fff; border-color: #8a5a00; }

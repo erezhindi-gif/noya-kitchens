@@ -93,3 +93,4 @@
 .nq-print .nq-d-rule { margin: 12px 0 14px; }
 .nq-print .nq-d-end { break-inside: avoid; }
 .nq-print { margin-inline: auto; }
+.nq-check { width: 15px; height: 15px; vertical-align: -2px; }

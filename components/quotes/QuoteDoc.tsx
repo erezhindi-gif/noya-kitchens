@@ -139,7 +139,7 @@ export default function QuoteDoc({ quote: q, settings: st, pros = [], print = fa
         {q.status === "approved" ? (
           <section className="nq-d-stamp" data-pb>
             <div>
-              <b>✓ ההצעה אושרה</b>
+              <b><svg className="nq-check" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg> ההצעה אושרה</b>
               <span>אושרה דיגיטלית על ידי {q.approvedBy}</span>
             </div>
             <span>{fdate(q.approvedAt)}</span>

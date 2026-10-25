@@ -73,6 +73,11 @@ export type Quote = {
   notes: string;
   approvedBy?: string;
   approvedAt?: string;
+  /** When the quote was sent, and when to call the client back if there's no answer */
+  sentAt?: string;
+  followUp?: string;
+  /** Notes only Erez sees */
+  internalNotes?: string;
   updatedAt?: string;
 };
 

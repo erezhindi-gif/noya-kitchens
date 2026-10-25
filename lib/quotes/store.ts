@@ -146,7 +146,7 @@ export async function putSettings(settings: Settings, pros: Pro[]) {
 
 /* ---------- secrets: password hash and mail key ----------
    Kept in their own private document so they never travel with settings to the browser. */
-export type Secrets = { passHash?: string; passSalt?: string; resendKey?: string; lastResetAt?: number };
+export type Secrets = { passHash?: string; passSalt?: string; resendKey?: string; lastResetAt?: number; lastFollowupMail?: string };
 const SECRETS_ID = "noyaq.secrets";
 
 export async function getSecrets(): Promise<Secrets> {

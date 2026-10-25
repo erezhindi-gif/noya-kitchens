@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   STATUS_LABEL, UNIT_LABEL, ancestors, calc, descendantIds, fdate, kids, leafCount, lineFrom, lineTotal,
-  autoDesc, commissionsOf, tidyLineDesc, composeDesc, label, money, pathPrice, priceOf, normalizeCat, optPrice, pathOf, tidyCat, qnum, todayIL, uid, waLink,
+  autoDesc, commissionsOf, followState, markSentFields, tidyLineDesc, composeDesc, label, money, pathPrice, priceOf, normalizeCat, optPrice, pathOf, tidyCat, qnum, todayIL, uid, waLink,
 } from "@/lib/quotes/calc";
 import type { AppData, CatNode, CatOption, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
 import QuoteDoc from "./QuoteDoc";
@@ -128,6 +128,33 @@ export default function AdminApp() {
       removeEventListener("popstate", onPop);
       removeEventListener("beforeunload", onLeave);
     };
+  }, []);
+
+  // Live updates: pick up approvals and changes made elsewhere without a refresh.
+  useEffect(() => {
+    const pull = async () => {
+      if (document.hidden || pending.current > 0 || !dataRef.current) return;
+      const d: AppData | null = await fetch("/api/admin/data", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      if (!d || pending.current > 0 || !dataRef.current) return;
+      const cur = dataRef.current;
+      const newlyApproved = d.quotes.filter((q) => q.status === "approved" && cur.quotes.find((x) => x.id === q.id)?.status !== "approved");
+      const quotes = d.quotes.map((sq) => {
+        const lq = cur.quotes.find((x) => x.id === sq.id);
+        return lq && (lq.updatedAt || "") > (sq.updatedAt || "") ? lq : sq; // keep newer local edits
+      });
+      // quotes created here that the server hasn't returned yet stay
+      for (const lq of cur.quotes) if (!quotes.some((q) => q.id === lq.id) && timers.current["q:" + lq.id]) quotes.push(lq);
+      const next = { ...cur, quotes };
+      dataRef.current = next;
+      setData(next);
+      if (newlyApproved.length)
+        flash(newlyApproved.map((q) => `✓ ${qnum(q)} אושרה על ידי ${q.approvedBy}`).join(" · "));
+    };
+    const t = setInterval(pull, 60_000);
+    const onVis = () => { if (!document.hidden) pull(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVis); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const go = useCallback((v: View, id: string | null = null) => {
@@ -295,7 +322,7 @@ export default function AdminApp() {
         )}
         {view === "preview" && q && (
           <Preview data={data} q={q} onBack={() => go("edit", q.id)} flash={flash} saveNow={() => saveNow(q.id)}
-            markSent={() => q.status === "draft" && updQuote(q.id, (x) => { x.status = "sent"; }, 0)} />
+            markSent={() => q.status === "draft" && updQuote(q.id, (x) => markSentFields(x), 0)} />
         )}
         {(view === "catalog" || view === "settings") && openId && data.quotes.some((x) => x.id === openId) && (() => {
           const oq = data.quotes.find((x) => x.id === openId)!;
@@ -318,15 +345,17 @@ export default function AdminApp() {
 /* =================== list =================== */
 function ListView({ data, onOpen, onNew, onDup, onDelete }: { data: AppData; onOpen: (id: string) => void; onNew: () => void; onDup: (q: Quote) => void; onDelete: (id: string) => void }) {
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
-  const [filter, setFilter] = useState<Status | "all">("all");
+  const [filter, setFilter] = useState<Status | "all" | "follow">("all");
   const [term, setTerm] = useState("");
   const rows = useMemo(() => data.quotes.map((q) => ({ q, c: calc(q, data.settings, data.pros) })), [data]);
   const open = rows.filter((x) => x.q.status === "sent");
   const won = rows.filter((x) => x.q.status === "approved");
   const decided = rows.filter((x) => x.q.status === "approved" || x.q.status === "rejected").length;
   const t = term.trim();
+  const fs = (q: Quote) => followState(q, data.settings);
+  const dueCount = rows.filter((x) => fs(x.q).due).length;
   const shown = rows
-    .filter((x) => filter === "all" || x.q.status === filter)
+    .filter((x) => filter === "all" || (filter === "follow" ? fs(x.q).due : x.q.status === filter))
     .filter((x) => !t || `${x.q.client.name} ${x.q.project} ${qnum(x.q)} ${x.q.client.phone}`.includes(t))
     .sort((a, b) => qnum(b.q).localeCompare(qnum(a.q)));
 
@@ -337,7 +366,7 @@ function ListView({ data, onOpen, onNew, onDup, onDelete }: { data: AppData; onO
         <button className="nq-btn pri" onClick={onNew}>+ הצעה חדשה</button>
       </div>
       <div className="nq-kpis">
-        <div className="nq-kpi"><div className="k">ממתינות לתשובה</div><div className="v num">{open.length}</div></div>
+        <div className="nq-kpi"><div className="k">ממתינות לתשובה</div><div className="v num">{open.length}{dueCount ? <span className="nq-due-k"> · {dueCount} לחזור</span> : null}</div></div>
         <div className="nq-kpi"><div className="k">שווי הצעות פתוחות</div><div className="v num">{money(open.reduce((s, x) => s + x.c.price, 0))}</div></div>
         <div className="nq-kpi"><div className="k">אושרו</div><div className="v num">{money(won.reduce((s, x) => s + x.c.price, 0))}</div></div>
         <div className="nq-kpi"><div className="k">אחוז סגירה</div><div className="v num">{decided ? Math.round((won.length / decided) * 100) : 0}%</div></div>
@@ -348,6 +377,9 @@ function ListView({ data, onOpen, onNew, onDup, onDelete }: { data: AppData; onO
             {s === "all" ? "הכול" : STATUS_LABEL[s]} · {s === "all" ? data.quotes.length : data.quotes.filter((q) => q.status === s).length}
           </button>
         ))}
+        {dueCount > 0 && (
+          <button className="nq-chip nq-chip-due" aria-pressed={filter === "follow"} onClick={() => setFilter("follow")}>למעקב · {dueCount}</button>
+        )}
         <input className="in nq-search" placeholder="חיפוש לקוח, פרויקט או מספר" value={term} onChange={(e) => setTerm(e.target.value)} />
       </div>
       <div className="nq-qlist">
@@ -357,7 +389,11 @@ function ListView({ data, onOpen, onNew, onDup, onDelete }: { data: AppData; onO
             <span className="c"><b>{q.client.name || "ללא שם"}</b><span>{q.project}</span></span>
             <span className="d sub num">{fdate(q.date)}</span>
             <span className="t num">{money(c.price)}<div className="sub" style={{ fontWeight: 400 }}>לפני מע״מ</div></span>
-            <span><span className={`nq-pill nq-st-${q.status}`}>{STATUS_LABEL[q.status]}</span></span>
+            <span className="nq-pills">
+              <span className={`nq-pill nq-st-${q.status}`}>{STATUS_LABEL[q.status]}</span>
+              {fs(q).due && <span className="nq-pill nq-due">לחזור ללקוח</span>}
+              {fs(q).expired && <span className="nq-pill nq-exp">פג תוקף</span>}
+            </span>
             <span className="acts" onClick={(e) => e.stopPropagation()}>
               {confirmDel === q.id ? (
                 <span className="nq-confirm">
@@ -412,7 +448,7 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash }: {
         </div>
         <label className="f" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           סטטוס
-          <select className="in" style={{ width: "auto" }} value={q.status} onChange={(e) => upd((x) => { x.status = e.target.value as Status; }, 0)}>
+          <select className="in" style={{ width: "auto" }} value={q.status} onChange={(e) => upd((x) => { const v = e.target.value as Status; if (v === "sent" && x.status === "draft") markSentFields(x); else x.status = v; }, 0)}>
             {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </label>
@@ -547,6 +583,14 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash }: {
           </section>
 
           <section className="nq-card">
+            <h2 style={{ marginBottom: 12 }}>מעקב (רק לך)</h2>
+            <div className="nq-fields" style={{ marginBottom: 18 }}>
+              <label className="f">תאריך מעקב — מתי לחזור ללקוח
+                <input className="in" type="date" value={q.followUp || ""} onChange={(e) => upd((x) => { x.followUp = e.target.value; })} /></label>
+              <label className="f">נשלחה בתאריך<input className="in" value={fdate(q.sentAt) || "עוד לא נשלחה"} readOnly /></label>
+              <label className="f full">הערות פנימיות
+                <textarea className="in" rows={2} value={q.internalNotes || ""} placeholder="לא מופיע בהצעה" onChange={(e) => upd((x) => { x.internalNotes = e.target.value; })} /></label>
+            </div>
             <h2 style={{ marginBottom: 12 }}>אספקה והערות</h2>
             <div className="nq-fields">
               <label className="f full">זמן אספקה (נכנס כשורה בטבלה)<input className="in" value={q.delivery} placeholder="לדוגמה: אספקה 45 ימי עבודה" onChange={(e) => upd((x) => { x.delivery = e.target.value; })} /></label>
