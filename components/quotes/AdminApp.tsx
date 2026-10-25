@@ -519,11 +519,17 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash }: {
           <div className="nq-lg big"><span>סה״כ כולל מע״מ</span><span className="num">{money(c.total)}</span></div>
           {c.coms.length > 0 && <div className="nq-lg net"><span>נשאר לך אחרי עמלות</span><b className="num">{money(c.net)}</b></div>}
           <div className="nq-side-acts">
+            <button className="nq-btn" onClick={() => document.getElementById("nq-live")?.scrollIntoView({ behavior: "smooth" })}>↓ לתצוגה המקדימה</button>
             <button className="nq-btn pri" onClick={onPreview}>תצוגה, PDF ושליחה</button>
             <button className="nq-btn" onClick={onDup}>שכפל להצעה חדשה</button>
           </div>
         </aside>
       </div>
+
+      <section className="nq-card nq-live" id="nq-live">
+        <div className="nq-card-h"><h2>תצוגה מקדימה</h2><span className="hint">כך ההצעה תיראה ללקוח. מתעדכנת תוך כדי עריכה</span></div>
+        <DocFrame><QuoteDoc quote={q} settings={data.settings} pros={data.pros} /></DocFrame>
+      </section>
 
       <div className="nq-bar">
         <div><div className="tt">ללקוח, לפני מע״מ</div><div className="tv num">{money(c.price)}</div></div>
