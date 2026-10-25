@@ -565,15 +565,31 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash }: {
             <div key={i} className="nq-lg com"><span>עמלה {i + 1}{x.name ? ` (${x.name})` : ""} · {x.pct}%</span><span className="num">−{money(x.amount)}</span></div>
           ))}
           {c.pct >= 95 && <div className="hint" style={{ color: "var(--bad)" }}>סך העמלות גבוה מדי</div>}
-          <div className="nq-adj">
-            <label className="f">תוספת פנימית % <span className="hint">(לא מופיעה ללקוח)</span>
-              <input className="in num" type="number" inputMode="decimal" value={q.markup ?? 0} onChange={(e) => upd((x) => { x.markup = num(e.target.value); })} /></label>
-            <label className="f">הנחה ללקוח % <span className="hint">(מופיעה ב-PDF)</span>
-              <input className="in num" type="number" inputMode="decimal" value={q.discount ?? 0} onChange={(e) => upd((x) => { x.discount = num(e.target.value); })} /></label>
-          </div>
+          <label className="f" style={{ marginTop: 8 }}>תוספת פנימית % <span className="hint">(לא מופיעה ללקוח)</span>
+            <input className="in num" type="number" inputMode="decimal" value={q.markup || ""} placeholder="0" onChange={(e) => upd((x) => { x.markup = num(e.target.value); })} /></label>
           {c.markup > 0 && <div className="nq-lg"><span>תוספת פנימית</span><span className="num">+{money(c.markup)}</span></div>}
-          <label className="f" style={{ marginBottom: 6 }}>הנחה בשקלים מהסה״כ <span className="hint">(לפני מע״מ, מופיעה ב-PDF)</span>
-            <input className="in num" type="number" inputMode="decimal" value={q.discountAmt || ""} placeholder="0" onChange={(e) => upd((x) => { x.discountAmt = num(e.target.value); })} /></label>
+          {(() => {
+            const pctMode = !!q.discount && !q.discountAmt ? true : !q.discountAmt && q.discountMode === "pct";
+            const val = pctMode ? q.discount : q.discountAmt;
+            const setMode = (m: "pct" | "amt") => upd((x) => {
+              const v = x.discount || x.discountAmt || 0;
+              x.discountMode = m;
+              x.discount = m === "pct" ? v : 0;
+              x.discountAmt = m === "amt" ? v : 0;
+            });
+            return (
+              <label className="f" style={{ margin: "8px 0 6px" }}>הנחה ללקוח <span className="hint">(מופיעה ב-PDF)</span>
+                <span className="nq-disc">
+                  <input className="in num" type="number" inputMode="decimal" value={val || ""} placeholder="0"
+                    onChange={(e) => upd((x) => { if (pctMode) { x.discount = num(e.target.value); x.discountAmt = 0; } else { x.discountAmt = num(e.target.value); x.discount = 0; } })} />
+                  <span className="nq-seg" role="group" aria-label="סוג ההנחה">
+                    <button type="button" aria-pressed={!pctMode} onClick={() => setMode("amt")}>₪</button>
+                    <button type="button" aria-pressed={pctMode} onClick={() => setMode("pct")}>%</button>
+                  </span>
+                </span>
+              </label>
+            );
+          })()}
           {c.discount >= 1 && <div className="nq-lg"><span>מחיר לפני הנחות</span><span className="num">{money(c.list)}</span></div>}
           {c.pctOff >= 1 && <div className="nq-lg"><span>הנחה {c.discountPct}%</span><span className="num">−{money(c.pctOff)}</span></div>}
           {c.discountAmt > 0 && <div className="nq-lg"><span>הנחה בשקלים</span><span className="num">−{money(c.discountAmt)}</span></div>}

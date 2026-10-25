@@ -65,6 +65,8 @@ export type Quote = {
   markup?: number;
   /** Discount % shown to the client */
   discount?: number;
+  /** Which discount field the editor shows */
+  discountMode?: "pct" | "amt";
   /** Discount in shekels off the total before VAT, shown to the client */
   discountAmt?: number;
   delivery: string;

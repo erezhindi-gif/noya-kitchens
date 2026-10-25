@@ -213,3 +213,9 @@
 .nq-qrow .acts { display: flex; gap: 6px; align-items: center; }
 
 .nq-live { margin-top: 18px; background: var(--surface-2); }
+
+.nq-disc { display: flex; gap: 6px; align-items: center; }
+.nq-disc .in { flex: 1; }
+.nq-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; background: #fff; }
+.nq-seg button { border: 0; background: none; padding: 5px 12px; border-radius: 999px; font-weight: 700; color: var(--muted); }
+.nq-seg button[aria-pressed="true"] { background: var(--gold); color: #fff; }
