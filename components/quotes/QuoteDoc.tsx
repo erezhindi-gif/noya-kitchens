@@ -1,4 +1,3 @@
-import { Fragment } from "react";
 import { addDays, calc, fdate, money, qnum, sectionTotals, shownQty, tidyLineDesc } from "@/lib/quotes/calc";
 import type { Pro, Quote, Settings } from "@/lib/quotes/types";
 import "./quote-doc.css";
@@ -10,8 +9,20 @@ export default function QuoteDoc({ quote: q, settings: st, pros = [] }: { quote:
   // With two parts or more (מטבח + ארון קיר…), each part gets its own price before VAT.
   const secs = sectionTotals(q, c.list);
   const subtotalAt = new Map(secs.length > 1 ? secs.map((s) => [s.end, s] as const) : []);
+  // One box per part, so a part's subtotal can't be read as belonging to the next part.
+  type Block = { key: string; title: string; lines: Quote["lines"]; last: number };
+  const blocks: Block[] = [];
+  q.lines.forEach((l, i) => {
+    if (l.type === "head") blocks.push({ key: l.id, title: l.desc, lines: [], last: i });
+    else {
+      if (!blocks.length) blocks.push({ key: "project", title: q.project, lines: [], last: i });
+      const b = blocks[blocks.length - 1];
+      b.lines.push(l);
+      b.last = i;
+    }
+  });
+  if (!blocks.length) blocks.push({ key: "project", title: q.project, lines: [], last: -1 });
   const validUntil = fdate(addDays(q.date, +st.validity || 30));
-  const startsWithHead = q.lines[0]?.type === "head";
   const clauses = (st.clauses || "").split("\n").map((s) => s.trim()).filter(Boolean);
 
   return (
@@ -44,59 +55,53 @@ export default function QuoteDoc({ quote: q, settings: st, pros = [] }: { quote:
         <div><b>טלפון:</b> <span className="nq-ltr">{q.client.phone}</span></div>
       </section>
 
-      <section className="nq-box nq-d-items">
-        <table>
-          <thead>
-            {!startsWithHead && (
-              <tr className="nq-d-proj" data-pb>
-                <th colSpan={2}>{q.project}</th>
-              </tr>
-            )}
-            <tr className="nq-d-cols" data-pb>
-              <th>תיאור</th>
-              <th className="nq-q">כמות</th>
-            </tr>
-          </thead>
-          <tbody>
-            {q.lines.map((l, i) => {
-              const sub = subtotalAt.get(i);
-              return (
-                <Fragment key={l.id}>
-                  {l.type === "head" ? (
-                    <tr className="nq-d-grp" data-pb>
-                      <td colSpan={2}>{l.desc}</td>
-                    </tr>
-                  ) : (
-                    <tr data-pb>
-                      <td>{tidyLineDesc(l)}</td>
-                      <td className="nq-q">{shownQty(l)}</td>
-                    </tr>
-                  )}
-                  {sub && (
-                    <tr className="nq-d-sub" data-pb>
-                      <td colSpan={2}>
-                        <div className="nq-d-subrow">
-                          <span>סה״כ {sub.title}, לפני מע״מ</span>
-                          <span>{money(sub.amount)}</span>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                  {sub && i < q.lines.length - 1 && (
-                    <tr className="nq-d-gap" aria-hidden="true"><td colSpan={2} /></tr>
-                  )}
-                </Fragment>
-              );
-            })}
-            {q.delivery && (
-              <tr data-pb>
-                <td>{q.delivery}</td>
-                <td className="nq-q" />
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </section>
+      {blocks.map((b, bi) => {
+        const sub = subtotalAt.get(b.last);
+        const isLast = bi === blocks.length - 1;
+        return (
+          <section key={b.key} className="nq-box nq-d-items">
+            <table>
+              <thead>
+                {b.title && (
+                  <tr className="nq-d-proj" data-pb>
+                    <th colSpan={2}>{b.title}</th>
+                  </tr>
+                )}
+                {bi === 0 && (
+                  <tr className="nq-d-cols" data-pb>
+                    <th>תיאור</th>
+                    <th className="nq-q">כמות</th>
+                  </tr>
+                )}
+              </thead>
+              <tbody>
+                {b.lines.map((l) => (
+                  <tr key={l.id} data-pb>
+                    <td>{tidyLineDesc(l)}</td>
+                    <td className="nq-q">{shownQty(l)}</td>
+                  </tr>
+                ))}
+                {sub && (
+                  <tr className="nq-d-sub" data-pb>
+                    <td colSpan={2}>
+                      <div className="nq-d-subrow">
+                        <span>סה״כ {sub.title}, לפני מע״מ</span>
+                        <span>{money(sub.amount)}</span>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                {isLast && q.delivery && (
+                  <tr data-pb>
+                    <td>{q.delivery}</td>
+                    <td className="nq-q" />
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </section>
+        );
+      })}
 
       <section className="nq-box nq-d-sum" data-pb>
         {c.discount >= 1 && (

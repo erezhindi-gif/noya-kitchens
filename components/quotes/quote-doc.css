@@ -38,7 +38,7 @@
 .nq-d-info > div:nth-child(-n + 2) { border-bottom: 1px solid var(--d-line); }
 .nq-d-info b { font-weight: 700; }
 
-.nq-d-items { margin-bottom: 18px; }
+.nq-d-items { margin-bottom: 16px; }
 .nq-d-items table { width: 100%; border-collapse: collapse; }
 .nq-d-items th, .nq-d-items td { padding: 9px 18px; text-align: right; vertical-align: top; }
 .nq-d-items .nq-q { width: 80px; text-align: center; font-variant-numeric: tabular-nums; }
