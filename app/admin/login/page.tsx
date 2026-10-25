@@ -6,6 +6,15 @@ export default function LoginPage() {
   const [pw, setPw] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [resetMsg, setResetMsg] = useState("");
+
+  const forgot = async () => {
+    setResetMsg("שולח…");
+    const res = await fetch("/api/admin/reset-request", { method: "POST" }).catch(() => null);
+    if (res?.ok) setResetMsg("נשלח מייל עם קישור לאיפוס הסיסמה. הקישור תקף ל-30 דקות.");
+    else if (res?.status === 503) setResetMsg("שליחת מיילים עוד לא הוגדרה במערכת. צריך להוסיף מפתח מייל בהגדרות.");
+    else setResetMsg("השליחה נכשלה. נסה שוב בעוד דקה.");
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +44,8 @@ export default function LoginPage() {
             onChange={(e) => setPw(e.target.value)} autoFocus aria-label="סיסמה" />
           {err && <div className="nq-err" role="alert">{err}</div>}
           <button className="nq-btn pri" disabled={busy || !pw}>{busy ? "נכנס…" : "כניסה"}</button>
+          <button type="button" className="nq-btn ghost" onClick={forgot}>שכחתי סיסמה</button>
+          {resetMsg && <div className="hint" role="status">{resetMsg}</div>}
         </form>
       </div>
     </div>

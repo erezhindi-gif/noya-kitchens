@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, checkPassword, createSession } from "@/lib/quotes/auth";
+import { getSecrets } from "@/lib/quotes/store";
 
 export async function POST(req: NextRequest) {
   const { password } = await req.json().catch(() => ({ password: "" }));
-  if (!(await checkPassword(String(password || "")))) {
+  const secrets = await getSecrets().catch(() => ({}));
+  if (!(await checkPassword(String(password || ""), secrets))) {
     await new Promise((r) => setTimeout(r, 800)); // slow down guessing
     return NextResponse.json({ error: "wrong-password" }, { status: 401 });
   }

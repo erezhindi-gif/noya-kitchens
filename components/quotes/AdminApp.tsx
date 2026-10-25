@@ -876,10 +876,68 @@ function SettingsView({ data, upd }: { data: AppData; upd: (fn: (s: Settings, pr
           {!data.pros.length && <div className="hint" style={{ marginTop: 8 }}>עוד אין אנשי מקצוע</div>}
           <div className="nq-adds"><button className="nq-btn sm" onClick={() => upd((_s, pros) => ({ pros: [...pros, { id: uid(), name: "", role: "", pct: 10 }] }))}>+ איש מקצוע</button></div>
         </section>
+        <SecurityCard />
         <section className="nq-card" style={{ gridColumn: "1 / -1" }}>
           <div className="nq-card-h"><h2>יציאה</h2><button className="nq-btn sm" onClick={logout}>התנתקות</button></div>
         </section>
       </div>
     </>
+  );
+}
+
+/* =================== password + reset mail =================== */
+function SecurityCard() {
+  const [cur, setCur] = useState("");
+  const [next, setNext] = useState("");
+  const [pwMsg, setPwMsg] = useState("");
+  const [mail, setMail] = useState<{ hasKey: boolean; email: string } | null>(null);
+  const [key, setKey] = useState("");
+  const [keyMsg, setKeyMsg] = useState("");
+
+  useEffect(() => {
+    fetch("/api/admin/mail").then((r) => r.json()).then(setMail).catch(() => {});
+  }, []);
+
+  const changePw = async () => {
+    if (next.length < 8) return setPwMsg("הסיסמה החדשה צריכה להיות לפחות 8 תווים");
+    setPwMsg("שומר…");
+    const res = await fetch("/api/admin/password", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ current: cur, next }),
+    }).catch(() => null);
+    if (res?.ok) { setPwMsg("הסיסמה הוחלפה ✓"); setCur(""); setNext(""); }
+    else setPwMsg(res?.status === 401 ? "הסיסמה הנוכחית לא נכונה" : "השמירה נכשלה. נסה שוב");
+  };
+  const saveKey = async () => {
+    setKeyMsg("שומר…");
+    const res = await fetch("/api/admin/mail", {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ resendKey: key }),
+    }).catch(() => null);
+    if (res?.ok) { setKeyMsg("המפתח נשמר ✓"); setKey(""); setMail((m) => (m ? { ...m, hasKey: true } : m)); }
+    else setKeyMsg(res?.status === 400 ? "המפתח לא נראה תקין. הוא מתחיל ב-re_" : "השמירה נכשלה. נסה שוב");
+  };
+
+  return (
+    <section className="nq-card" style={{ gridColumn: "1 / -1" }}>
+      <h2 style={{ marginBottom: 12 }}>סיסמה ואיפוס במייל</h2>
+      <div className="nq-grid2">
+        <div className="nq-stack">
+          <b>החלפת סיסמה</b>
+          <input className="in" type="password" autoComplete="current-password" placeholder="סיסמה נוכחית" value={cur} onChange={(e) => setCur(e.target.value)} />
+          <input className="in" type="password" autoComplete="new-password" placeholder="סיסמה חדשה (לפחות 8 תווים)" value={next} onChange={(e) => setNext(e.target.value)} />
+          <div><button className="nq-btn sm pri" disabled={!cur || !next} onClick={changePw}>החלף סיסמה</button></div>
+          {pwMsg && <div className="hint">{pwMsg}</div>}
+        </div>
+        <div className="nq-stack">
+          <b>מייל לאיפוס סיסמה</b>
+          <div className="hint">
+            קישור האיפוס נשלח אל <span className="ltr">{mail?.email || "…"}</span> (משנים בשדה האימייל למעלה).{" "}
+            {mail?.hasKey ? "שליחת מיילים מוגדרת ✓" : "כדי שהשליחה תעבוד צריך מפתח Resend אחד."}
+          </div>
+          <input className="in ltr" style={{ textAlign: "left" }} placeholder={mail?.hasKey ? "מפתח שמור. להחלפה הדבק מפתח חדש" : "re_..."} value={key} onChange={(e) => setKey(e.target.value)} />
+          <div><button className="nq-btn sm" disabled={!key.trim()} onClick={saveKey}>שמור מפתח</button></div>
+          {keyMsg && <div className="hint">{keyMsg}</div>}
+        </div>
+      </div>
+    </section>
   );
 }

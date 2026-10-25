@@ -136,6 +136,35 @@ export async function putSettings(settings: Settings, pros: Pro[]) {
   await writeFile(d);
 }
 
+/* ---------- secrets: password hash and mail key ----------
+   Kept in their own private document so they never travel with settings to the browser. */
+export type Secrets = { passHash?: string; passSalt?: string; resendKey?: string; lastResetAt?: number };
+const SECRETS_ID = "noyaq.secrets";
+
+export async function getSecrets(): Promise<Secrets> {
+  if (sanity) {
+    const doc = await readDoc(SECRETS_ID);
+    return doc ? clean<Secrets>(doc) : {};
+  }
+  const d = (await readFile()) as FileData & { secrets?: Secrets };
+  return d.secrets || {};
+}
+
+export async function patchSecrets(patch: Secrets) {
+  if (sanity) {
+    await sanity.createIfNotExists({ _id: SECRETS_ID, _type: "nq_secrets" });
+    await sanity.patch(SECRETS_ID).set(patch).commit();
+    return;
+  }
+  const d = (await readFile()) as FileData & { secrets?: Secrets };
+  d.secrets = { ...(d.secrets || {}), ...patch };
+  await writeFile(d);
+}
+
+export async function getOwnerEmail() {
+  return (await getData()).settings.email || DEFAULT_SETTINGS.email;
+}
+
 /** Client approval from the public link. Only moves a quote forward; never touches prices. */
 export async function approveQuote(id: string, name: string): Promise<Quote | null> {
   const found = await getQuote(id);
