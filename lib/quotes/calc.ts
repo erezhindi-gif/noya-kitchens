@@ -81,6 +81,32 @@ export function calc(q: Quote, settings: Settings, pros: Pro[]) {
   return { base, markup, pct, discountPct: d, discountAmt: amt, pctOff: list - afterPct, list, discount: list - price, price, coms, comTotal, vat, total: price + vat, net: price - comTotal };
 }
 
+/** Price of each part of the quote (מטבח, ארון קיר…) for the client, before VAT.
+ *  Each part's share of the work cost is applied to the full price before discounts, so markup and
+ *  commissions are included; the parts add up exactly to that price. `end` is the index of the
+ *  part's last line (the subtotal row goes after it). */
+export function sectionTotals(q: Quote, list: number) {
+  const secs: { title: string; base: number; end: number }[] = [];
+  let cur: { title: string; base: number; end: number } | null =
+    q.lines[0]?.type === "head" ? null : { title: q.project, base: 0, end: -1 };
+  q.lines.forEach((l, i) => {
+    if (l.type === "head") {
+      if (cur) secs.push(cur);
+      cur = { title: l.desc, base: 0, end: i };
+    } else if (cur) {
+      cur.base += lineTotal(l);
+      cur.end = i;
+    }
+  });
+  if (cur) secs.push(cur);
+  const parts = secs.filter((s) => s.end >= 0);
+  const totalBase = parts.reduce((s, x) => s + x.base, 0);
+  const target = Math.round(list);
+  const out = parts.map((s) => ({ ...s, amount: totalBase ? Math.round((list * s.base) / totalBase) : 0 }));
+  if (out.length && totalBase) out[out.length - 1].amount += target - out.reduce((s, x) => s + x.amount, 0);
+  return out;
+}
+
 /* ---------- catalog tree ---------- */
 export const kids = (cat: CatNode[], pid: string) =>
   cat.filter((c) => c.parentId === pid).sort((a, b) => Number(b.folder) - Number(a.folder));

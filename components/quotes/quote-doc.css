@@ -63,3 +63,5 @@
   display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 13px; }
 .nq-d-stamp div { display: flex; flex-direction: column; }
 .nq-d-stamp b { font-size: 15px; }
+.nq-d-sub td { background: var(--d-soft); font-weight: 800; font-size: 14px; }
+.nq-d-subrow { display: flex; justify-content: space-between; gap: 12px; font-variant-numeric: tabular-nums; }

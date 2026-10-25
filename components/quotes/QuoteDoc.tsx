@@ -1,4 +1,5 @@
-import { addDays, calc, fdate, money, qnum, shownQty, tidyLineDesc } from "@/lib/quotes/calc";
+import { Fragment } from "react";
+import { addDays, calc, fdate, money, qnum, sectionTotals, shownQty, tidyLineDesc } from "@/lib/quotes/calc";
 import type { Pro, Quote, Settings } from "@/lib/quotes/types";
 import "./quote-doc.css";
 
@@ -6,6 +7,9 @@ import "./quote-doc.css";
  *  `data-pb` marks the blocks the PDF exporter may break pages between. */
 export default function QuoteDoc({ quote: q, settings: st, pros = [] }: { quote: Quote; settings: Settings; pros?: Pro[] }) {
   const c = calc(q, st, pros);
+  // With two parts or more (מטבח + ארון קיר…), each part gets its own price before VAT.
+  const secs = sectionTotals(q, c.list);
+  const subtotalAt = new Map(secs.length > 1 ? secs.map((s) => [s.end, s] as const) : []);
   const validUntil = fdate(addDays(q.date, +st.validity || 30));
   const startsWithHead = q.lines[0]?.type === "head";
   const clauses = (st.clauses || "").split("\n").map((s) => s.trim()).filter(Boolean);
@@ -54,18 +58,33 @@ export default function QuoteDoc({ quote: q, settings: st, pros = [] }: { quote:
             </tr>
           </thead>
           <tbody>
-            {q.lines.map((l) =>
-              l.type === "head" ? (
-                <tr key={l.id} className="nq-d-grp" data-pb>
-                  <td colSpan={2}>{l.desc}</td>
-                </tr>
-              ) : (
-                <tr key={l.id} data-pb>
-                  <td>{tidyLineDesc(l)}</td>
-                  <td className="nq-q">{shownQty(l)}</td>
-                </tr>
-              )
-            )}
+            {q.lines.map((l, i) => {
+              const sub = subtotalAt.get(i);
+              return (
+                <Fragment key={l.id}>
+                  {l.type === "head" ? (
+                    <tr className="nq-d-grp" data-pb>
+                      <td colSpan={2}>{l.desc}</td>
+                    </tr>
+                  ) : (
+                    <tr data-pb>
+                      <td>{tidyLineDesc(l)}</td>
+                      <td className="nq-q">{shownQty(l)}</td>
+                    </tr>
+                  )}
+                  {sub && (
+                    <tr className="nq-d-sub" data-pb>
+                      <td colSpan={2}>
+                        <div className="nq-d-subrow">
+                          <span>סה״כ {sub.title}, לפני מע״מ</span>
+                          <span>{money(sub.amount)}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
             {q.delivery && (
               <tr data-pb>
                 <td>{q.delivery}</td>
