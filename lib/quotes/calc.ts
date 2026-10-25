@@ -29,7 +29,8 @@ export const fdate = (s?: string) => {
 export const qnum = (q: Pick<Quote, "date" | "seq">) =>
   "NQ" + q.date.slice(2).replace(/-/g, "") + "-" + String(q.seq).padStart(2, "0");
 
-export const money = (n: number) => "₪" + (Math.round(n * 100) / 100).toLocaleString("he-IL");
+// Whole shekels only — no agorot anywhere in the system.
+export const money = (n: number) => "₪" + Math.round(n).toLocaleString("he-IL");
 
 const priced = (l: Line) => l.type !== "text" && l.type !== "head";
 export const lineTotal = (l: Line) =>
@@ -62,12 +63,12 @@ export function calc(q: Quote, settings: Settings, pros: Pro[]) {
   const listRaw = pct < 95 ? (base + markup) / (1 - pct / 100) : base + markup;
   // Client discount is shown on the PDF and comes off the price.
   const d = Math.min(Math.max(+q.discount! || 0, 0), 90);
-  let price = listRaw * (1 - d / 100);
-  // No rounding: Erez wants the exact price (the old "round up to 100" option was removed).
+  // Rounded to the nearest shekel (no agorot); no other rounding.
+  const price = Math.round(listRaw * (1 - d / 100));
   const list = d ? price / (1 - d / 100) : price; // list price consistent with the rounded total
   const coms = comList.map((p) => ({ ...p, amount: (price * (+p.pct || 0)) / 100 }));
   const comTotal = coms.reduce((s, c) => s + c.amount, 0);
-  const vat = (price * (+settings.vat || 0)) / 100;
+  const vat = Math.round((price * (+settings.vat || 0)) / 100);
   return { base, markup, pct, discountPct: d, list, discount: list - price, price, coms, comTotal, vat, total: price + vat, net: price - comTotal };
 }
 
