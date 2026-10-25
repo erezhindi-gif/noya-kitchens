@@ -63,8 +63,8 @@ export function calc(q: Quote, settings: Settings, pros: Pro[]) {
   const listRaw = pct < 95 ? (base + markup) / (1 - pct / 100) : base + markup;
   // Client discount is shown on the PDF and comes off the price.
   const d = Math.min(Math.max(+q.discount! || 0, 0), 90);
-  // Rounded to the nearest shekel (no agorot); no other rounding.
-  const price = Math.round(listRaw * (1 - d / 100));
+  // Price before VAT rounds up to the next ten shekels (6,058.82 → 6,060), as in V6.
+  const price = Math.ceil(Math.round(listRaw * (1 - d / 100) * 100) / 100 / 10) * 10;
   const list = d ? price / (1 - d / 100) : price; // list price consistent with the rounded total
   const coms = comList.map((p) => ({ ...p, amount: (price * (+p.pct || 0)) / 100 }));
   const comTotal = coms.reduce((s, c) => s + c.amount, 0);
