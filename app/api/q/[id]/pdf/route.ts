@@ -84,7 +84,14 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     });
   } catch (e) {
     console.error("pdf failed", e);
-    return NextResponse.json({ error: "pdf-failed", detail: String((e as Error)?.message || e).slice(0, 300) }, { status: 500 });
+    const fsx = await import("fs");
+    const ls = (p: string) => { try { return fsx.readdirSync(p).join(","); } catch { return "missing"; } };
+    return NextResponse.json({
+      error: "pdf-failed",
+      detail: String((e as Error)?.message || e).slice(0, 300),
+      ld: process.env.LD_LIBRARY_PATH, node: process.versions.node,
+      tmp: ls("/tmp"), al2023: ls("/tmp/al2023/lib"),
+    }, { status: 500 });
   } finally {
     await browser?.close();
   }
