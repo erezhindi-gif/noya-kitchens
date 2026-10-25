@@ -80,7 +80,8 @@ export default function QuoteDoc({ quote: q, settings: st, pros = [] }: { quote:
         {c.discount >= 1 && (
           <>
             <div><span>מחיר</span><span>{money(c.list)}</span></div>
-            <div><span>הנחה{c.discountPct > 0 && !c.discountAmt ? ` ${c.discountPct}%` : ""}</span><span>−{money(c.discount)}</span></div>
+            {c.pctOff >= 1 && <div><span>הנחה {c.discountPct}%</span><span>−{money(c.pctOff)}</span></div>}
+            {c.discountAmt > 0 && <div><span>הנחה</span><span>−{money(c.discountAmt)}</span></div>}
           </>
         )}
         <div className="nq-strong"><span>סה״כ לפני מע״מ</span><span>{money(c.price)}</span></div>

@@ -574,7 +574,9 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash }: {
           {c.markup > 0 && <div className="nq-lg"><span>תוספת פנימית</span><span className="num">+{money(c.markup)}</span></div>}
           <label className="f" style={{ marginBottom: 6 }}>הנחה בשקלים מהסה״כ <span className="hint">(לפני מע״מ, מופיעה ב-PDF)</span>
             <input className="in num" type="number" inputMode="decimal" value={q.discountAmt || ""} placeholder="0" onChange={(e) => upd((x) => { x.discountAmt = num(e.target.value); })} /></label>
-          {c.discount >= 1 && <div className="nq-lg"><span>הנחה (מחיר לפני הנחה {money(c.list)})</span><span className="num">−{money(c.discount)}</span></div>}
+          {c.discount >= 1 && <div className="nq-lg"><span>מחיר לפני הנחות</span><span className="num">{money(c.list)}</span></div>}
+          {c.pctOff >= 1 && <div className="nq-lg"><span>הנחה {c.discountPct}%</span><span className="num">−{money(c.pctOff)}</span></div>}
+          {c.discountAmt > 0 && <div className="nq-lg"><span>הנחה בשקלים</span><span className="num">−{money(c.discountAmt)}</span></div>}
           <div className="nq-lg sep"><span>ללקוח, לפני מע״מ</span><span className="num">{money(c.price)}</span></div>
           <div className="nq-lg"><span>מע״מ {data.settings.vat}%</span><span className="num">{money(c.vat)}</span></div>
           <div className="nq-lg big"><span>סה״כ כולל מע״מ</span><span className="num">{money(c.total)}</span></div>

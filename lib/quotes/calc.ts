@@ -78,7 +78,7 @@ export function calc(q: Quote, settings: Settings, pros: Pro[]) {
   const coms = comList.map((p, i) => ({ ...p, amount: comAmounts[i] }));
   const comTotal = coms.reduce((s, c) => s + c.amount, 0);
   const vat = Math.round((price * (+settings.vat || 0)) / 100);
-  return { base, markup, pct, discountPct: d, discountAmt: amt, list, discount: list - price, price, coms, comTotal, vat, total: price + vat, net: price - comTotal };
+  return { base, markup, pct, discountPct: d, discountAmt: amt, pctOff: list - afterPct, list, discount: list - price, price, coms, comTotal, vat, total: price + vat, net: price - comTotal };
 }
 
 /* ---------- catalog tree ---------- */
