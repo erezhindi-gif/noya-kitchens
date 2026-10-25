@@ -93,3 +93,18 @@ export async function sharePdf(blob: Blob, name: string, text?: string) {
   }
   return true;
 }
+
+/** Opens the PDF in the phone's / browser's own viewer instead of saving it to files.
+ *  The window is opened synchronously inside the tap (so it isn't blocked), then pointed at the file. */
+export async function openPdf(make: () => Promise<Blob>) {
+  const w = window.open("", "_blank");
+  if (w) w.document.write('<p style="font-family:Arial;direction:rtl;padding:24px">מכין את ההצעה…</p>');
+  try {
+    const url = URL.createObjectURL(await make());
+    if (w) w.location.href = url;
+    else window.location.href = url; // in-app browsers that refuse new windows: open in place
+  } catch (e) {
+    w?.close();
+    throw e;
+  }
+}

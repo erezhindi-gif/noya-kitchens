@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { qnum } from "@/lib/quotes/calc";
 import type { Quote, Settings } from "@/lib/quotes/types";
 import DocFrame from "./DocFrame";
-import { downloadBlob, pdfName, quotePdf, sharePdf } from "./pdf";
+import { openPdf, quotePdf } from "./pdf";
 
 /** The client's view of their quote: the sheet, a PDF download and the approve form.
  *  `quote` arrives already stripped of prices; the sheet itself is rendered on the server. */
@@ -16,18 +16,15 @@ export default function ClientQuote({ quote: q, settings, doc }: { quote: Quote;
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState("");
   const approved = q.status === "approved";
-  const isPhone = typeof navigator !== "undefined" && /Android|iPhone|iPad/i.test(navigator.userAgent);
 
   const onPdf = async () => {
     const el = box.current?.querySelector(".nq-doc") as HTMLElement | null;
     if (!el) return;
     setBusy(true);
     try {
-      const blob = await quotePdf(el);
-      const file = pdfName(qnum(q), q.client.name);
-      if (!(isPhone && (await sharePdf(blob, file)))) downloadBlob(blob, file);
+      await openPdf(() => quotePdf(el));
     } catch {
-      setErr("לא הצלחנו להכין את הקובץ. נסו שוב");
+      setErr("לא הצלחנו לפתוח את הקובץ. נסו שוב");
     }
     setBusy(false);
   };
@@ -54,7 +51,7 @@ export default function ClientQuote({ quote: q, settings, doc }: { quote: Quote;
       </div>
       <div className="nq-wrap">
         <div className="nq-client-acts">
-          <button className="nq-btn" disabled={busy} onClick={onPdf}>{busy ? "מכין קובץ…" : "הורדת PDF"}</button>
+          <button className="nq-btn" disabled={busy} onClick={onPdf}>{busy ? "פותח…" : "פתיחה כ-PDF"}</button>
           <a className="nq-btn" href={`https://wa.me/972${settings.phone.replace(/\D/g, "").replace(/^0/, "")}`} target="_blank" rel="noopener">שאלה לארז בוואטסאפ</a>
         </div>
         <div ref={box}><DocFrame>{doc}</DocFrame></div>

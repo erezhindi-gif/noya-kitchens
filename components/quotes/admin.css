@@ -161,8 +161,8 @@
 /* preview + client page */
 .nq-cv-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
 .nq-cv-bar .grow { flex: 1; }
-.nq-frame { overflow: hidden; display: flex; justify-content: center; }
-.nq-frame-in { transform-origin: top center; box-shadow: 0 8px 36px rgba(43,38,34,.12); }
+.nq-frame { overflow: hidden; direction: ltr; position: relative; width: 100%; }
+.nq-frame-in { width: 794px; transform-origin: 0 0; direction: rtl; box-shadow: 0 8px 36px rgba(43,38,34,.12); }
 .nq-note { background: var(--gold-soft); border-radius: 10px; padding: 10px 14px; font-size: 13px; margin-bottom: 14px; }
 .nq-approve { max-width: 794px; margin: 16px auto 0; }
 .nq-approve .row { display: flex; gap: 8px; flex-wrap: wrap; }

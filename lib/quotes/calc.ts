@@ -206,8 +206,7 @@ export function waLink(q: Quote, settings: Settings, total: number, origin: stri
   const text =
     `שלום ${q.client.name},\n` +
     `מצורפת הצעת מחיר ${qnum(q)} מנויה מטבחים${q.project ? ` עבור ${q.project}` : ""}.\n` +
-    `סה"כ ${money(total)} כולל מע"מ.\n` +
-    `לצפייה, הורדה ואישור: ${origin}/q/${q.id}\n\n` +
+    `לצפייה בהצעה ולאישור: ${origin}/q/${q.id}\n\n` +
     `${settings.owner}, ${settings.phone}`;
   return `https://wa.me/${ph}?text=${encodeURIComponent(text)}`;
 }
