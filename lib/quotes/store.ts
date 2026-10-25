@@ -25,6 +25,12 @@ const sanity =
 
 export const storageMode = sanity ? "sanity" : "local-file";
 
+// Every read bypasses Next.js' fetch cache. Without this, the quote list was served from a cached
+// copy: deleted quotes came back and new ones seemed to vanish after a refresh.
+const NO_CACHE = { cache: "no-store" as const };
+const readDoc = (id: string) =>
+  sanity!.fetch<Record<string, unknown> | null>(`*[_id == $id][0]`, { id }, NO_CACHE);
+
 const ID = { settings: "noyaq.settings", catalog: "noyaq.catalog", quote: (id: string) => `noyaq.quote.${id}` };
 
 /* Sanity wants a _key on every object inside an array; strip Sanity's own fields on the way out. */
@@ -65,9 +71,9 @@ async function writeFile(d: FileData) {
 export async function getData(): Promise<AppData> {
   if (sanity) {
     const [settingsDoc, catalogDoc, quotes] = await Promise.all([
-      sanity.getDocument(ID.settings),
-      sanity.getDocument(ID.catalog),
-      sanity.fetch<Record<string, unknown>[]>(`*[_type == "nq_quote" && _id match "noyaq.quote.*"]`),
+      readDoc(ID.settings),
+      readDoc(ID.catalog),
+      sanity.fetch<Record<string, unknown>[]>(`*[_type == "nq_quote" && _id in path("noyaq.quote.*")]`, {}, NO_CACHE),
     ]);
     const s = settingsDoc ? clean<{ settings: Settings; pros: Pro[] }>(settingsDoc) : null;
     return {
@@ -89,7 +95,7 @@ export async function getData(): Promise<AppData> {
 export async function getQuote(id: string): Promise<{ quote: Quote; settings: Settings } | null> {
   if (!/^[a-z0-9]{6,32}$/.test(id)) return null;
   if (sanity) {
-    const [q, s] = await Promise.all([sanity.getDocument(ID.quote(id)), sanity.getDocument(ID.settings)]);
+    const [q, s] = await Promise.all([readDoc(ID.quote(id)), readDoc(ID.settings)]);
     if (!q) return null;
     const ss = s ? clean<{ settings: Settings }>(s).settings : undefined;
     return { quote: clean<Quote>(q), settings: { ...DEFAULT_SETTINGS, ...(ss || {}) } };

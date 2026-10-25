@@ -31,6 +31,26 @@ async function api(path: string, method: string, body?: unknown) {
   return res.json();
 }
 
+/* Browser backup of every quote edit, kept until the server confirms the same version.
+   If a save never reached the server (refresh, lost connection), the next load restores it. */
+const BK = "nq-bk-";
+const backup = (q: Quote) => { try { localStorage.setItem(BK + q.id, JSON.stringify(q)); } catch {} };
+const dropBackup = (id: string, ifSame?: Quote) => {
+  try {
+    if (!ifSame || localStorage.getItem(BK + id) === JSON.stringify(ifSame)) localStorage.removeItem(BK + id);
+  } catch {}
+};
+function readBackups(): Quote[] {
+  const out: Quote[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k?.startsWith(BK)) { try { out.push(JSON.parse(localStorage.getItem(k)!)); } catch {} }
+    }
+  } catch {}
+  return out;
+}
+
 export default function AdminApp() {
   const [data, setData] = useState<AppData | null>(null);
   const [loadErr, setLoadErr] = useState("");
@@ -48,7 +68,17 @@ export default function AdminApp() {
   useEffect(() => {
     api("/api/admin/data", "GET")
       .then((d: AppData) => {
+        const restored: Quote[] = [];
+        for (const b of readBackups()) {
+          const srv = d.quotes.find((q) => q.id === b.id);
+          if (!srv || (b.updatedAt || "") > (srv.updatedAt || "")) {
+            d.quotes = srv ? d.quotes.map((q) => (q.id === b.id ? b : q)) : [...d.quotes, b];
+            restored.push(b);
+          } else dropBackup(b.id);
+        }
         setData({ ...d, cat: normalizeCat(tidyCat(d.cat)) });
+        for (const b of restored)
+          api(`/api/admin/quotes/${b.id}`, "PUT", b).then(() => dropBackup(b.id, b)).catch(() => setSave("error"));
         let last: string | null = null;
         try { last = localStorage.getItem("nq-open"); } catch {}
         if (last && d.quotes.some((q) => q.id === last)) {
@@ -74,7 +104,26 @@ export default function AdminApp() {
       if (pending.current > 0) e.preventDefault();
     };
     addEventListener("beforeunload", onLeave);
+    // Leaving or refreshing: send whatever is still waiting, without waiting for the debounce.
+    const flush = () => {
+      const d = dataRef.current;
+      if (!d) return;
+      for (const key of Object.keys(timers.current)) {
+        clearTimeout(timers.current[key]);
+        delete timers.current[key];
+        const send = (path: string, body: unknown) =>
+          fetch(path, { method: "PUT", keepalive: true, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(() => {});
+        if (key.startsWith("q:")) {
+          const q = d.quotes.find((x) => x.id === key.slice(2));
+          if (q) send(`/api/admin/quotes/${q.id}`, q);
+        } else if (key === "cat") send("/api/admin/catalog", d.cat);
+        else if (key === "settings") send("/api/admin/settings", { settings: d.settings, pros: d.pros });
+      }
+      pending.current = 0;
+    };
+    addEventListener("pagehide", flush);
     return () => {
+      removeEventListener("pagehide", flush);
       removeEventListener("popstate", onPop);
       removeEventListener("beforeunload", onLeave);
     };
@@ -117,7 +166,7 @@ export default function AdminApp() {
   const saveQuoteLater = (id: string, delay?: number) =>
     schedule("q:" + id, (d) => {
       const q = d.quotes.find((x) => x.id === id);
-      return q ? api(`/api/admin/quotes/${id}`, "PUT", q) : Promise.resolve();
+      return q ? api(`/api/admin/quotes/${id}`, "PUT", q).then(() => dropBackup(id, q)) : Promise.resolve();
     }, delay);
 
   const updQuote = (id: string, fn: (q: Quote) => void, delay?: number) => {
@@ -127,6 +176,8 @@ export default function AdminApp() {
         if (q.id !== id) return q;
         const c = structuredClone(q);
         fn(c);
+        c.updatedAt = new Date().toISOString();
+        backup(c);
         return c;
       });
       const next = { ...d, quotes };
@@ -166,8 +217,9 @@ export default function AdminApp() {
     const base: Omit<Quote, "id" | "date" | "seq" | "status"> = from
       ? structuredClone({ ...from, approvedBy: undefined, approvedAt: undefined })
       : { client: { name: "", phone: "" }, project: "", lines: [], pros: [], round: true, delivery: "אספקה 45 ימי עבודה", notes: "" };
-    const q: Quote = { ...base, id: uid(12), date, seq, status: "draft" };
+    const q: Quote = { ...base, id: uid(12), date, seq, status: "draft", updatedAt: new Date().toISOString() };
     q.lines = q.lines.map((l) => ({ ...l, id: uid() }));
+    backup(q);
     setData((d) => {
       const next = d ? { ...d, quotes: [...d.quotes, q] } : d;
       dataRef.current = next;
@@ -179,9 +231,15 @@ export default function AdminApp() {
   };
 
   const removeQuote = async (id: string) => {
-    clearTimeout(timers.current["q:" + id]);
+    // Cancel a waiting save, or it would recreate the quote right after the delete.
+    if (timers.current["q:" + id]) {
+      clearTimeout(timers.current["q:" + id]);
+      delete timers.current["q:" + id];
+      pending.current = Math.max(0, pending.current - 1);
+    }
     try {
       await api(`/api/admin/quotes/${id}`, "DELETE");
+      dropBackup(id);
       setData((d) => (d ? { ...d, quotes: d.quotes.filter((q) => q.id !== id) } : d));
       if (openId === id) { setOpenId(null); try { localStorage.removeItem("nq-open"); } catch {} }
       go("list");

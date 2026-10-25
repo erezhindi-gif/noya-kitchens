@@ -7,6 +7,7 @@ import ClientQuote from "@/components/quotes/ClientQuote";
 import "@/components/quotes/admin.css";
 
 export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const found = await getQuote(params.id);
