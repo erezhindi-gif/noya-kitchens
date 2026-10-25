@@ -23,6 +23,9 @@ const LOCAL_CHROME = [
 async function launch() {
   const puppeteer = (await import("puppeteer-core")).default;
   if (process.env.VERCEL) {
+    // @sparticuz/chromium only unpacks the system libraries it needs (libnss3…) when it recognizes a
+    // Node 20/22 Lambda; Vercel doesn't set that variable, so say so before the module loads.
+    process.env.AWS_LAMBDA_JS_RUNTIME ||= `nodejs${process.versions.node.split(".")[0]}.x`;
     const chromium = (await import("@sparticuz/chromium")).default;
     return puppeteer.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true });
   }
