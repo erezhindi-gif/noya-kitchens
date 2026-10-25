@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   STATUS_LABEL, UNIT_LABEL, ancestors, calc, descendantIds, fdate, kids, leafCount, lineFrom, lineTotal,
-  autoDesc, label, money, priceOf, normalizeCat, optPrice, pathOf, tidyCat, qnum, todayIL, uid, waLink,
+  autoDesc, composeDesc, label, money, pathPrice, priceOf, normalizeCat, optPrice, pathOf, tidyCat, qnum, todayIL, uid, waLink,
 } from "@/lib/quotes/calc";
 import type { AppData, CatNode, CatOption, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
 import QuoteDoc from "./QuoteDoc";
@@ -358,6 +358,7 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash }: {
                               <input className="in num" type="number" inputMode="decimal" value={l.price} onChange={(e) => setLine(l.id, { price: num(e.target.value) })} /> ₪
                             </>
                           )}
+                          <label className="nq-chk" style={{ padding: 0 }}><input type="checkbox" checked={!!l.showQty} onChange={(e) => setLine(l.id, { showQty: e.target.checked })} /> כמות ללקוח</label>
                           <span className="lt num">{money(lineTotal(l))}</span>
                         </div>
                         <div className="seen">
@@ -481,7 +482,7 @@ function Picker({ cat, onPick, onClose }: { cat: CatNode[]; onPick: (n: CatNode)
   const parents = [""];
   for (const id of path) if (kids(cat, id).length) parents.push(id);
   const chosen = path.length ? cat.find((c) => c.id === path[path.length - 1]) : undefined;
-  const p = chosen ? priceOf(cat, chosen) : null;
+  const p = chosen ? pathPrice(cat, chosen) : null;
 
   return (
     <div className="nq-scrim" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -502,7 +503,7 @@ function Picker({ cat, onPick, onClose }: { cat: CatNode[]; onPick: (n: CatNode)
         ))}
         {chosen && (
           <div className="nq-chosen">
-            <div>{chosen.desc?.trim() || label(chosen)}</div>
+            <div>{composeDesc(cat, chosen) || label(chosen)}</div>
             <div className="hint num">{p && p.price ? `${money(p.price)} ${p.unit === "m" ? "למטר" : "ליחידה"}` : "ללא מחיר"}</div>
           </div>
         )}

@@ -79,6 +79,31 @@ export function priceOf(cat: CatNode[], n: CatNode): { price: number; unit: CatN
   return { price: 0, unit: n.unit || "u" };
 }
 
+/** Price of a picked item: every level on the way adds its own price (front 1,100 + handle 250 = 1,350).
+ *  The unit comes from the deepest level that has a price. */
+export function pathPrice(cat: CatNode[], n: CatNode): { price: number; unit: CatNode["unit"] } {
+  let price = 0;
+  let unit: CatNode["unit"];
+  for (const x of [...ancestors(cat, n), n]) {
+    const p = +(x.price || 0);
+    if (p > 0) { price += p; unit = x.unit || "u"; }
+  }
+  return { price, unit: unit || n.unit || "u" };
+}
+
+/** Quote text, as in V6: each level's description (or its name when it has none) joined with commas.
+ *  The top level only counts when it has a description of its own. */
+export function composeDesc(cat: CatNode[], n: CatNode) {
+  const parts: string[] = [];
+  [...ancestors(cat, n), n].forEach((x, i) => {
+    const d = (x.desc || "").trim();
+    if (i === 0 && !d) return;
+    const v = d || x.name.trim();
+    if (v && !parts.includes(v)) parts.push(v);
+  });
+  return parts.join(", ");
+}
+
 /** Quote text when the item has no custom description: its names down the tree. */
 export const autoDesc = (cat: CatNode[], n: CatNode) =>
   [...ancestors(cat, n), n].map((x) => x.name.trim()).filter(Boolean).join(", ");
@@ -96,9 +121,9 @@ export const optPrice = (n: CatNode, o?: CatOption) =>
   o && o.price != null && String(o.price) !== "" ? Number(o.price) : n.price || 0;
 
 export const lineFrom = (cat: CatNode[], n: CatNode, o?: CatOption): Line => {
-  const base = n.desc?.trim() || n.name.trim();
+  const base = composeDesc(cat, n) || pathOf(cat, n);
   const opt = o ? [n.optLabel?.trim(), o.name.trim()].filter(Boolean).join(" ") : "";
-  const p = priceOf(cat, n);
+  const p = pathPrice(cat, n);
   return {
     id: uid(),
     type: "cat",
