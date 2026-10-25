@@ -82,6 +82,9 @@ export default function QuoteDoc({ quote: q, settings: st, pros = [] }: { quote:
                       </td>
                     </tr>
                   )}
+                  {sub && i < q.lines.length - 1 && (
+                    <tr className="nq-d-gap" aria-hidden="true"><td colSpan={2} /></tr>
+                  )}
                 </Fragment>
               );
             })}

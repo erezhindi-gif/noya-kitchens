@@ -63,5 +63,8 @@
   display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 13px; }
 .nq-d-stamp div { display: flex; flex-direction: column; }
 .nq-d-stamp b { font-size: 15px; }
-.nq-d-sub td { background: var(--d-soft); font-weight: 800; font-size: 14px; }
+/* Part subtotal closes its part; a quiet gap separates it from the next part's heading */
+.nq-d-sub td { background: var(--d-soft); font-weight: 800; font-size: 14px; border-top: 1.5px solid var(--d-rule); }
+.nq-d-items tbody tr.nq-d-gap td { height: 22px; padding: 0; border-top: 0; background: #fff; }
+.nq-d-gap + .nq-d-grp td { border-top: 1px solid var(--d-line); }
 .nq-d-subrow { display: flex; justify-content: space-between; gap: 12px; font-variant-numeric: tabular-nums; }
