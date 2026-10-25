@@ -38,6 +38,8 @@ export default function AdminApp() {
   const [curId, setCurId] = useState<string | null>(null);
   const [save, setSave] = useState<SaveState>("idle");
   const [toast, setToast] = useState("");
+  // The quote Erez was working on, so the catalog and settings screens can send him straight back to it.
+  const [openId, setOpenId] = useState<string | null>(null);
   const dataRef = useRef<AppData | null>(null);
   dataRef.current = data;
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -45,7 +47,17 @@ export default function AdminApp() {
 
   useEffect(() => {
     api("/api/admin/data", "GET")
-      .then((d) => setData({ ...d, cat: normalizeCat(tidyCat(d.cat)) }))
+      .then((d: AppData) => {
+        setData({ ...d, cat: normalizeCat(tidyCat(d.cat)) });
+        let last: string | null = null;
+        try { last = localStorage.getItem("nq-open"); } catch {}
+        if (last && d.quotes.some((q) => q.id === last)) {
+          setOpenId(last);
+          setView("edit");
+          setCurId(last);
+          history.replaceState({ view: "edit", curId: last }, "");
+        }
+      })
       .catch(() => setLoadErr("לא הצלחתי לטעון את הנתונים. רענן את העמוד."));
   }, []);
 
@@ -71,6 +83,10 @@ export default function AdminApp() {
   const go = useCallback((v: View, id: string | null = null) => {
     setView(v);
     setCurId(id);
+    if ((v === "edit" || v === "preview") && id) {
+      setOpenId(id);
+      try { localStorage.setItem("nq-open", id); } catch {}
+    }
     history.pushState({ view: v, curId: id }, "");
     window.scrollTo(0, 0);
   }, []);
@@ -146,7 +162,7 @@ export default function AdminApp() {
   const newQuote = (from?: Quote) => {
     if (!data) return;
     const date = todayIL();
-    const seq = data.quotes.filter((q) => q.date === date).reduce((m, q) => Math.max(m, q.seq), 0) + 1;
+    const seq = (dataRef.current || data).quotes.filter((q) => q.date === date).reduce((m, q) => Math.max(m, q.seq), 0) + 1;
     const base: Omit<Quote, "id" | "date" | "seq" | "status"> = from
       ? structuredClone({ ...from, approvedBy: undefined, approvedAt: undefined })
       : { client: { name: "", phone: "" }, project: "", lines: [], pros: [], round: true, delivery: "אספקה 45 ימי עבודה", notes: "" };
@@ -167,6 +183,7 @@ export default function AdminApp() {
     try {
       await api(`/api/admin/quotes/${id}`, "DELETE");
       setData((d) => (d ? { ...d, quotes: d.quotes.filter((q) => q.id !== id) } : d));
+      if (openId === id) { setOpenId(null); try { localStorage.removeItem("nq-open"); } catch {} }
       go("list");
       flash("ההצעה נמחקה");
     } catch {
@@ -198,7 +215,7 @@ export default function AdminApp() {
       </header>
 
       <main className="nq-wrap">
-        {view === "list" && <ListView data={data} onOpen={(id) => go("edit", id)} onNew={() => newQuote()} onDup={newQuote} />}
+        {view === "list" && <ListView data={data} onOpen={(id) => go("edit", id)} onNew={() => newQuote()} onDup={newQuote} onDelete={removeQuote} />}
         {view === "edit" && q && (
           <Editor
             data={data} q={q} upd={(fn, delay) => updQuote(q.id, fn, delay)}
@@ -210,6 +227,15 @@ export default function AdminApp() {
           <Preview data={data} q={q} onBack={() => go("edit", q.id)} flash={flash}
             markSent={() => q.status === "draft" && updQuote(q.id, (x) => { x.status = "sent"; }, 0)} />
         )}
+        {(view === "catalog" || view === "settings") && openId && data.quotes.some((x) => x.id === openId) && (() => {
+          const oq = data.quotes.find((x) => x.id === openId)!;
+          return (
+            <div className="nq-back">
+              <span>עובד על הצעה <b className="ltr">{qnum(oq)}</b>{oq.client.name ? ` · ${oq.client.name}` : ""}</span>
+              <button className="nq-btn sm pri" onClick={() => go("edit", openId)}>חזרה להצעה ›</button>
+            </div>
+          );
+        })()}
         {view === "catalog" && <CatalogView cat={data.cat} upd={updCat} />}
         {view === "settings" && <SettingsView data={data} upd={updSettings} />}
         {(view === "edit" || view === "preview") && !q && <div className="nq-empty">ההצעה לא נמצאה</div>}
@@ -220,7 +246,8 @@ export default function AdminApp() {
 }
 
 /* =================== list =================== */
-function ListView({ data, onOpen, onNew, onDup }: { data: AppData; onOpen: (id: string) => void; onNew: () => void; onDup: (q: Quote) => void }) {
+function ListView({ data, onOpen, onNew, onDup, onDelete }: { data: AppData; onOpen: (id: string) => void; onNew: () => void; onDup: (q: Quote) => void; onDelete: (id: string) => void }) {
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const [filter, setFilter] = useState<Status | "all">("all");
   const [term, setTerm] = useState("");
   const rows = useMemo(() => data.quotes.map((q) => ({ q, c: calc(q, data.settings, data.pros) })), [data]);
@@ -261,7 +288,20 @@ function ListView({ data, onOpen, onNew, onDup }: { data: AppData; onOpen: (id: 
             <span className="d sub num">{fdate(q.date)}</span>
             <span className="t num">{money(c.price)}<div className="sub" style={{ fontWeight: 400 }}>לפני מע״מ</div></span>
             <span><span className={`nq-pill nq-st-${q.status}`}>{STATUS_LABEL[q.status]}</span></span>
-            <span><button className="nq-btn sm" onClick={(e) => { e.stopPropagation(); onDup(q); }}>שכפל</button></span>
+            <span className="acts" onClick={(e) => e.stopPropagation()}>
+              {confirmDel === q.id ? (
+                <span className="nq-confirm">
+                  למחוק?
+                  <button className="nq-btn sm danger" onClick={() => { setConfirmDel(null); onDelete(q.id); }}>כן</button>
+                  <button className="nq-btn sm" onClick={() => setConfirmDel(null)}>לא</button>
+                </span>
+              ) : (
+                <>
+                  <button className="nq-btn sm" onClick={() => onDup(q)}>שכפל</button>
+                  <button className="nq-btn sm danger" onClick={() => setConfirmDel(q.id)}>מחק</button>
+                </>
+              )}
+            </span>
           </div>
         ))}
         {!shown.length && (

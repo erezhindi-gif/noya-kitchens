@@ -208,3 +208,6 @@
 .nq-part .nm { color: var(--ink); font-weight: 700; min-width: 120px; flex: 1; }
 .nq-part .in { width: 88px; padding: 6px 8px; font-size: 14px; }
 .nq-part .st { color: var(--ink); min-width: 70px; text-align: left; }
+
+.nq-back { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; background: var(--gold-soft); border-radius: 12px; padding: 10px 14px; margin-bottom: 16px; font-size: 14px; }
+.nq-qrow .acts { display: flex; gap: 6px; align-items: center; }

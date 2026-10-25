@@ -103,16 +103,13 @@ export function pathPrice(cat: CatNode[], n: CatNode): { price: number; unit: Ca
   return { price, unit: unit || n.unit || "u" };
 }
 
-/** Quote text, as in V6: each level's description (or its name when it has none) joined with commas.
- *  The top level only counts when it has a description of its own. */
+/** Quote text: the descriptions written on the levels above (their names never, so "פרזול" or "מגירות"
+ *  don't leak in), then the picked item's description, or its name when it has none. */
 export function composeDesc(cat: CatNode[], n: CatNode) {
   const parts: string[] = [];
-  [...ancestors(cat, n), n].forEach((x, i) => {
-    const d = (x.desc || "").trim();
-    if (i === 0 && !d) return;
-    const v = d || x.name.trim();
-    if (v && !parts.includes(v)) parts.push(v);
-  });
+  const push = (v: string) => { if (v && !parts.includes(v)) parts.push(v); };
+  ancestors(cat, n).forEach((x) => push((x.desc || "").trim()));
+  push((n.desc || "").trim() || n.name.trim());
   return parts.join(", ");
 }
 
