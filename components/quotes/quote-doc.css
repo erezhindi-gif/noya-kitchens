@@ -22,10 +22,9 @@
 .nq-doc .nq-bsd { position: absolute; top: 22px; right: 56px; font-size: 12.5px; font-weight: 700; }
 
 .nq-d-head { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding-top: 6px; }
-/* Full-width strip in the logo's own background tone, logo centered without a frame */
-.nq-d-band { align-self: stretch; margin: -46px -56px 6px; padding: 30px 0 24px; background: #f9f2ea;
-  border-bottom: 1px solid var(--d-rule); display: flex; justify-content: center; }
-.nq-d-logo { width: 200px; height: auto; display: block; }
+/* Centered logo card in the logo's own background tone, with generous room around the logo */
+.nq-d-band { background: #f9f2ea; border: 1px solid var(--d-line); border-radius: 22px; padding: 20px 40px; margin-top: 4px; }
+.nq-d-logo { width: 170px; height: auto; display: block; }
 .nq-d-head h1 { font-size: 30px; font-weight: 800; margin: 8px 0 0; letter-spacing: 0.01em; }
 .nq-d-biz { display: flex; flex-direction: column; font-size: 12.5px; color: var(--d-muted); line-height: 1.7; }
 .nq-d-biz b { color: var(--d-ink); font-size: 13px; }
