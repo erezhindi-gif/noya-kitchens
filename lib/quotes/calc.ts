@@ -207,6 +207,6 @@ export function waLink(q: Quote, settings: Settings, total: number, origin: stri
     `שלום ${q.client.name},\n` +
     `מצורפת הצעת מחיר ${qnum(q)} מנויה מטבחים${q.project ? ` עבור ${q.project}` : ""}.\n` +
     `לצפייה בהצעה ולאישור: ${origin}/q/${q.id}\n\n` +
-    `${settings.owner}, ${settings.phone}`;
+    `${settings.owner}, נויה מטבחים`;
   return `https://wa.me/${ph}?text=${encodeURIComponent(text)}`;
 }
