@@ -23,9 +23,11 @@ const LOCAL_CHROME = [
 async function launch() {
   const puppeteer = (await import("puppeteer-core")).default;
   if (process.env.VERCEL) {
-    // @sparticuz/chromium only unpacks the system libraries it needs (libnss3…) when it recognizes a
-    // Node 20/22 Lambda; Vercel doesn't set that variable, so say so before the module loads.
-    process.env.AWS_LAMBDA_JS_RUNTIME ||= `nodejs${process.versions.node.split(".")[0]}.x`;
+    // Vercel runs Node 24 on Amazon Linux 2023. @sparticuz/chromium picks its bundled system
+    // libraries (libnss3, libnspr4…) by the runtime name and only knows 20/22 as AL2023 — anything
+    // else gets the old AL2 set and Chromium can't start. Name it 22.x before the module loads.
+    process.env.AWS_EXECUTION_ENV = "AWS_Lambda_nodejs22.x";
+    process.env.AWS_LAMBDA_JS_RUNTIME = "nodejs22.x";
     const chromium = (await import("@sparticuz/chromium")).default;
     return puppeteer.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true });
   }
