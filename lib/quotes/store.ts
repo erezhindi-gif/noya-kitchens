@@ -41,7 +41,8 @@ const quoteDoc = (q: Quote) => ({
   _id: ID.quote(q.id),
   _type: "nq_quote",
   ...q,
-  lines: withKeys(q.lines),
+  lines: withKeys(q.lines.map((l) => (l.parts ? { ...l, parts: withKeys(l.parts) } : l))),
+  commissions: q.commissions?.map((c, i) => ({ ...c, _key: `c${i}` })),
   pros: q.pros.map((p, i) => ({ ...p, _key: `${p.proId}-${i}` })),
 });
 

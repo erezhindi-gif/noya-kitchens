@@ -201,3 +201,10 @@
 .nq-item-desc { font-size: 13.5px; color: var(--muted); }
 .nq-item-acts { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 .nq-btn.danger { background: var(--bad-bg); border-color: transparent; }
+
+/* line components: one row per priced catalog level */
+.nq-parts { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; }
+.nq-part { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); background: #fff; border: 1px solid var(--line); border-radius: 9px; padding: 6px 10px; }
+.nq-part .nm { color: var(--ink); font-weight: 700; min-width: 120px; flex: 1; }
+.nq-part .in { width: 88px; padding: 6px 8px; font-size: 14px; }
+.nq-part .st { color: var(--ink); min-width: 70px; text-align: left; }

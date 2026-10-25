@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   STATUS_LABEL, UNIT_LABEL, ancestors, calc, descendantIds, fdate, kids, leafCount, lineFrom, lineTotal,
-  autoDesc, composeDesc, label, money, pathPrice, priceOf, normalizeCat, optPrice, pathOf, tidyCat, qnum, todayIL, uid, waLink,
+  autoDesc, commissionsOf, composeDesc, label, money, pathPrice, priceOf, normalizeCat, optPrice, pathOf, tidyCat, qnum, todayIL, uid, waLink,
 } from "@/lib/quotes/calc";
 import type { AppData, CatNode, CatOption, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
 import QuoteDoc from "./QuoteDoc";
@@ -346,7 +346,27 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash }: {
                     ) : (
                       <textarea className="in full" rows={2} value={l.desc} placeholder="מה ייכתב בהצעה" onChange={(e) => setLine(l.id, { desc: e.target.value })} />
                     )}
-                    {l.type !== "head" && l.type !== "text" && (
+                    {!!l.parts?.length && (
+                      <div className="nq-parts">
+                        {l.parts.map((pt, pi) => (
+                          <div key={pt.id} className="nq-part">
+                            <span className="nm">{pt.name}</span>
+                            <input className="in num" type="number" step="0.1" inputMode="decimal" value={pt.qty} aria-label={`כמות ${pt.name}`}
+                              onChange={(e) => upd((x) => { const y = x.lines.find((z) => z.id === l.id); if (y?.parts) y.parts[pi].qty = num(e.target.value); })} />
+                            <span>{UNIT_LABEL[pt.unit]} ×</span>
+                            <input className="in num" type="number" inputMode="decimal" value={pt.price} aria-label={`מחיר ${pt.name}`}
+                              onChange={(e) => upd((x) => { const y = x.lines.find((z) => z.id === l.id); if (y?.parts) y.parts[pi].price = num(e.target.value); })} />
+                            <span>₪</span>
+                            <span className="st num">{money((+pt.qty || 0) * (+pt.price || 0))}</span>
+                          </div>
+                        ))}
+                        <div className="nums">
+                          <label className="nq-chk" style={{ padding: 0 }}><input type="checkbox" checked={!!l.showQty} onChange={(e) => setLine(l.id, { showQty: e.target.checked })} /> כמות ללקוח</label>
+                          <span className="lt num">{money(lineTotal(l))}</span>
+                        </div>
+                      </div>
+                    )}
+                    {l.type !== "head" && l.type !== "text" && !l.parts?.length && (
                       <>
                         <div className="nums">
                           {l.type === "lump" ? (
@@ -382,29 +402,28 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash }: {
           </section>
 
           <section className="nq-card">
-            <div className="nq-card-h"><h2>עמלת אנשי מקצוע</h2><span className="hint">סמויה. לא מופיעה בהצעה, מגולמת במחיר</span></div>
-            {q.pros.map((p, i) => (
-              <div key={i} className="nq-pro">
-                <select className="in" value={p.proId} onChange={(e) => upd((x) => { x.pros[i].proId = e.target.value; x.pros[i].pct = data.pros.find((y) => y.id === e.target.value)?.pct ?? x.pros[i].pct; })}>
-                  {data.pros.map((pr) => <option key={pr.id} value={pr.id}>{pr.name} · {pr.role}</option>)}
-                </select>
-                <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <input className="in num" type="number" inputMode="decimal" value={p.pct} onChange={(e) => upd((x) => { x.pros[i].pct = num(e.target.value); })} />%
-                </label>
-                <button className="nq-btn sm ghost" onClick={() => upd((x) => { x.pros.splice(i, 1); })} aria-label="הסר">✕</button>
-              </div>
-            ))}
-            {!q.pros.length && <div className="hint">אין עמלה בהצעה הזו</div>}
-            {q.pros.length < 2 && (
-              <div className="nq-adds">
-                <button className="nq-btn sm" onClick={() => {
-                  if (!data.pros.length) return flash("קודם הוסף אנשי מקצוע במסך ההגדרות");
-                  const used = q.pros.map((p) => p.proId);
-                  const p = data.pros.find((x) => !used.includes(x.id)) || data.pros[0];
-                  upd((x) => { x.pros.push({ proId: p.id, pct: p.pct }); });
-                }}>+ איש מקצוע</button>
-              </div>
-            )}
+            <div className="nq-card-h"><h2>עמלות</h2><span className="hint">סמויות. לא מופיעות בהצעה, מגולמות במחיר</span></div>
+            {[0, 1].map((i) => {
+              const list = commissionsOf(q, data.pros);
+              const c = list[i] || { name: "", pct: 0 };
+              const setCom = (patch: Partial<{ name: string; pct: number }>) =>
+                upd((x) => {
+                  const cur = commissionsOf(x, data.pros).slice(0, 2);
+                  while (cur.length < 2) cur.push({ name: "", pct: 0 });
+                  cur[i] = { ...cur[i], ...patch };
+                  x.commissions = cur;
+                  x.pros = [];
+                });
+              return (
+                <div key={i} className="nq-pro">
+                  <input className="in" value={c.name} placeholder={`עמלה ${i + 1}: למי (לא חובה)`} onChange={(e) => setCom({ name: e.target.value })} />
+                  <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <input className="in num" type="number" inputMode="decimal" value={c.pct || ""} placeholder="0" onChange={(e) => setCom({ pct: num(e.target.value) })} />%
+                  </label>
+                  <span />
+                </div>
+              );
+            })}
           </section>
 
           <section className="nq-card">
@@ -433,8 +452,8 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash }: {
           <h2>חישוב המחיר</h2>
           <div className="nq-private">רק אתה רואה את זה</div>
           <div className="nq-lg"><span>עלות העבודה</span><span className="num">{money(c.base)}</span></div>
-          {c.coms.map((x, i) => (
-            <div key={i} className="nq-lg com"><span>{x.pro?.name} · {x.pct}%</span><span className="num">−{money(x.amount)}</span></div>
+          {c.coms.filter((x) => +x.pct > 0).map((x, i) => (
+            <div key={i} className="nq-lg com"><span>עמלה {i + 1}{x.name ? ` (${x.name})` : ""} · {x.pct}%</span><span className="num">−{money(x.amount)}</span></div>
           ))}
           {c.pct >= 95 && <div className="hint" style={{ color: "var(--bad)" }}>סך העמלות גבוה מדי</div>}
           <div className="nq-adj">

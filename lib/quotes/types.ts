@@ -35,7 +35,15 @@ export type Line = {
   price: number;
   desc: string;
   showQty?: boolean;
+  /** One priced component per catalog level on the path, each with its own quantity
+   *  (fronts 1,100 × 4 m + handle 250 × 3 m). When present, these set the line total. */
+  parts?: LinePart[];
 };
+
+export type LinePart = { id: string; name: string; unit: Unit; price: number; qty: number };
+
+/** Hidden commission: just a % and an optional note for Erez */
+export type Commission = { name: string; pct: number };
 
 export type Status = "draft" | "sent" | "approved" | "rejected";
 
@@ -50,6 +58,8 @@ export type Quote = {
   project: string;
   lines: Line[];
   pros: QuotePro[];
+  /** Up to two hidden commissions; replaces `pros` on quotes that have it */
+  commissions?: Commission[];
   round: boolean;
   /** Hidden markup % on the work cost */
   markup?: number;

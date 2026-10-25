@@ -1,4 +1,4 @@
-import type { CatNode, CatOption, Line, Pro, Quote, Settings } from "./types";
+import type { CatNode, CatOption, Commission, Line, LinePart, Pro, Quote, Settings } from "./types";
 
 export const STATUS_LABEL: Record<Quote["status"], string> = {
   draft: "טיוטה",
@@ -33,13 +33,25 @@ export const money = (n: number) => "₪" + (Math.round(n * 100) / 100).toLocale
 
 const priced = (l: Line) => l.type !== "text" && l.type !== "head";
 export const lineTotal = (l: Line) =>
-  !priced(l) ? 0 : l.type === "lump" ? +l.price || 0 : (+l.qty || 0) * (+l.price || 0);
+  !priced(l)
+    ? 0
+    : l.parts?.length
+      ? l.parts.reduce((s, p) => s + (+p.qty || 0) * (+p.price || 0), 0)
+      : l.type === "lump" ? +l.price || 0 : (+l.qty || 0) * (+l.price || 0);
+
+/** Quantity shown to the client: the deepest component's (e.g. number of drawers). */
+export const shownQty = (l: Line) => (l.parts?.length ? +l.parts[l.parts.length - 1].qty : +l.qty);
+
+/** The quote's hidden commissions. Older quotes kept them as professionals picked from a list. */
+export const commissionsOf = (q: Quote, pros: Pro[]): Commission[] =>
+  q.commissions ?? q.pros.map((p) => ({ name: pros.find((x) => x.id === p.proId)?.name || "", pct: p.pct }));
 
 export function calc(q: Quote, settings: Settings, pros: Pro[]) {
   const base = q.lines.reduce((s, l) => s + lineTotal(l), 0);
   // Hidden markup on top of the work cost; the client never sees it.
   const markup = (base * (+q.markup! || 0)) / 100;
-  const pct = q.pros.reduce((s, p) => s + (+p.pct || 0), 0);
+  const comList = commissionsOf(q, pros);
+  const pct = comList.reduce((s, p) => s + (+p.pct || 0), 0);
   // Commission is a share of what the client pays, so after paying it Erez keeps base + markup.
   const listRaw = pct < 95 ? (base + markup) / (1 - pct / 100) : base + markup;
   // Client discount is shown on the PDF and comes off the price.
@@ -48,7 +60,7 @@ export function calc(q: Quote, settings: Settings, pros: Pro[]) {
   const step = +settings.roundTo || 0;
   if (q.round && step > 0) price = Math.ceil(price / step) * step;
   const list = d ? price / (1 - d / 100) : price; // list price consistent with the rounded total
-  const coms = q.pros.map((p) => ({ ...p, pro: pros.find((x) => x.id === p.proId), amount: (price * (+p.pct || 0)) / 100 }));
+  const coms = comList.map((p) => ({ ...p, amount: (price * (+p.pct || 0)) / 100 }));
   const comTotal = coms.reduce((s, c) => s + c.amount, 0);
   const vat = (price * (+settings.vat || 0)) / 100;
   return { base, markup, pct, discountPct: d, list, discount: list - price, price, coms, comTotal, vat, total: price + vat, net: price - comTotal };
@@ -124,6 +136,12 @@ export const lineFrom = (cat: CatNode[], n: CatNode, o?: CatOption): Line => {
   const base = composeDesc(cat, n) || pathOf(cat, n);
   const opt = o ? [n.optLabel?.trim(), o.name.trim()].filter(Boolean).join(" ") : "";
   const p = pathPrice(cat, n);
+  // Every priced level becomes its own component with its own quantity.
+  const parts: LinePart[] = o
+    ? []
+    : [...ancestors(cat, n), n]
+        .filter((x) => +(x.price || 0) > 0)
+        .map((x) => ({ id: uid(), name: x.name.trim() || label(x), unit: x.unit || "u", price: +x.price!, qty: 1 }));
   return {
     id: uid(),
     type: "cat",
@@ -134,6 +152,7 @@ export const lineFrom = (cat: CatNode[], n: CatNode, o?: CatOption): Line => {
     price: o ? optPrice(n, o) : p.price,
     desc: opt ? `${base}, ${opt}` : base,
     showQty: showQtyOf(cat, n),
+    ...(parts.length ? { parts } : {}),
   };
 };
 

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getQuote } from "@/lib/quotes/store";
-import { qnum } from "@/lib/quotes/calc";
+import { qnum, shownQty } from "@/lib/quotes/calc";
 import QuoteDoc from "@/components/quotes/QuoteDoc";
 import ClientQuote from "@/components/quotes/ClientQuote";
 import "@/components/quotes/admin.css";
@@ -26,7 +26,9 @@ export default async function ClientQuotePage({ params }: { params: { id: string
   const safe = {
     ...quote,
     pros: [],
-    lines: quote.lines.map((l) => ({ id: l.id, type: l.type, desc: l.desc, qty: l.showQty ? l.qty : 0, showQty: l.showQty, price: 0 })),
+    commissions: [],
+    markup: 0,
+    lines: quote.lines.map((l) => ({ id: l.id, type: l.type, desc: l.desc, qty: l.showQty ? shownQty(l) : 0, showQty: l.showQty, price: 0 })),
   };
   const doc = <QuoteDoc quote={quote} settings={settings} pros={[]} />;
   return <ClientQuote quote={safe} settings={settings} doc={doc} />;
