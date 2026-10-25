@@ -1,4 +1,4 @@
-import { addDays, calc, fdate, money, qnum, shownQty } from "@/lib/quotes/calc";
+import { addDays, calc, fdate, money, qnum, shownQty, tidyLineDesc } from "@/lib/quotes/calc";
 import type { Pro, Quote, Settings } from "@/lib/quotes/types";
 import "./quote-doc.css";
 
@@ -61,7 +61,7 @@ export default function QuoteDoc({ quote: q, settings: st, pros = [] }: { quote:
                 </tr>
               ) : (
                 <tr key={l.id} data-pb>
-                  <td>{l.desc}</td>
+                  <td>{tidyLineDesc(l)}</td>
                   <td className="nq-q">{shownQty(l)}</td>
                 </tr>
               )

@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   STATUS_LABEL, UNIT_LABEL, ancestors, calc, descendantIds, fdate, kids, leafCount, lineFrom, lineTotal,
-  autoDesc, commissionsOf, composeDesc, label, money, pathPrice, priceOf, normalizeCat, optPrice, pathOf, tidyCat, qnum, todayIL, uid, waLink,
+  autoDesc, commissionsOf, tidyLineDesc, composeDesc, label, money, pathPrice, priceOf, normalizeCat, optPrice, pathOf, tidyCat, qnum, todayIL, uid, waLink,
 } from "@/lib/quotes/calc";
 import type { AppData, CatNode, CatOption, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
 import QuoteDoc from "./QuoteDoc";
@@ -76,6 +76,7 @@ export default function AdminApp() {
             restored.push(b);
           } else dropBackup(b.id);
         }
+        d.quotes = d.quotes.map((q) => ({ ...q, lines: q.lines.map((l) => (l.type === "cat" ? { ...l, desc: tidyLineDesc(l) } : l)) }));
         setData({ ...d, cat: normalizeCat(tidyCat(d.cat)) });
         for (const b of restored)
           api(`/api/admin/quotes/${b.id}`, "PUT", b).then(() => dropBackup(b.id, b)).catch(() => setSave("error"));

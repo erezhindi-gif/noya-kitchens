@@ -120,9 +120,19 @@ export function pathPrice(cat: CatNode[], n: CatNode): { price: number; unit: Ca
 export function composeDesc(cat: CatNode[], n: CatNode) {
   const parts: string[] = [];
   const push = (v: string) => { if (v && !parts.includes(v)) parts.push(v); };
-  ancestors(cat, n).forEach((x) => push((x.desc || "").trim()));
+  // A level above only adds real description text — not a repeat of its own name ("פרזול").
+  ancestors(cat, n).forEach((x) => { const d = (x.desc || "").trim(); if (d !== x.name.trim()) push(d); });
   push((n.desc || "").trim() || n.name.trim());
   return parts.join(", ");
+}
+
+/** Lines added before the fix above can start with folder names ("פרזול, מגירות, …"): drop those. */
+export function tidyLineDesc(l: Line): string {
+  if (!l.path || !l.desc) return l.desc;
+  const names = l.path.split("›").slice(0, -1).map((s) => s.trim());
+  const parts = l.desc.split(",");
+  while (parts.length > 1 && names.includes(parts[0].trim())) parts.shift();
+  return parts.join(",").trim();
 }
 
 /** Quote text when the item has no custom description: its names down the tree. */
