@@ -38,8 +38,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const found = await getQuote(params.id);
   if (!found) return NextResponse.json({ error: "not-found" }, { status: 404 });
 
-  const browser = await launch();
+  let browser: Awaited<ReturnType<typeof launch>> | null = null;
   try {
+    browser = await launch();
     const page = await browser.newPage();
     await page.setViewport({ width: 794, height: 1123 });
     await page.emulateMediaType("print");
@@ -78,7 +79,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         "Cache-Control": "no-store",
       },
     });
+  } catch (e) {
+    console.error("pdf failed", e);
+    return NextResponse.json({ error: "pdf-failed", detail: String((e as Error)?.message || e).slice(0, 300) }, { status: 500 });
   } finally {
-    await browser.close();
+    await browser?.close();
   }
 }
