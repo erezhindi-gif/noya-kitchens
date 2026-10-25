@@ -211,6 +211,17 @@ export default function AdminApp() {
     schedule("settings", (d) => api("/api/admin/settings", "PUT", { settings: d.settings, pros: d.pros }));
   };
 
+  const saveNow = async (id: string) => {
+    if (timers.current["q:" + id]) {
+      clearTimeout(timers.current["q:" + id]);
+      delete timers.current["q:" + id];
+      pending.current = Math.max(0, pending.current - 1);
+    }
+    const q = dataRef.current?.quotes.find((x) => x.id === id);
+    if (q) await api(`/api/admin/quotes/${id}`, "PUT", q).then(() => dropBackup(id, q));
+    if (pending.current === 0) setSave("saved");
+  };
+
   const newQuote = (from?: Quote) => {
     if (!data) return;
     const date = todayIL();
@@ -283,7 +294,7 @@ export default function AdminApp() {
           />
         )}
         {view === "preview" && q && (
-          <Preview data={data} q={q} onBack={() => go("edit", q.id)} flash={flash}
+          <Preview data={data} q={q} onBack={() => go("edit", q.id)} flash={flash} saveNow={() => saveNow(q.id)}
             markSent={() => q.status === "draft" && updQuote(q.id, (x) => { x.status = "sent"; }, 0)} />
         )}
         {(view === "catalog" || view === "settings") && openId && data.quotes.some((x) => x.id === openId) && (() => {
@@ -667,13 +678,17 @@ function Picker({ cat, onPick, onClose }: { cat: CatNode[]; onPick: (n: CatNode)
 }
 
 /* =================== preview / send =================== */
-function Preview({ data, q, onBack, flash, markSent }: { data: AppData; q: Quote; onBack: () => void; flash: (m: string) => void; markSent: () => void }) {
+function Preview({ data, q, onBack, flash, markSent, saveNow }: { data: AppData; q: Quote; onBack: () => void; flash: (m: string) => void; markSent: () => void; saveNow: () => Promise<void> }) {
   const box = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
   const c = calc(q, data.settings, data.pros);
   const canShare = typeof navigator !== "undefined" && "canShare" in navigator && /Android|iPhone|iPad/i.test(navigator.userAgent);
 
+  // The real (text) PDF comes from the server; the in-browser version is only a fallback.
   const makePdf = async () => {
+    await saveNow();
+    const res = await fetch(`/api/q/${q.id}/pdf`).catch(() => null);
+    if (res?.ok) return res.blob();
     const el = box.current?.querySelector(".nq-doc") as HTMLElement | null;
     if (!el) throw new Error("no doc");
     return quotePdf(el);

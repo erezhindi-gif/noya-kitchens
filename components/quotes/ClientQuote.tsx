@@ -1,33 +1,18 @@
 "use client";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { qnum } from "@/lib/quotes/calc";
 import type { Quote, Settings } from "@/lib/quotes/types";
 import DocFrame from "./DocFrame";
-import { openPdf, quotePdf } from "./pdf";
 
 /** The client's view of their quote: the sheet, a PDF download and the approve form.
  *  `quote` arrives already stripped of prices; the sheet itself is rendered on the server. */
 export default function ClientQuote({ quote: q, settings, doc }: { quote: Quote; settings: Settings; doc: React.ReactNode }) {
   const router = useRouter();
-  const box = useRef<HTMLDivElement>(null);
-  const [busy, setBusy] = useState(false);
   const [name, setName] = useState("");
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState("");
   const approved = q.status === "approved";
-
-  const onPdf = async () => {
-    const el = box.current?.querySelector(".nq-doc") as HTMLElement | null;
-    if (!el) return;
-    setBusy(true);
-    try {
-      await openPdf(() => quotePdf(el));
-    } catch {
-      setErr("לא הצלחנו לפתוח את הקובץ. נסו שוב");
-    }
-    setBusy(false);
-  };
 
   const approve = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,10 +36,10 @@ export default function ClientQuote({ quote: q, settings, doc }: { quote: Quote;
       </div>
       <div className="nq-wrap">
         <div className="nq-client-acts">
-          <button className="nq-btn" disabled={busy} onClick={onPdf}>{busy ? "פותח…" : "פתיחה כ-PDF"}</button>
+          <a className="nq-btn" href={`/api/q/${q.id}/pdf`} target="_blank" rel="noopener">פתיחה כ-PDF</a>
           <a className="nq-btn" href={`https://wa.me/972${settings.phone.replace(/\D/g, "").replace(/^0/, "")}`} target="_blank" rel="noopener">שאלה לארז בוואטסאפ</a>
         </div>
-        <div ref={box}><DocFrame>{doc}</DocFrame></div>
+        <DocFrame>{doc}</DocFrame>
         <div className="nq-approve nq-card">
           {approved ? (
             <b style={{ color: "var(--ok)" }}>✓ ההצעה אושרה על ידי {q.approvedBy}. ארז יחזור אליכם לתיאום ההזמנה.</b>
