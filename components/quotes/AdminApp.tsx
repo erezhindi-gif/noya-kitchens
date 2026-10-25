@@ -249,12 +249,12 @@ export default function AdminApp() {
     if (pending.current === 0) setSave("saved");
   };
 
-  const newQuote = (from?: Quote) => {
+  const newQuote = (from?: Quote, message?: string) => {
     if (!data) return;
     const date = todayIL();
     const seq = (dataRef.current || data).quotes.filter((q) => q.date === date).reduce((m, q) => Math.max(m, q.seq), 0) + 1;
     const base: Omit<Quote, "id" | "date" | "seq" | "status"> = from
-      ? structuredClone({ ...from, approvedBy: undefined, approvedAt: undefined })
+      ? structuredClone({ ...from, approvedBy: undefined, approvedAt: undefined, sentAt: undefined, followUp: undefined })
       : { client: { name: "", phone: "" }, project: "", lines: [], pros: [], round: true, delivery: "אספקה 45 ימי עבודה", notes: "" };
     const q: Quote = { ...base, id: uid(12), date, seq, status: "draft", updatedAt: new Date().toISOString() };
     q.lines = q.lines.map((l) => ({ ...l, id: uid() }));
@@ -266,7 +266,7 @@ export default function AdminApp() {
     });
     saveQuoteLater(q.id, 0);
     go("edit", q.id);
-    flash(from ? `שוכפלה להצעה ${qnum(q)}` : `נפתחה הצעה ${qnum(q)}`);
+    flash(message ? `${message} ${qnum(q)}` : from ? `שוכפלה להצעה ${qnum(q)}` : `נפתחה הצעה ${qnum(q)}`);
   };
 
   const removeQuote = async (id: string) => {
@@ -312,7 +312,8 @@ export default function AdminApp() {
       </header>
 
       <main className="nq-wrap">
-        {view === "list" && <ListView data={data} onOpen={(id) => go("edit", id)} onNew={() => newQuote()} onDup={newQuote} onDelete={removeQuote} />}
+        {view === "list" && <ListView data={data} onOpen={(id) => go("edit", id)} onNew={() => newQuote()} onDup={(q) => newQuote(q)} onDelete={removeQuote}
+          onAgent={(d) => newQuote({ ...d, pros: [], round: false } as unknown as Quote, "טיוטה מהסוכן נפתחה:")} />}
         {view === "edit" && q && (
           <Editor
             data={data} q={q} upd={(fn, delay) => updQuote(q.id, fn, delay)}
@@ -343,7 +344,8 @@ export default function AdminApp() {
 }
 
 /* =================== list =================== */
-function ListView({ data, onOpen, onNew, onDup, onDelete }: { data: AppData; onOpen: (id: string) => void; onNew: () => void; onDup: (q: Quote) => void; onDelete: (id: string) => void }) {
+function ListView({ data, onOpen, onNew, onDup, onDelete, onAgent }: { data: AppData; onOpen: (id: string) => void; onNew: () => void; onDup: (q: Quote) => void; onDelete: (id: string) => void; onAgent: (d: AgentDraft) => void }) {
+  const [agentOpen, setAgentOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const [filter, setFilter] = useState<Status | "all" | "follow">("all");
   const [term, setTerm] = useState("");
@@ -363,7 +365,11 @@ function ListView({ data, onOpen, onNew, onDup, onDelete }: { data: AppData; onO
     <>
       <div className="nq-head">
         <div><h1>הצעות מחיר</h1><div className="sub">החדשות למעלה</div></div>
-        <button className="nq-btn pri" onClick={onNew}>+ הצעה חדשה</button>
+        <div className="nq-head-acts">
+          <button className="nq-btn" onClick={() => setAgentOpen(true)}>🎤 הצעה מהודעה</button>
+          <button className="nq-btn pri" onClick={onNew}>+ הצעה חדשה</button>
+        </div>
+        {agentOpen && <AgentModal onClose={() => setAgentOpen(false)} onDraft={(d) => { setAgentOpen(false); onAgent(d); }} />}
       </div>
       <div className="nq-kpis">
         <div className="nq-kpi"><div className="k">ממתינות לתשובה</div><div className="v num">{open.length}{dueCount ? <span className="nq-due-k"> · {dueCount} לחזור</span> : null}</div></div>
@@ -970,7 +976,7 @@ function SecurityCard() {
   const [cur, setCur] = useState("");
   const [next, setNext] = useState("");
   const [pwMsg, setPwMsg] = useState("");
-  const [mail, setMail] = useState<{ hasKey: boolean; email: string } | null>(null);
+  const [mail, setMail] = useState<{ hasKey: boolean; hasAgentKey?: boolean; email: string } | null>(null);
   const [key, setKey] = useState("");
   const [keyMsg, setKeyMsg] = useState("");
 
@@ -986,6 +992,16 @@ function SecurityCard() {
     }).catch(() => null);
     if (res?.ok) { setPwMsg("הסיסמה הוחלפה ✓"); setCur(""); setNext(""); }
     else setPwMsg(res?.status === 401 ? "הסיסמה הנוכחית לא נכונה" : "השמירה נכשלה. נסה שוב");
+  };
+  const [agentKey, setAgentKey] = useState("");
+  const [agentMsg, setAgentMsg] = useState("");
+  const saveAgentKey = async () => {
+    setAgentMsg("שומר…");
+    const res = await fetch("/api/admin/mail", {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ anthropicKey: agentKey }),
+    }).catch(() => null);
+    if (res?.ok) { setAgentMsg("המפתח נשמר ✓"); setAgentKey(""); setMail((m) => (m ? { ...m, hasAgentKey: true } : m)); }
+    else setAgentMsg(res?.status === 400 ? "המפתח לא נראה תקין. הוא מתחיל ב-sk-ant-" : "השמירה נכשלה. נסה שוב");
   };
   const saveKey = async () => {
     setKeyMsg("שומר…");
@@ -1017,7 +1033,97 @@ function SecurityCard() {
           <div><button className="nq-btn sm" disabled={!key.trim()} onClick={saveKey}>שמור מפתח</button></div>
           {keyMsg && <div className="hint">{keyMsg}</div>}
         </div>
+        <div className="nq-stack">
+          <b>הסוכן (הצעה מהודעה)</b>
+          <div className="hint">
+            {mail?.hasAgentKey ? "הסוכן מחובר ✓" : "כדי שהסוכן יעבוד צריך מפתח Anthropic אחד (מתחיל ב-sk-ant-)."}
+          </div>
+          <input className="in ltr" style={{ textAlign: "left" }} placeholder={mail?.hasAgentKey ? "מפתח שמור. להחלפה הדבק מפתח חדש" : "sk-ant-..."} value={agentKey} onChange={(e) => setAgentKey(e.target.value)} />
+          <div><button className="nq-btn sm" disabled={!agentKey.trim()} onClick={saveAgentKey}>שמור מפתח</button></div>
+          {agentMsg && <div className="hint">{agentMsg}</div>}
+        </div>
       </div>
     </section>
+  );
+}
+
+/* =================== agent: quote from a dictated message =================== */
+type AgentDraft = Pick<Quote, "client" | "project" | "delivery" | "notes" | "lines"> & { notFound: string[] };
+
+type SpeechRec = { lang: string; continuous: boolean; interimResults: boolean; start: () => void; stop: () => void;
+  onresult: ((e: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null;
+  onend: (() => void) | null; onerror: (() => void) | null };
+
+function AgentModal({ onClose, onDraft }: { onClose: () => void; onDraft: (d: AgentDraft) => void }) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [rec, setRec] = useState<SpeechRec | null>(null);
+  const SR = typeof window !== "undefined"
+    ? ((window as unknown as Record<string, unknown>).SpeechRecognition || (window as unknown as Record<string, unknown>).webkitSpeechRecognition) as (new () => SpeechRec) | undefined
+    : undefined;
+
+  const toggleMic = () => {
+    if (rec) { rec.stop(); return; }
+    if (!SR) return;
+    const r = new SR();
+    r.lang = "he-IL";
+    r.continuous = true;
+    r.interimResults = false;
+    r.onresult = (e) => {
+      let add = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) add += e.results[i][0].transcript + " ";
+      if (add) setText((t) => (t ? t.trimEnd() + " " : "") + add.trim());
+    };
+    r.onend = () => setRec(null);
+    r.onerror = () => { setRec(null); setErr("ההקלטה נעצרה. אפשר גם להכתיב עם המיקרופון של המקלדת"); };
+    r.start();
+    setRec(r);
+  };
+
+  const build = async () => {
+    rec?.stop();
+    setBusy(true);
+    setErr("");
+    const res = await fetch("/api/admin/agent", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }),
+    }).catch(() => null);
+    setBusy(false);
+    if (res?.ok) {
+      const d: AgentDraft = await res.json();
+      if (d.notFound.length) d.notes = [d.notes, `לא נמצא בקטלוג (להשלים): ${d.notFound.join(", ")}`].filter(Boolean).join("\n");
+      return onDraft(d);
+    }
+    const code = await res?.json().then((j) => j.error).catch(() => "");
+    setErr(
+      code === "no-key" ? "הסוכן עוד לא מחובר. צריך להוסיף מפתח Anthropic בהגדרות"
+      : code === "bad-key" ? "מפתח Anthropic לא תקין. בדוק אותו בהגדרות"
+      : code === "busy" ? "יש עומס כרגע. נסה שוב בעוד דקה"
+      : "לא הצלחתי לבנות טיוטה. נסה לנסח שוב"
+    );
+  };
+
+  return (
+    <div className="nq-scrim" onClick={(e) => e.target === e.currentTarget && !busy && onClose()}>
+      <div className="nq-sheet nq-modal" role="dialog" aria-label="הצעה מהודעה">
+        <button className="nq-btn sm nq-x" onClick={onClose} disabled={busy} aria-label="סגור">×</button>
+        <h2>הצעה מהודעה</h2>
+        <div className="sub">תאר את העבודה במילים שלך, בהקלטה או בכתיבה. הסוכן יבנה טיוטה מהקטלוג, ואתה תבדוק לפני שליחה.</div>
+        <textarea className="in" rows={7} value={text} onChange={(e) => setText(e.target.value)} disabled={busy}
+          placeholder={"לדוגמה: משפחת כהן 052-1234567. מטבח: 4 מטר תחתון סנדוויץ׳ שמפנייה, 3 מטר עליון, חזיתות פורמייקה, 8 מגירות מריוובוקס, 2 קלפות. ארון קיר 2 מטר עם דלתות הזזה. אספקה 45 ימי עבודה"} />
+        <div className="nq-adds" style={{ marginTop: 0 }}>
+          {SR && (
+            <button className={`nq-btn ${rec ? "danger" : ""}`} onClick={toggleMic} disabled={busy}>
+              {rec ? "⏹ עצור הקלטה" : "🎤 הקלטה"}
+            </button>
+          )}
+          <button className="nq-btn pri" onClick={build} disabled={busy || text.trim().length < 5}>
+            {busy ? "בונה טיוטה… (עד חצי דקה)" : "בנה טיוטה"}
+          </button>
+        </div>
+        {!SR && <div className="hint">אפשר להכתיב עם המיקרופון שבמקלדת של הטלפון.</div>}
+        {err && <div className="nq-err">{err}</div>}
+      </div>
+    </div>
   );
 }

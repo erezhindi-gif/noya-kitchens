@@ -231,3 +231,5 @@ body:has(.nq-admin) [aria-label="פתח תפריט נגישות"] { display: non
 .nq-due-k { font-size: 13px; font-weight: 700; color: #8a5a00; }
 .nq-chip.nq-chip-due { border-color: #e9c27a; color: #8a5a00; }
 .nq-chip.nq-chip-due[aria-pressed="true"] { background: #8a5a00; color: #fff; border-color: #8a5a00; }
+
+.nq-head-acts { display: flex; gap: 8px; flex-wrap: wrap; }
