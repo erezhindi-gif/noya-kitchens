@@ -504,7 +504,6 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash }: {
           </div>
           {c.markup > 0 && <div className="nq-lg"><span>תוספת פנימית</span><span className="num">+{money(c.markup)}</span></div>}
           {c.discountPct > 0 && <div className="nq-lg"><span>הנחה {c.discountPct}% (מחיר לפני הנחה {money(c.list)})</span><span className="num">−{money(c.discount)}</span></div>}
-          <label className="nq-chk"><input type="checkbox" checked={q.round} onChange={(e) => upd((x) => { x.round = e.target.checked; })} /> עיגול כלפי מעלה ל-{data.settings.roundTo} ₪</label>
           <div className="nq-lg sep"><span>ללקוח, לפני מע״מ</span><span className="num">{money(c.price)}</span></div>
           <div className="nq-lg"><span>מע״מ {data.settings.vat}%</span><span className="num">{money(c.vat)}</span></div>
           <div className="nq-lg big"><span>סה״כ כולל מע״מ</span><span className="num">{money(c.total)}</span></div>
@@ -780,7 +779,7 @@ function SettingsView({ data, upd }: { data: AppData; upd: (fn: (s: Settings, pr
             <label className="f full">תנאים קבועים (שורה לכל סעיף)
               <textarea className="in" rows={5} value={st.clauses} onChange={(e) => upd((s) => { s.clauses = e.target.value; })} />
             </label>
-            {field("validity", "תוקף הצעה (ימים)", { type: "number" })}{field("vat", "מע״מ %", { type: "number" })}{field("roundTo", "עיגול מחיר ל-₪", { type: "number" })}
+            {field("validity", "תוקף הצעה (ימים)", { type: "number" })}{field("vat", "מע״מ %", { type: "number" })}
           </div>
         </section>
         <section className="nq-card" style={{ gridColumn: "1 / -1" }}>

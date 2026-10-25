@@ -57,8 +57,7 @@ export function calc(q: Quote, settings: Settings, pros: Pro[]) {
   // Client discount is shown on the PDF and comes off the price.
   const d = Math.min(Math.max(+q.discount! || 0, 0), 90);
   let price = listRaw * (1 - d / 100);
-  const step = +settings.roundTo || 0;
-  if (q.round && step > 0) price = Math.ceil(price / step) * step;
+  // No rounding: Erez wants the exact price (the old "round up to 100" option was removed).
   const list = d ? price / (1 - d / 100) : price; // list price consistent with the rounded total
   const coms = comList.map((p) => ({ ...p, amount: (price * (+p.pct || 0)) / 100 }));
   const comTotal = coms.reduce((s, c) => s + c.amount, 0);
