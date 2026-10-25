@@ -80,3 +80,37 @@ export const RESET_LINK_MINUTES = RESET_MINUTES;
 
 /** What a reset link is bound to: the stored hash, or the built-in one before any change. */
 export const passwordFingerprint = (s: { passHash?: string }) => s.passHash || PASSWORD_SHA256;
+
+/* ---------- signed payloads for the Claude connector (OAuth codes and tokens) ---------- */
+const b64url = (s: string) => Buffer.from(s, "utf8").toString("base64url");
+const unb64url = (s: string) => Buffer.from(s, "base64url").toString("utf8");
+
+/** A tamper-proof token: base64url(JSON) + "." + HMAC. Nothing is stored server-side. */
+export async function signPayload(obj: Record<string, unknown>) {
+  const body = b64url(JSON.stringify(obj));
+  const sig = await hmac(`nq|${body}`);
+  return sig ? `${body}.${sig}` : null;
+}
+
+export async function verifyPayload<T extends Record<string, unknown>>(token: string): Promise<T | null> {
+  const [body, sig] = String(token || "").split(".");
+  if (!body || !sig) return null;
+  const good = await hmac(`nq|${body}`);
+  if (!good || !safeEqual(sig, good)) return null;
+  try {
+    const obj = JSON.parse(unb64url(body)) as T & { exp?: number };
+    if (typeof obj.exp === "number" && obj.exp < Date.now()) return null;
+    return obj;
+  } catch {
+    return null;
+  }
+}
+
+/** Short fingerprint of the current password, so connector tokens die when the password changes. */
+export async function passwordStamp(s: { passHash?: string }) {
+  return (await sha256(passwordFingerprint(s))).slice(0, 16);
+}
+
+export async function sha256b64url(s: string) {
+  return Buffer.from(await crypto.subtle.digest("SHA-256", enc.encode(s))).toString("base64url");
+}

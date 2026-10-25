@@ -82,6 +82,9 @@ export default function AdminApp() {
           api(`/api/admin/quotes/${b.id}`, "PUT", b).then(() => dropBackup(b.id, b)).catch(() => setSave("error"));
         let last: string | null = null;
         try { last = localStorage.getItem("nq-open"); } catch {}
+        // a link from Claude (…/admin?q=<id>) opens that quote directly
+        const fromLink = new URLSearchParams(window.location.search).get("q");
+        if (fromLink) last = fromLink;
         if (last && d.quotes.some((q) => q.id === last)) {
           setOpenId(last);
           setView("edit");

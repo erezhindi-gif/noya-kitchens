@@ -29,7 +29,7 @@ const DraftSchema = z.object({
 export type Draft = z.infer<typeof DraftSchema>;
 
 /** One catalog entry per line: id, full path, the text that goes in the quote, and its priced levels. */
-function catalogForPrompt(cat: CatNode[]) {
+export function catalogForPrompt(cat: CatNode[]) {
   const pickable = cat.filter((n) => !n.folder || +(n.price || 0) > 0 || kids(cat, n.id).length === 0);
   return pickable
     .map((n) => {
