@@ -96,6 +96,8 @@ export type Settings = {
   payment: string;
   clauses: string;
   roundTo: number;
+  /** Commission added to every new quote unless Erez removes it */
+  defaultCommissionPct?: number;
 };
 
 export type AppData = { settings: Settings; pros: Pro[]; cat: CatNode[]; quotes: Quote[] };

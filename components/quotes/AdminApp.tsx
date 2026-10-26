@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   STATUS_LABEL, UNIT_LABEL, ancestors, calc, descendantIds, fdate, kids, leafCount, lineFrom, lineTotal,
-  autoDesc, commissionsOf, followState, markSentFields, tidyLineDesc, composeDesc, label, money, pathPrice, priceOf, normalizeCat, optPrice, pathOf, tidyCat, qnum, todayIL, uid, waLink,
+  autoDesc, commissionsOf, defaultCommissions, followState, markSentFields, tidyLineDesc, composeDesc, label, money, pathPrice, priceOf, normalizeCat, optPrice, pathOf, tidyCat, qnum, todayIL, uid, waLink,
 } from "@/lib/quotes/calc";
 import type { AppData, CatNode, CatOption, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
 import QuoteDoc from "./QuoteDoc";
@@ -258,7 +258,7 @@ export default function AdminApp() {
     const seq = (dataRef.current || data).quotes.filter((q) => q.date === date).reduce((m, q) => Math.max(m, q.seq), 0) + 1;
     const base: Omit<Quote, "id" | "date" | "seq" | "status"> = from
       ? structuredClone({ ...from, approvedBy: undefined, approvedAt: undefined, sentAt: undefined, followUp: undefined })
-      : { client: { name: "", phone: "" }, project: "", lines: [], pros: [], round: true, delivery: "אספקה 45 ימי עבודה", notes: "" };
+      : { client: { name: "", phone: "" }, project: "", lines: [], pros: [], commissions: defaultCommissions(data.settings), round: true, delivery: "אספקה 45 ימי עבודה", notes: "" };
     const q: Quote = { ...base, id: uid(12), date, seq, status: "draft", updatedAt: new Date().toISOString() };
     q.lines = q.lines.map((l) => ({ ...l, id: uid() }));
     backup(q);
@@ -316,7 +316,7 @@ export default function AdminApp() {
 
       <main className="nq-wrap">
         {view === "list" && <ListView data={data} onOpen={(id) => go("edit", id)} onNew={() => newQuote()} onDup={(q) => newQuote(q)} onDelete={removeQuote}
-          onAgent={(d) => newQuote({ ...d, pros: [], round: false } as unknown as Quote, "טיוטה מהסוכן נפתחה:")} />}
+          onAgent={(d) => newQuote({ ...d, pros: [], commissions: defaultCommissions(data.settings), round: false } as unknown as Quote, "טיוטה מהסוכן נפתחה:")} />}
         {view === "edit" && q && (
           <Editor
             data={data} q={q} upd={(fn, delay) => updQuote(q.id, fn, delay)}
@@ -942,7 +942,7 @@ function SettingsView({ data, upd }: { data: AppData; upd: (fn: (s: Settings, pr
             <label className="f full">תנאים קבועים (שורה לכל סעיף)
               <textarea className="in" rows={5} value={st.clauses} onChange={(e) => upd((s) => { s.clauses = e.target.value; })} />
             </label>
-            {field("validity", "תוקף הצעה (ימים)", { type: "number" })}{field("vat", "מע״מ %", { type: "number" })}
+            {field("defaultCommissionPct", "עמלה קבועה % (בכל הצעה חדשה)", { type: "number" })}{field("validity", "תוקף הצעה (ימים)", { type: "number" })}{field("vat", "מע״מ %", { type: "number" })}
           </div>
         </section>
         <section className="nq-card" style={{ gridColumn: "1 / -1" }}>

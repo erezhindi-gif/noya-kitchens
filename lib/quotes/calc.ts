@@ -53,6 +53,12 @@ export function shownQty(l: Line): string {
 export const commissionsOf = (q: Quote, pros: Pro[]): Commission[] =>
   q.commissions ?? q.pros.map((p) => ({ name: pros.find((x) => x.id === p.proId)?.name || "", pct: p.pct }));
 
+/** The fixed commission every new quote starts with (Settings → "עמלה קבועה"); none when it's 0. */
+export const defaultCommissions = (settings: Settings): Commission[] => {
+  const pct = settings.defaultCommissionPct ?? 5;
+  return pct > 0 ? [{ name: "עמלה קבועה", pct }] : [];
+};
+
 /** Follow-up state for the list: waiting for an answer past the follow-up date, or past validity. */
 export function followState(q: Quote, settings: Settings, today = todayIL()) {
   const open = q.status === "draft" || q.status === "sent";

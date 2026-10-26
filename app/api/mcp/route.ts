@@ -2,7 +2,7 @@
 // build draft quotes and look up quotes — it never sends anything to clients.
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
-import { calc, fdate, lineTotal, money, qnum, STATUS_LABEL, todayIL, uid } from "@/lib/quotes/calc";
+import { calc, defaultCommissions, fdate, lineTotal, money, qnum, STATUS_LABEL, todayIL, uid } from "@/lib/quotes/calc";
 import { catalogForPrompt, linesFromDraft } from "@/lib/quotes/agent";
 import { getData, getSecrets, putQuote } from "@/lib/quotes/store";
 import { passwordStamp, verifyPayload } from "@/lib/quotes/auth";
@@ -71,6 +71,7 @@ const handler = createMcpHandler(
           notes: z.string().default("").describe("הערות ללקוח, שיופיעו בהצעה"),
           sections: z.array(SectionSchema),
           not_found: z.array(z.string()).default([]).describe("דברים שארז ביקש ואין להם פריט בקטלוג"),
+          remove_commission: z.boolean().default(false).describe("true רק אם ארז ביקש במפורש בלי עמלה. אחרת כל הצעה מקבלת את העמלה הקבועה"),
         }),
       },
       async (args) => {
@@ -86,6 +87,7 @@ const handler = createMcpHandler(
           id: uid(12), date, seq, status: "draft",
           client: { name: args.client_name, phone: args.client_phone },
           project: args.project, lines, pros: [], round: false,
+          commissions: args.remove_commission ? [] : defaultCommissions(data.settings),
           delivery: args.delivery || "אספקה 45 ימי עבודה",
           notes: args.notes,
           internalNotes: notFound.length ? `לא נמצא בקטלוג (להשלים): ${notFound.join(", ")}` : "",
@@ -95,7 +97,7 @@ const handler = createMcpHandler(
         return text(
           [
             `נשמרה טיוטה ${qnum(q)} ללקוח ${q.client.name}.`,
-            `סה״כ לפני מע״מ: ${money(c.price)} · כולל מע״מ: ${money(c.total)} (בלי עמלות והנחות — אפשר להוסיף במערכת).`,
+            `סה״כ לפני מע״מ: ${money(c.price)} · כולל מע״מ: ${money(c.total)}${q.commissions?.length ? ` · כולל עמלה קבועה ${q.commissions[0].pct}%` : " · בלי עמלה"}.`,
             `שורות: ${lines.filter((l) => l.type !== "head").length}.`,
             notFound.length ? `לא נמצא בקטלוג: ${notFound.join(", ")}.` : "",
             `לפתיחה ועריכה: ${SITE}/admin?q=${q.id}`,
@@ -159,11 +161,12 @@ const handler = createMcpHandler(
     );
   },
   {
-    serverInfo: { name: "noya-quotes", version: "1.1.0" },
+    serverInfo: { name: "noya-quotes", version: "1.2.0" },
     instructions:
       "מערכת הצעות המחיר של נויה מטבחים (ארז). תהליך: 1) search_catalog כדי למצוא את הפריטים. " +
       "2) אם חסרה כמות לרכיב כלשהו (למשל ידית לחזיתות), או שיש כמה פריטים אפשריים, שאל את ארז שאלה אחת מרוכזת עם כל החסרים — לפני שבונים. " +
-      "3) create_quote_draft רק כשהכול ברור. אל תנחש כמויות ואל תעתיק כמות בין רכיבים. דבר עם ארז בעברית.",
+      "3) create_quote_draft רק כשהכול ברור. אל תנחש כמויות ואל תעתיק כמות בין רכיבים. " +
+      "כל טיוטה מקבלת אוטומטית את העמלה הקבועה; remove_commission=true רק אם ארז ביקש במפורש בלי עמלה. דבר עם ארז בעברית.",
   }
 );
 

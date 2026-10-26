@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS: Settings = {
     "אין אחריות על עץ מלא או על חומר טבעי העלול להשתנות בגוון, בטקסטורה ובמבנה לאורך הזמן.",
   ].join("\n"),
   roundTo: 100,
+  defaultCommissionPct: 5,
 };
 
 /** Starting folder skeleton — Erez fills in the items and prices himself. */
