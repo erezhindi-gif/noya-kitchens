@@ -373,6 +373,7 @@ function ListView({ data, onOpen, onNew, onDup, onDelete, onAgent }: { data: App
         <div><h1>הצעות מחיר</h1><div className="sub">החדשות למעלה</div></div>
         <div className="nq-head-acts">
           <a className="nq-btn" href={claudeLink("הצעת מחיר חדשה במערכת נויה: ")} target="_blank" rel="noopener">✨ הצעה בקלוד</a>
+          <a className="nq-btn" href={claudeLink("שינוי בהצעה קיימת במערכת נויה. תציג לי את ההצעות האחרונות ותשאל איזו לשנות.")} target="_blank" rel="noopener">✨ שינוי בקלוד</a>
           <button className="nq-btn pri" onClick={onNew}>+ הצעה חדשה</button>
         </div>
         {agentOpen && <AgentModal onClose={() => setAgentOpen(false)} onDraft={(d) => { setAgentOpen(false); onAgent(d); }} />}
