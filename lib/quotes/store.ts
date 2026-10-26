@@ -6,6 +6,14 @@ import { createClient } from "@sanity/client";
 import { promises as fs } from "fs";
 import path from "path";
 import { DEFAULT_SETTINGS, defaultCatalog } from "./defaults";
+
+// Saved settings over the defaults. The earlier default payment wording is replaced by the current one.
+const OLD_PAYMENT = "50% בחתימת הזמנה, 50% לפני התקנה.";
+const withDefaults = (s?: Partial<Settings> | null): Settings => {
+  const out = { ...DEFAULT_SETTINGS, ...(s || {}) };
+  if (out.payment?.trim() === OLD_PAYMENT) out.payment = DEFAULT_SETTINGS.payment;
+  return out;
+};
 import type { AppData, CatNode, Pro, Quote, Settings } from "./types";
 
 const token = process.env.SANITY_API_TOKEN;
@@ -77,7 +85,7 @@ export async function getData(): Promise<AppData> {
     ]);
     const s = settingsDoc ? clean<{ settings: Settings; pros: Pro[] }>(settingsDoc) : null;
     return {
-      settings: { ...DEFAULT_SETTINGS, ...(s?.settings || {}) },
+      settings: withDefaults(s?.settings),
       pros: s?.pros || [],
       cat: catalogDoc ? clean<{ nodes: CatNode[] }>(catalogDoc).nodes || [] : defaultCatalog(),
       quotes: quotes.map((q) => clean<Quote>(q)),
@@ -85,7 +93,7 @@ export async function getData(): Promise<AppData> {
   }
   const d = await readFile();
   return {
-    settings: { ...DEFAULT_SETTINGS, ...(d.settings || {}) },
+    settings: withDefaults(d.settings),
     pros: d.pros || [],
     cat: d.cat || defaultCatalog(),
     quotes: d.quotes,
@@ -98,11 +106,11 @@ export async function getQuote(id: string): Promise<{ quote: Quote; settings: Se
     const [q, s] = await Promise.all([readDoc(ID.quote(id)), readDoc(ID.settings)]);
     if (!q) return null;
     const ss = s ? clean<{ settings: Settings }>(s).settings : undefined;
-    return { quote: clean<Quote>(q), settings: { ...DEFAULT_SETTINGS, ...(ss || {}) } };
+    return { quote: clean<Quote>(q), settings: withDefaults(ss) };
   }
   const d = await readFile();
   const quote = d.quotes.find((q) => q.id === id);
-  return quote ? { quote, settings: { ...DEFAULT_SETTINGS, ...(d.settings || {}) } } : null;
+  return quote ? { quote, settings: withDefaults(d.settings) } : null;
 }
 
 export async function putQuote(q: Quote) {

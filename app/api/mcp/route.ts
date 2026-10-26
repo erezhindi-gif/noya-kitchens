@@ -2,11 +2,11 @@
 // build draft quotes and look up quotes — it never sends anything to clients.
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
-import { calc, defaultCommissions, fdate, lineTotal, money, qnum, STATUS_LABEL, todayIL, uid } from "@/lib/quotes/calc";
+import { calc, defaultCommissions, fdate, lineTotal, markSentFields, money, pathOf, qnum, STATUS_LABEL, todayIL, uid, waLink } from "@/lib/quotes/calc";
 import { catalogForPrompt, linesFromDraft } from "@/lib/quotes/agent";
-import { getData, getSecrets, putQuote } from "@/lib/quotes/store";
+import { getData, getSecrets, putCatalog, putQuote } from "@/lib/quotes/store";
 import { passwordStamp, verifyPayload } from "@/lib/quotes/auth";
-import type { Quote } from "@/lib/quotes/types";
+import type { CatNode, Quote } from "@/lib/quotes/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -60,6 +60,17 @@ function describeQuote(q: Quote, d: Awaited<ReturnType<typeof getData>>) {
   ].filter(Boolean).join("\n");
 }
 
+const catRow = (cat: CatNode[], n: CatNode) =>
+  `${n.id} | ${pathOf(cat, n)}${n.folder ? " (תיקייה)" : ""}${n.desc ? ` | תיאור: ${n.desc}` : ""}${+(n.price || 0) > 0 ? ` | ${money(+n.price!)} ${n.unit === "m" ? "למטר" : "ליחידה"}` : ""}${n.aliases ? ` | כינויים: ${n.aliases}` : ""}`;
+
+const NodeFields = {
+  name: z.string().optional().describe("שם קצר בקטלוג"),
+  description: z.string().optional().describe("התיאור שהלקוח רואה בהצעה"),
+  unit: z.enum(["m", "u"]).optional().describe("m = למטר, u = ליחידה"),
+  price: z.number().optional().describe("מחיר עלות של הרמה הזאת; 0 = בלי מחיר"),
+  aliases: z.string().optional().describe("כינויים לחיפוש, מופרדים בפסיק"),
+};
+
 const handler = createMcpHandler(
   (server) => {
     server.registerTool(
@@ -69,12 +80,15 @@ const handler = createMcpHandler(
         description:
           "מחזיר את פריטי הקטלוג: מזהה | נתיב | התיאור שנכתב בהצעה | כינויים | רמות עם מחיר. " +
           "חובה להשתמש בו לפני create_quote_draft, כדי לבחור מזהים אמיתיים. אפשר לסנן במילת חיפוש (לפי שם, תיאור או כינוי), או להשאיר ריק לכל הקטלוג.",
-        inputSchema: z.object({ query: z.string().default("").describe("מילת חיפוש, או ריק") }),
+        inputSchema: z.object({
+          query: z.string().default("").describe("מילת חיפוש, או ריק"),
+          full_tree: z.boolean().default(false).describe("true לעריכת הקטלוג: כל הצמתים כולל תיקיות, עם יחידה ומחיר של כל רמה"),
+        }),
         annotations: { readOnlyHint: true },
       },
-      async ({ query }) => {
+      async ({ query, full_tree }) => {
         const { cat } = await getData();
-        const all = catalogForPrompt(cat).split("\n");
+        const all = full_tree ? cat.map((n) => catRow(cat, n)) : catalogForPrompt(cat).split("\n");
         const q = query.trim().toLowerCase();
         const rows = q ? all.filter((r) => r.toLowerCase().includes(q)) : all;
         return text(rows.length ? rows.join("\n") : `לא נמצאו פריטים עבור "${query}". נסה מילה אחרת או חיפוש ריק לכל הקטלוג.`);
@@ -233,6 +247,90 @@ const handler = createMcpHandler(
     );
 
     server.registerTool(
+      "edit_catalog",
+      {
+        title: "עריכת הקטלוג",
+        description:
+          "מוסיף פריטים ותתי-פריטים לקטלוג ומעדכן פריטים קיימים (שם, תיאור, יחידה, מחיר, כינויים). " +
+          "קודם search_catalog עם full_tree=true כדי לראות את העץ והמזהים. מחירים רק כפי שארז אמר במפורש — לא מחשבים אחוזים בעצמך אלא אם ביקש. " +
+          "לפני הקריאה, הצג לארז בקצרה מה ישתנה ובקש אישור.",
+        inputSchema: z.object({
+          add: z
+            .array(z.object({
+              ref: z.string().optional().describe("כינוי זמני, כדי שפריט אחר באותה קריאה יוכל להיות תת-פריט שלו"),
+              parent: z.string().describe("מזהה של פריט קיים, ref של פריט שנוסף בקריאה הזאת, או ריק לרמה העליונה"),
+              name: z.string(),
+              description: NodeFields.description,
+              unit: NodeFields.unit,
+              price: NodeFields.price,
+              aliases: NodeFields.aliases,
+              folder: z.boolean().default(false).describe("true לתיקייה מארגנת בלבד, ששמה לא מופיע בהצעה"),
+            }))
+            .default([]),
+          update: z.array(z.object({ id: z.string(), ...NodeFields })).default([]),
+        }),
+      },
+      async ({ add, update }) => {
+        const { cat } = await getData();
+        const refs = new Map<string, string>();
+        const errors: string[] = [];
+        const added: CatNode[] = [];
+        for (const a of add) {
+          const parentId = !a.parent ? "" : refs.get(a.parent) ?? (cat.some((n) => n.id === a.parent) ? a.parent : null);
+          if (parentId === null) { errors.push(`"${a.name}": לא נמצא פריט אב ${a.parent}`); continue; }
+          const n: CatNode = { id: uid(), parentId, name: a.name.trim(), folder: a.folder };
+          if (a.description) n.desc = a.description.trim();
+          if (a.price) { n.price = a.price; n.unit = a.unit || "u"; } else if (a.unit) n.unit = a.unit;
+          if (a.aliases) n.aliases = a.aliases;
+          cat.push(n);
+          added.push(n);
+          if (a.ref) refs.set(a.ref, n.id);
+        }
+        const changed: CatNode[] = [];
+        for (const u of update) {
+          const n = cat.find((x) => x.id === u.id);
+          if (!n) { errors.push(`לא נמצא פריט ${u.id}`); continue; }
+          if (u.name !== undefined) n.name = u.name.trim();
+          if (u.description !== undefined) n.desc = u.description.trim();
+          if (u.unit !== undefined) n.unit = u.unit;
+          if (u.price !== undefined) { n.price = u.price; if (u.price && !n.unit) n.unit = "u"; }
+          if (u.aliases !== undefined) n.aliases = u.aliases;
+          changed.push(n);
+        }
+        if (added.length || changed.length) await putCatalog(cat);
+        return text([
+          added.length ? "נוספו:\n" + added.map((n) => catRow(cat, n)).join("\n") : "",
+          changed.length ? "עודכנו:\n" + changed.map((n) => catRow(cat, n)).join("\n") : "",
+          errors.length ? "לא בוצע:\n" + errors.join("\n") : "",
+          "הצעות קיימות לא משתנות; המחירים החדשים חלים על פריטים שיתווספו מעכשיו.",
+        ].filter(Boolean).join("\n\n"));
+      }
+    );
+
+    server.registerTool(
+      "whatsapp_link",
+      {
+        title: "קישור וואטסאפ ללקוח",
+        description:
+          "מחזיר קישור שפותח וואטסאפ אל הלקוח עם הודעה מוכנה וקישור להצעה, ומסמן את ההצעה כנשלחה (מתחיל מעקב). " +
+          "קרא רק כשארז ביקש לשלוח. הצג לו את הקישור כקישור ללחיצה — השליחה עצמה היא לחיצה שלו בוואטסאפ.",
+        inputSchema: z.object({ number: z.string() }),
+      },
+      async ({ number }) => {
+        const d = await getData();
+        const q = findQuote(d.quotes, number);
+        if (!q) return text(`לא נמצאה הצעה ${number}.`);
+        if (!q.client.phone.replace(/\D/g, "")) return text(`אין טלפון ללקוח בהצעה ${qnum(q)}. בקש מארז את המספר ועדכן עם update_quote.`);
+        const c = calc(q, d.settings, d.pros);
+        const link = waLink(q, d.settings, c.total, SITE);
+        const wasDraft = q.status === "draft";
+        markSentFields(q);
+        if (wasDraft) await putQuote(q);
+        return text(`לשליחה ל${q.client.name}: ${link}\n${wasDraft ? "ההצעה סומנה כנשלחה, תזכורת מעקב בעוד 5 ימים." : `סטטוס: ${STATUS_LABEL[q.status]}.`}`);
+      }
+    );
+
+    server.registerTool(
       "list_quotes",
       {
         title: "רשימת הצעות המחיר",
@@ -276,13 +374,13 @@ const handler = createMcpHandler(
     );
   },
   {
-    serverInfo: { name: "noya-quotes", version: "1.3.1" },
+    serverInfo: { name: "noya-quotes", version: "1.4.0" },
     instructions:
       "מערכת הצעות המחיר של נויה מטבחים (ארז). תהליך: 1) search_catalog כדי למצוא את הפריטים. " +
       "2) אם חסרה כמות לרכיב כלשהו (למשל ידית לחזיתות), או שיש כמה פריטים אפשריים, שאל את ארז שאלה אחת מרוכזת עם כל החסרים — לפני שבונים. " +
       "3) create_quote_draft רק כשהכול ברור. אל תנחש כמויות ואל תעתיק כמות בין רכיבים. " +
       "כל טיוטה מקבלת אוטומטית את העמלה הקבועה; remove_commission=true רק אם ארז ביקש במפורש בלי עמלה. " +
-      "להוספה להצעה קיימת: add_to_quote. לשינוי כמויות, תיאורים, הסרת שורות או פרטים: get_quote ואז update_quote. לא בונים הצעה חדשה כשארז ביקש לשנות קיימת. אם ארז רוצה לשנות הצעה ולא אמר איזו: list_quotes, הצג לו רשימה ממוספרת קצרה (מספר, לקוח, פרויקט, סכום) ושאל איזו, ורק אחר כך get_quote.  דבר עם ארז בעברית.",
+      "להוספה להצעה קיימת: add_to_quote. לשינוי כמויות, תיאורים, הסרת שורות או פרטים: get_quote ואז update_quote. לא בונים הצעה חדשה כשארז ביקש לשנות קיימת. אם ארז רוצה לשנות הצעה ולא אמר איזו: list_quotes, הצג לו רשימה ממוספרת קצרה (מספר, לקוח, פרויקט, סכום) ושאל איזו, ורק אחר כך get_quote.  לשליחה ללקוח: whatsapp_link. לעריכת הקטלוג (פריטים, תתי-פריטים, מחירים): search_catalog עם full_tree=true ואז edit_catalog, אחרי שארז אישר את השינויים. דבר עם ארז בעברית.",
   }
 );
 
