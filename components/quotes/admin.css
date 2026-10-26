@@ -127,6 +127,8 @@
 .nq-bar .tt { font-size: 12px; color: var(--muted); }
 .nq-bar .tv { font-size: 19px; font-weight: 800; }
 .nq-bar .nq-btn { margin-inline-start: auto; }
+.nq-bar .nq-btn + .nq-btn { margin-inline-start: 0; }
+a.nq-btn { color: inherit; text-decoration: none; }
 @media (max-width: 900px) { .nq-bar { display: flex; } }
 
 /* catalog */

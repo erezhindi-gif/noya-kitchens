@@ -346,6 +346,9 @@ export default function AdminApp() {
   );
 }
 
+/** Opens a new Claude chat (app or site) with the start of the request typed in; Erez dictates the rest there. */
+const claudeLink = (start: string) => `https://claude.ai/new?q=${encodeURIComponent(start)}`;
+
 /* =================== list =================== */
 function ListView({ data, onOpen, onNew, onDup, onDelete, onAgent }: { data: AppData; onOpen: (id: string) => void; onNew: () => void; onDup: (q: Quote) => void; onDelete: (id: string) => void; onAgent: (d: AgentDraft) => void }) {
   const [agentOpen, setAgentOpen] = useState(false);
@@ -369,7 +372,7 @@ function ListView({ data, onOpen, onNew, onDup, onDelete, onAgent }: { data: App
       <div className="nq-head">
         <div><h1>הצעות מחיר</h1><div className="sub">החדשות למעלה</div></div>
         <div className="nq-head-acts">
-          <button className="nq-btn" onClick={() => setAgentOpen(true)}>🎤 הצעה מהודעה</button>
+          <a className="nq-btn" href={claudeLink("הצעת מחיר חדשה במערכת נויה: ")} target="_blank" rel="noopener">✨ הצעה בקלוד</a>
           <button className="nq-btn pri" onClick={onNew}>+ הצעה חדשה</button>
         </div>
         {agentOpen && <AgentModal onClose={() => setAgentOpen(false)} onDraft={(d) => { setAgentOpen(false); onAgent(d); }} />}
@@ -665,6 +668,7 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash }: {
             <button className="nq-btn" onClick={() => document.getElementById("nq-live")?.scrollIntoView({ behavior: "smooth" })}>↓ לתצוגה המקדימה</button>
             <button className="nq-btn pri" onClick={onPreview}>תצוגה, PDF ושליחה</button>
             <button className="nq-btn" onClick={onDup}>שכפל להצעה חדשה</button>
+            <a className="nq-btn" href={claudeLink(`בהצעה ${qnum(q)} במערכת נויה: `)} target="_blank" rel="noopener">✨ שינוי בקלוד</a>
           </div>
         </aside>
       </div>
@@ -676,6 +680,7 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash }: {
 
       <div className="nq-bar">
         <div><div className="tt">ללקוח, לפני מע״מ</div><div className="tv num">{money(c.price)}</div></div>
+        <a className="nq-btn" href={claudeLink(`בהצעה ${qnum(q)} במערכת נויה: `)} target="_blank" rel="noopener">✨ שינוי בקלוד</a>
         <button className="nq-btn pri" onClick={onPreview}>תצוגה ושליחה</button>
       </div>
 

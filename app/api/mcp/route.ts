@@ -32,6 +32,34 @@ const SectionSchema = z.object({
     .describe("רק לדבר שארז ציין במפורש עם מחיר ואין לו פריט בקטלוג"),
 });
 
+const findQuote = (quotes: Quote[], ref: string) => {
+  const r = ref.trim().toLowerCase();
+  return quotes.find((q) => qnum(q).toLowerCase() === r || q.id === r);
+};
+
+/** The quote as Claude sees it: every line numbered, components with their quantities and prices. */
+function describeQuote(q: Quote, d: Awaited<ReturnType<typeof getData>>) {
+  const c = calc(q, d.settings, d.pros);
+  const unit = (u?: string) => (u === "m" ? "מ׳" : "יח׳");
+  const lines = q.lines.map((l, i) => {
+    if (l.type === "head") return `[${i + 1}] ## ${l.desc}`;
+    const parts = l.parts?.length
+      ? " — " + l.parts.map((p) => `${p.name} ${p.qty} ${unit(p.unit)} × ${money(p.price)}`).join(" + ")
+      : l.type === "lump" ? ` — מחיר כולל ${money(l.price)}`
+      : l.type === "text" ? ""
+      : ` — ${l.qty} ${unit(l.unit)} × ${money(l.price)}`;
+    return `[${i + 1}] ${l.desc}${parts}${lineTotal(l) ? ` = ${money(lineTotal(l))}` : ""}`;
+  });
+  const coms = (q.commissions || []).filter((x) => +x.pct > 0).map((x) => `${x.name || "עמלה"} ${x.pct}%`).join(", ");
+  return [
+    `${qnum(q)} · ${q.client.name} ${q.client.phone} · ${q.project} · ${STATUS_LABEL[q.status]}`,
+    ...lines,
+    q.delivery ? `אספקה: ${q.delivery}` : "",
+    `עמלות: ${coms || "אין"} · עלות: ${money(c.base)} · ללקוח לפני מע״מ: ${money(c.price)} · כולל מע״מ: ${money(c.total)}`,
+    `קישור: ${SITE}/admin?q=${q.id}`,
+  ].filter(Boolean).join("\n");
+}
+
 const handler = createMcpHandler(
   (server) => {
     server.registerTool(
@@ -107,6 +135,104 @@ const handler = createMcpHandler(
     );
 
     server.registerTool(
+      "add_to_quote",
+      {
+        title: "הוספה להצעה קיימת",
+        description:
+          "מוסיף פריטים להצעה קיימת (לפי מספר ההצעה). חלק עם אותה כותרת כמו חלק קיים — הפריטים נכנסים לסוף אותו חלק; כותרת חדשה — נפתח חלק חדש בסוף. " +
+          "אותם כללים כמו בבנייה: מזהים מ-search_catalog, ולשאול על כמויות חסרות לפני הקריאה. לא ניתן לשנות הצעה שהלקוח כבר אישר.",
+        inputSchema: z.object({
+          number: z.string().describe("מספר ההצעה, למשל NQ261025-05 (אפשר למצוא עם list_quotes)"),
+          sections: z.array(SectionSchema),
+          not_found: z.array(z.string()).default([]),
+        }),
+      },
+      async ({ number, sections, not_found }) => {
+        const d = await getData();
+        const q = findQuote(d.quotes, number);
+        if (!q) return text(`לא נמצאה הצעה ${number}.`);
+        if (q.status === "approved") return text(`ההצעה ${qnum(q)} כבר אושרה על ידי הלקוח ולא משנים אותה. אפשר לבנות הצעה חדשה.`);
+        const missing = [...not_found];
+        for (const sec of sections) {
+          const { lines, notFound } = linesFromDraft(
+            { client_name: "", client_phone: "", project: q.project, delivery: "", notes: "", sections: [sec], not_found: [] },
+            d.cat
+          );
+          missing.push(...notFound);
+          const body = lines[0]?.type === "head" ? lines.slice(1) : lines;
+          const title = sec.title.trim();
+          const headAt = title ? q.lines.findIndex((l) => l.type === "head" && l.desc.trim() === title) : -1;
+          if (headAt >= 0) {
+            let end = headAt + 1;
+            while (end < q.lines.length && q.lines[end].type !== "head") end++;
+            q.lines.splice(end, 0, ...body);
+          } else if (!title) {
+            q.lines.push(...body);
+          } else {
+            q.lines.push({ id: uid(), type: "head" as const, qty: 1, price: 0, desc: title }, ...body);
+          }
+        }
+        if (missing.length) q.internalNotes = [q.internalNotes, `לא נמצא בקטלוג (להשלים): ${missing.join(", ")}`].filter(Boolean).join("\n");
+        await putQuote(q);
+        return text(`עודכנה ההצעה.\n${missing.length ? `לא נמצא בקטלוג: ${missing.join(", ")}\n` : ""}${describeQuote(q, d)}`);
+      }
+    );
+
+    server.registerTool(
+      "update_quote",
+      {
+        title: "עריכת הצעה קיימת",
+        description:
+          "משנה הצעה קיימת: כמויות של שורה (לפי מספר השורה מ-get_quote), תיאור שורה, הסרת שורות, ופרטי לקוח/פרויקט/אספקה/הערות/עמלה. " +
+          "קרא קודם ל-get_quote כדי לדעת את מספרי השורות. אל תנחש כמויות. לא ניתן לשנות הצעה שהלקוח כבר אישר.",
+        inputSchema: z.object({
+          number: z.string(),
+          set_quantities: z
+            .array(z.object({ line: z.number().int(), quantities: z.array(z.number()).describe("כמות לכל רכיב בשורה לפי הסדר; לשורה בלי רכיבים — מספר אחד") }))
+            .default([]),
+          set_descriptions: z.array(z.object({ line: z.number().int(), description: z.string() })).default([]),
+          remove_lines: z.array(z.number().int()).default([]).describe("מספרי שורות להסרה"),
+          client_name: z.string().optional(),
+          client_phone: z.string().optional(),
+          project: z.string().optional(),
+          delivery: z.string().optional(),
+          notes: z.string().optional(),
+          commission_pct: z.number().optional().describe("העמלה הקבועה באחוזים; 0 = בלי עמלה"),
+        }),
+      },
+      async (a) => {
+        const d = await getData();
+        const q = findQuote(d.quotes, a.number);
+        if (!q) return text(`לא נמצאה הצעה ${a.number}.`);
+        if (q.status === "approved") return text(`ההצעה ${qnum(q)} כבר אושרה על ידי הלקוח ולא משנים אותה.`);
+        const bad: number[] = [];
+        const at = (n: number) => { const l = q.lines[n - 1]; if (!l) bad.push(n); return l; };
+        for (const s of a.set_quantities) {
+          const l = at(s.line);
+          if (!l) continue;
+          if (l.parts?.length) l.parts.forEach((p, i) => { if (s.quantities[i] !== undefined) p.qty = s.quantities[i]; });
+          else if (s.quantities[0] !== undefined) l.qty = s.quantities[0];
+        }
+        for (const s of a.set_descriptions) { const l = at(s.line); if (l) l.desc = s.description; }
+        if (a.remove_lines.length) {
+          const drop = new Set(a.remove_lines.map((n) => at(n)?.id).filter(Boolean));
+          q.lines = q.lines.filter((l) => !drop.has(l.id));
+        }
+        if (a.client_name !== undefined) q.client.name = a.client_name;
+        if (a.client_phone !== undefined) q.client.phone = a.client_phone;
+        if (a.project !== undefined) q.project = a.project;
+        if (a.delivery !== undefined) q.delivery = a.delivery;
+        if (a.notes !== undefined) q.notes = a.notes;
+        if (a.commission_pct !== undefined) {
+          const rest = (q.commissions || []).slice(1);
+          q.commissions = a.commission_pct > 0 ? [{ name: "עמלה קבועה", pct: a.commission_pct }, ...rest] : rest;
+        }
+        await putQuote(q);
+        return text(`${bad.length ? `שים לב: אין שורות במספרים ${bad.join(", ")}.\n` : ""}עודכנה ההצעה.\n${describeQuote(q, d)}`);
+      }
+    );
+
+    server.registerTool(
       "list_quotes",
       {
         title: "רשימת הצעות המחיר",
@@ -137,36 +263,26 @@ const handler = createMcpHandler(
       "get_quote",
       {
         title: "פרטי הצעה",
-        description: "כל הפרטים של הצעה אחת לפי המספר שלה (למשל NQ261025-05): שורות, כמויות, מחירים פנימיים וסכומים.",
+        description: "כל הפרטים של הצעה אחת לפי המספר שלה (למשל NQ261025-05): שורות ממוספרות [1], [2]…, רכיבים, כמויות, מחירים פנימיים, עמלות וסכומים. מספרי השורות משמשים לעריכה עם update_quote.",
         inputSchema: z.object({ number: z.string().describe("מספר ההצעה, למשל NQ261025-05") }),
         annotations: { readOnlyHint: true },
       },
       async ({ number }) => {
         const d = await getData();
-        const q = d.quotes.find((x) => qnum(x).toLowerCase() === number.trim().toLowerCase());
+        const q = findQuote(d.quotes, number);
         if (!q) return text(`לא נמצאה הצעה ${number}.`);
-        const c = calc(q, d.settings, d.pros);
-        const lines = q.lines.map((l) =>
-          l.type === "head" ? `## ${l.desc}` : `- ${l.desc}${lineTotal(l) ? ` — ${money(lineTotal(l))}` : ""}`
-        );
-        return text(
-          [
-            `${qnum(q)} · ${q.client.name} ${q.client.phone} · ${q.project} · ${STATUS_LABEL[q.status]}`,
-            ...lines,
-            `עלות: ${money(c.base)} · ללקוח לפני מע״מ: ${money(c.price)} · כולל מע״מ: ${money(c.total)}`,
-            `קישור: ${SITE}/admin?q=${q.id}`,
-          ].join("\n")
-        );
+        return text(describeQuote(q, d));
       }
     );
   },
   {
-    serverInfo: { name: "noya-quotes", version: "1.2.0" },
+    serverInfo: { name: "noya-quotes", version: "1.3.0" },
     instructions:
       "מערכת הצעות המחיר של נויה מטבחים (ארז). תהליך: 1) search_catalog כדי למצוא את הפריטים. " +
       "2) אם חסרה כמות לרכיב כלשהו (למשל ידית לחזיתות), או שיש כמה פריטים אפשריים, שאל את ארז שאלה אחת מרוכזת עם כל החסרים — לפני שבונים. " +
       "3) create_quote_draft רק כשהכול ברור. אל תנחש כמויות ואל תעתיק כמות בין רכיבים. " +
-      "כל טיוטה מקבלת אוטומטית את העמלה הקבועה; remove_commission=true רק אם ארז ביקש במפורש בלי עמלה. דבר עם ארז בעברית.",
+      "כל טיוטה מקבלת אוטומטית את העמלה הקבועה; remove_commission=true רק אם ארז ביקש במפורש בלי עמלה. " +
+      "להוספה להצעה קיימת: add_to_quote. לשינוי כמויות, תיאורים, הסרת שורות או פרטים: get_quote ואז update_quote. לא בונים הצעה חדשה כשארז ביקש לשנות קיימת. דבר עם ארז בעברית.",
   }
 );
 
