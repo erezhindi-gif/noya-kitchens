@@ -81,11 +81,19 @@ export default function AdminApp() {
         for (const b of restored)
           api(`/api/admin/quotes/${b.id}`, "PUT", b).then(() => dropBackup(b.id, b)).catch(() => setSave("error"));
         let last: string | null = null;
-        try { last = localStorage.getItem("nq-open"); } catch {}
+        let lastView: string | null = null;
+        try { last = localStorage.getItem("nq-open"); lastView = localStorage.getItem("nq-view"); } catch {}
         // a link from Claude (…/admin?q=<id>) opens that quote directly
         const fromLink = new URLSearchParams(window.location.search).get("q");
-        if (fromLink) last = fromLink;
-        if (last && d.quotes.some((q) => q.id === last)) {
+        if (fromLink) { last = fromLink; lastView = "edit"; }
+        const known = !!last && d.quotes.some((q) => q.id === last);
+        // A refresh reopens the quote only if Erez was inside it; otherwise it stays on the screen he was on.
+        if (lastView === "catalog" || lastView === "settings") {
+          setView(lastView);
+          history.replaceState({ view: lastView, curId: null }, "");
+        }
+        if (known && lastView !== "edit" && lastView !== "preview") setOpenId(last);
+        else if (known) {
           setOpenId(last);
           setView("edit");
           setCurId(last);
@@ -102,6 +110,7 @@ export default function AdminApp() {
       if (!e.state) return;
       setView(e.state.view);
       setCurId(e.state.curId);
+      try { localStorage.setItem("nq-view", e.state.view); } catch {}
     };
     addEventListener("popstate", onPop);
     const onLeave = (e: BeforeUnloadEvent) => {
@@ -163,6 +172,7 @@ export default function AdminApp() {
   const go = useCallback((v: View, id: string | null = null) => {
     setView(v);
     setCurId(id);
+    try { localStorage.setItem("nq-view", v); } catch {}
     if ((v === "edit" || v === "preview") && id) {
       setOpenId(id);
       try { localStorage.setItem("nq-open", id); } catch {}
