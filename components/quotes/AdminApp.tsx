@@ -85,7 +85,7 @@ export default function AdminApp() {
         try { last = localStorage.getItem("nq-open"); lastView = localStorage.getItem("nq-view"); } catch {}
         // a link from Claude (…/admin?q=<id>) opens that quote directly
         const fromLink = new URLSearchParams(window.location.search).get("q");
-        if (fromLink) { last = fromLink; lastView = "edit"; }
+        if (fromLink) { last = fromLink; lastView = "edit"; history.replaceState(history.state, "", window.location.pathname); }
         const known = !!last && d.quotes.some((q) => q.id === last);
         // A refresh reopens the quote only if Erez was inside it; otherwise it stays on the screen he was on.
         if (lastView === "catalog" || lastView === "settings") {
