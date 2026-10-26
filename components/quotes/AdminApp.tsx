@@ -338,7 +338,7 @@ export default function AdminApp() {
           <Preview data={data} q={q} onBack={() => go("edit", q.id)} flash={flash} saveNow={() => saveNow(q.id)}
             markSent={() => q.status === "draft" && updQuote(q.id, (x) => markSentFields(x), 0)} />
         )}
-        {(view === "catalog" || view === "settings") && openId && data.quotes.some((x) => x.id === openId) && (() => {
+        {(view === "catalog" || view === "settings") && openId && data.quotes.some((x) => x.id === openId && x.status === "draft") && (() => {
           const oq = data.quotes.find((x) => x.id === openId)!;
           return (
             <div className="nq-back">
