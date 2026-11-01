@@ -1,15 +1,13 @@
 import { NextResponse } from "next/server";
-import { syncLeads } from "@/lib/quotes/lead-sync";
+import { syncLeads, syncProblem } from "@/lib/quotes/lead-sync";
+import { getSecrets } from "@/lib/quotes/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// The app asks for new mail requests when it opens.
+// The app asks for new mail requests when it opens, and shows a warning if the import is stuck.
 export async function POST() {
-  const r = await syncLeads().catch((e) => {
-    console.error("lead sync failed", e);
-    return { ok: false as const, error: "sync-failed" };
-  });
-  return NextResponse.json(r);
+  const r = await syncLeads();
+  return NextResponse.json({ ...r, problem: syncProblem(await getSecrets()) });
 }

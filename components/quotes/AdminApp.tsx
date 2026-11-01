@@ -5,7 +5,7 @@ import {
   autoDesc, commissionsOf, defaultCommissions, followState, markSentFields, tidyLineDesc, composeDesc, label, money, pathPrice, priceOf, normalizeCat, optPrice, pathOf, tidyCat, qnum, todayIL, uid, waLink,
 } from "@/lib/quotes/calc";
 import type { AppData, CatNode, CatOption, Lead, LeadSource, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
-import { SOURCE_LABEL, STAGE_LABEL, ago, findPhone, leadStage, waitingLeads, type LeadStage } from "@/lib/quotes/leads";
+import { SOURCE_LABEL, STAGE_LABEL, ago, findPhone, gmailLink, leadStage, waitingLeads, type LeadStage } from "@/lib/quotes/leads";
 import QuoteDoc from "./QuoteDoc";
 import DocFrame from "./DocFrame";
 import { downloadBlob, pdfName, quotePdf, sharePdf } from "./pdf";
@@ -61,6 +61,8 @@ export default function AdminApp() {
   const [toast, setToast] = useState("");
   // The quote Erez was working on, so the catalog and settings screens can send him straight back to it.
   const [openId, setOpenId] = useState<string | null>(null);
+  // Set when bringing in requests from Gmail fails or the scheduled check stopped running.
+  const [syncWarn, setSyncWarn] = useState("");
   const dataRef = useRef<AppData | null>(null);
   dataRef.current = data;
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -267,6 +269,7 @@ export default function AdminApp() {
   // New requests labeled in Gmail come in when the app opens (and every 10 minutes on the server).
   const syncLeadsNow = async () => {
     const r = await fetch("/api/admin/leads/sync", { method: "POST" }).then((x) => x.json()).catch(() => null);
+    if (r) setSyncWarn(r.problem || "");
     if (!r?.added) return;
     const d: AppData | null = await fetch("/api/admin/data", { cache: "no-store" }).then((x) => (x.ok ? x.json() : null)).catch(() => null);
     if (!d) return;
@@ -360,6 +363,7 @@ export default function AdminApp() {
       </header>
 
       <main className="nq-wrap">
+        {(view === "leads" || view === "list") && syncWarn && <div className="nq-back nq-warn" role="alert"><span>⚠️ {syncWarn}</span></div>}
         {view === "leads" && <LeadsView data={data} onSave={saveLead} onDelete={removeLead} onQuote={quoteFromLead} onOpenQuote={(id) => go("edit", id)} />}
         {view === "list" && waiting > 0 && (
           <button className="nq-back nq-leads-alert" onClick={() => go("leads")}>
@@ -456,8 +460,9 @@ function LeadsView({ data, onSave, onDelete, onQuote, onOpenQuote }: {
             )}
             <div className="nq-lead-contact">
               {l.phone && <a className="nq-btn sm" href={`tel:${l.phone}`}>📞 <span className="ltr num">{l.phone}</span></a>}
-              {l.phone && <a className="nq-btn sm wa" href={`https://wa.me/${waPhone(l.phone)}`} target="_blank" rel="noopener">וואטסאפ</a>}
-              {l.email && <a className="nq-btn sm" href={`mailto:${l.email}`}><span className="ltr">{l.email}</span></a>}
+              {l.phone && <a className="nq-btn sm wa" href={`https://wa.me/${waPhone(l.phone)}`} target="_blank" rel="noopener">{l.source === "whatsapp" ? "לשיחה בוואטסאפ" : "וואטסאפ"}</a>}
+              {l.msgId && <a className="nq-btn sm" href={gmailLink(l.msgId)} target="_blank" rel="noopener">✉️ למייל המקורי</a>}
+              {l.email && !l.msgId && <a className="nq-btn sm" href={`mailto:${l.email}`}><span className="ltr">{l.email}</span></a>}
             </div>
             <div className="nq-lead-acts">
               {s.quote

@@ -9,7 +9,7 @@ export const maxDuration = 60;
 // client gets the auto-reply) without the app being open. Public, but it only imports and answers
 // counts; it runs at most once a minute.
 export async function GET() {
-  const r = await syncLeads().catch((e) => {
+  const r = await syncLeads({ fromSchedule: true }).catch((e) => {
     console.error("lead sync failed", e);
     return { ok: false as const, error: "sync-failed" };
   });

@@ -59,3 +59,6 @@ export function ago(iso: string, now = Date.now()) {
 export const findPhone = (t: string) => (t.match(/(?:\+?972[-\s]?|0)(?:5\d|[23489]|7\d)[-\s]?\d{3}[-\s]?\d{4}/) || [""])[0].trim();
 
 export const fillReply = (tpl: string, name: string) => tpl.replace(/\{שם\}/g, name || "").replace(/שלום ,/g, "שלום,");
+
+/** Opens this exact mail in Gmail (web or app), by its Message-ID. */
+export const gmailLink = (msgId: string) => `https://mail.google.com/mail/u/0/#search/rfc822msgid%3A${encodeURIComponent(msgId)}`;

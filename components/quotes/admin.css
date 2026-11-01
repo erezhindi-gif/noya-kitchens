@@ -63,6 +63,7 @@
 .nq-lead-text { white-space: pre-wrap; font-size: 14px; color: var(--ink); background: var(--surface-2); border-radius: 10px; padding: 10px 12px; max-height: 4.8em; overflow: hidden; cursor: pointer; position: relative; }
 .nq-lead-text.open { max-height: none; }
 .nq-lead-contact, .nq-lead-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.nq-warn { background: var(--bad-bg); color: var(--bad); font-weight: 500; }
 .nq-leads-alert { width: 100%; border: 0; cursor: pointer; text-align: start; font: inherit; }
 .nq-check { flex-direction: row !important; align-items: center; gap: 8px; }
 .nq-btn.danger { background: var(--bad-bg); color: var(--bad); border-color: transparent; }

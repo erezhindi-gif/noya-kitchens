@@ -1,5 +1,6 @@
 // Brings requests for a quote in from Erez's Gmail: every mail he puts under the "הצעת מחיר" label
 // becomes a lead (once), and the client gets an automatic "we got it" reply if that's turned on.
+// Once a mail is in, its label changes to "נקלט במערכת", so Gmail itself shows that it was taken.
 // Reads through IMAP with the same Gmail app password used for sending quotes.
 import { createHash } from "crypto";
 import { ImapFlow } from "imapflow";
@@ -10,6 +11,7 @@ import { getData, getSecrets, insertLead, patchSecrets, putLead } from "./store"
 import type { Lead } from "./types";
 
 export const LEAD_LABEL = "הצעת מחיר";
+export const DONE_LABEL = "נקלט במערכת";
 const LOOKBACK_DAYS = 30;
 const REPLY_WITHIN_HOURS = 48; // an old mail labeled late doesn't get a "we just got it" reply
 
@@ -27,7 +29,22 @@ function cleanBody(t: string) {
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim().slice(0, 2000);
 }
 
-export async function syncLeads(opts: { force?: boolean } = {}) {
+/** Runs the import and records how it went, so the app and the morning mail can warn when it's stuck. */
+export async function syncLeads(opts: { force?: boolean; fromSchedule?: boolean } = {}) {
+  if (opts.fromSchedule) await patchSecrets({ leadCronAt: Date.now() }).catch(() => {});
+  try {
+    const r = await importLeads(opts);
+    if (r.ok && !("skipped" in r)) await patchSecrets({ leadSyncOkAt: Date.now(), leadSyncError: "" });
+    return r;
+  } catch (e) {
+    console.error("lead sync failed", e);
+    const error = /auth|credentials|535|534|AUTHENTICATIONFAILED/i.test(String(e)) ? "gmail-auth" : "sync-failed";
+    await patchSecrets({ leadSyncError: error }).catch(() => {});
+    return { ok: false as const, error };
+  }
+}
+
+async function importLeads(opts: { force?: boolean }) {
   const secrets = await getSecrets();
   if (!secrets.gmailPass) return { ok: false as const, error: "no-gmail" };
   // At most once a minute, whatever calls it (app open, scheduled check, Claude).
@@ -44,8 +61,10 @@ export async function syncLeads(opts: { force?: boolean } = {}) {
   await client.connect();
   const added: Lead[] = [];
   try {
-    const exists = (await client.list()).some((b) => b.path === LEAD_LABEL || b.name === LEAD_LABEL);
-    if (!exists) {
+    const boxes = await client.list();
+    const has = (n: string) => boxes.some((b) => b.path === n || b.name === n);
+    if (!has(DONE_LABEL)) await client.mailboxCreate(DONE_LABEL);
+    if (!has(LEAD_LABEL)) {
       await client.mailboxCreate(LEAD_LABEL); // creates the Gmail label on first run
       return { ok: true as const, added: 0, created: true };
     }
@@ -54,17 +73,20 @@ export async function syncLeads(opts: { force?: boolean } = {}) {
       const uids = (await client.search({ since: new Date(Date.now() - LOOKBACK_DAYS * 864e5) }, { uid: true })) || [];
       if (!uids.length) return { ok: true as const, added: 0 };
       const batch = uids.slice(-40);
-      const found: { msgId: string; source: Buffer }[] = [];
+      const found: { uid: number; msgId: string; source: Buffer }[] = [];
+      const taken: number[] = []; // already a lead from an earlier run: only the label is left to change
       for await (const m of client.fetch(batch, { envelope: true, source: true }, { uid: true })) {
         const msgId = m.envelope?.messageId;
-        if (msgId && m.source && !known.has(msgId)) found.push({ msgId, source: m.source });
+        if (!msgId || !m.source) continue;
+        if (known.has(msgId)) taken.push(m.uid);
+        else found.push({ uid: m.uid, msgId, source: m.source });
       }
       for (const f of found) {
         const mail = await simpleParser(f.source);
         // A site form or service sends "on behalf of" the client: the reply address is the client.
         const who = mail.replyTo?.value?.[0] || mail.from?.value?.[0];
         const email = (who?.address || "").toLowerCase();
-        if (!email || email === owner) continue;
+        if (!email || email === owner) continue; // stays under "הצעת מחיר", so Erez sees it wasn't taken
         const text = cleanBody(mail.text || "");
         const lead: Lead = {
           id: leadId(f.msgId),
@@ -77,6 +99,7 @@ export async function syncLeads(opts: { force?: boolean } = {}) {
           subject: mail.subject || "",
           msgId: f.msgId,
         };
+        taken.push(f.uid);
         if (!(await insertLead(lead))) continue;
         added.push(lead);
 
@@ -101,6 +124,8 @@ export async function syncLeads(opts: { force?: boolean } = {}) {
           }
         }
       }
+      // In Gmail, moving between label folders swaps the label; the mail stays in the inbox.
+      if (taken.length) await client.messageMove(taken, DONE_LABEL, { uid: true });
     } finally {
       lock.release();
     }
@@ -108,4 +133,14 @@ export async function syncLeads(opts: { force?: boolean } = {}) {
     await client.logout().catch(() => {});
   }
   return { ok: true as const, added: added.length, leads: added };
+}
+
+/** Why the import isn't working, in Erez's words — or "" when all is well. */
+export function syncProblem(s: { gmailPass?: string; leadSyncError?: string; leadCronAt?: number }, now = Date.now()) {
+  if (!s.gmailPass) return "";
+  if (s.leadSyncError === "gmail-auth") return "Gmail לא מקבל את סיסמת האפליקציה, ולכן פניות מהמייל לא נקלטות. צריך סיסמת אפליקציה חדשה בהגדרות.";
+  if (s.leadSyncError) return "הקליטה האחרונה של פניות מהמייל נכשלה. המערכת תנסה שוב בבדיקה הבאה.";
+  if (s.leadCronAt && now - s.leadCronAt > 2 * 36e5)
+    return "הבדיקה האוטומטית של המייל לא רצה מעל שעתיים. פניות ייקלטו רק כשתפתח את המערכת.";
+  return "";
 }
