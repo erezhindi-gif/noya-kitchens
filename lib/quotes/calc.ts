@@ -248,6 +248,15 @@ export function descendantIds(cat: CatNode[], id: string): string[] {
   return kids(cat, id).flatMap((c) => [c.id, ...descendantIds(cat, c.id)]);
 }
 
+/** "What clients say about us" lines for the message that goes with a quote; empty when no links are set. */
+export function reviewLines(s: Settings) {
+  const links = [
+    s.reviewsGoogle?.trim() && `⭐ ביקורות בגוגל: ${s.reviewsGoogle.trim()}`,
+    s.reviewsMidrag?.trim() && `⭐ חוות דעת במידרג: ${s.reviewsMidrag.trim()}`,
+  ].filter(Boolean) as string[];
+  return links.length ? ["מה הלקוחות שלנו אומרים עלינו:", ...links] : [];
+}
+
 export function waLink(q: Quote, settings: Settings, total: number, origin: string) {
   let ph = (q.client.phone || "").replace(/\D/g, "");
   if (ph.startsWith("0")) ph = "972" + ph.slice(1);
@@ -255,6 +264,7 @@ export function waLink(q: Quote, settings: Settings, total: number, origin: stri
     `שלום ${q.client.name},\n` +
     `מצורפת הצעת מחיר ${qnum(q)} מנויה מטבחים${q.project ? ` עבור ${q.project}` : ""}.\n` +
     `לצפייה בהצעה ולאישור: ${origin}/q/${q.id}\n\n` +
+    (reviewLines(settings).length ? reviewLines(settings).join("\n") + "\n\n" : "") +
     `${settings.owner}, נויה מטבחים`;
   return `https://wa.me/${ph}?text=${encodeURIComponent(text)}`;
 }

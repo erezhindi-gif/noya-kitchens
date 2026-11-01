@@ -2,7 +2,7 @@
 // Going through Gmail means the mail comes from his real address, lands in his "Sent" folder,
 // and the client's reply comes straight back to him.
 import nodemailer from "nodemailer";
-import { qnum } from "./calc";
+import { qnum, reviewLines } from "./calc";
 import { getSecrets } from "./store";
 import type { Quote, Settings } from "./types";
 
@@ -19,6 +19,7 @@ export function defaultMessage(q: Quote, s: Settings, origin: string) {
     `מצורפת הצעת מחיר ${qnum(q)}${q.project ? ` עבור ${q.project}` : ""}.`,
     `אפשר גם לצפות בהצעה ולאשר אותה כאן: ${origin}/q/${q.id}`,
     "",
+    ...(reviewLines(s).length ? [...reviewLines(s), ""] : []),
     "בברכה,",
     s.owner,
     "נויה מטבחים",

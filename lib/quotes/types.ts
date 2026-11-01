@@ -101,6 +101,9 @@ export type Settings = {
   /** Automatic "we got your request" email to a client whose request came in by mail */
   leadAutoReply?: boolean;
   leadReplyText?: string;
+  /** Review pages shown to the client with every quote that is sent, so the ratings help them decide */
+  reviewsGoogle?: string;
+  reviewsMidrag?: string;
 };
 
 export type LeadSource = "email" | "whatsapp" | "phone" | "site" | "other";

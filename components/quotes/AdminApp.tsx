@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   STATUS_LABEL, UNIT_LABEL, ancestors, calc, descendantIds, fdate, kids, leafCount, lineFrom, lineTotal,
-  autoDesc, commissionsOf, defaultCommissions, followState, markSentFields, tidyLineDesc, composeDesc, label, money, pathPrice, priceOf, normalizeCat, optPrice, pathOf, tidyCat, qnum, todayIL, uid, waLink,
+  autoDesc, commissionsOf, defaultCommissions, followState, markSentFields, tidyLineDesc, composeDesc, label, money, pathPrice, priceOf, normalizeCat, optPrice, pathOf, tidyCat, qnum, reviewLines, todayIL, uid, waLink,
 } from "@/lib/quotes/calc";
 import type { AppData, CatNode, CatOption, Lead, LeadFile, LeadSource, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
 import { FILE_TYPE_OK, MAX_UPLOAD, SOURCE_LABEL, STAGE_LABEL, ago, findPhone, gmailLink, leadStage, waitingLeads, type LeadStage } from "@/lib/quotes/leads";
@@ -1054,7 +1054,7 @@ function MailModal({ q, settings, saveNow, onClose, onSent }: { q: Quote; settin
   const [subject, setSubject] = useState(`הצעת מחיר ${qnum(q)} - נויה מטבחים`);
   const [message, setMessage] = useState(
     [`שלום ${q.client.name || ""},`.replace(" ,", ","), "", `מצורפת הצעת מחיר ${qnum(q)}${q.project ? ` עבור ${q.project}` : ""}.`,
-      `אפשר גם לצפות בהצעה ולאשר אותה כאן: ${typeof window !== "undefined" ? window.location.origin : ""}/q/${q.id}`, "", "בברכה,", settings.owner, "נויה מטבחים", settings.phone].join("\n")
+      `אפשר גם לצפות בהצעה ולאשר אותה כאן: ${typeof window !== "undefined" ? window.location.origin : ""}/q/${q.id}`, "", ...(reviewLines(settings).length ? [...reviewLines(settings), ""] : []), "בברכה,", settings.owner, "נויה מטבחים", settings.phone].join("\n")
   );
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -1239,6 +1239,8 @@ function SettingsView({ data, upd }: { data: AppData; upd: (fn: (s: Settings, pr
           <div className="nq-fields">
             {field("biz", "שם העסק בהצעה", { full: true })}{field("owner", "שם")}{field("phone", "טלפון")}
             {field("vatId", "עוסק מורשה")}{field("address", "כתובת")}{field("web", "אתר")}{field("email", "אימייל")}
+            {field("reviewsGoogle", "קישור לביקורות בגוגל (נשלח עם כל הצעה)", { full: true })}
+            {field("reviewsMidrag", "קישור לחוות דעת במידרג (נשלח עם כל הצעה)", { full: true })}
           </div>
         </section>
         <section className="nq-card">
