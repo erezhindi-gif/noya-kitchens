@@ -18,6 +18,8 @@ const LINE_TAG: Record<Exclude<LineType, "cat">, string> = {
   free: "שורה חופשית", lump: "מחיר כולל", text: "שורת טקסט", head: "כותרת אזור",
 };
 
+const BUILD = process.env.NEXT_PUBLIC_BUILD || "dev";
+
 async function api(path: string, method: string, body?: unknown) {
   const res = await fetch(path, {
     method,
@@ -170,8 +172,20 @@ export default function AdminApp() {
       if (newlyApproved.length)
         flash(newlyApproved.map((q) => `✓ ${qnum(q)} אושרה על ידי ${q.approvedBy}`).join(" · "));
     };
-    const t = setInterval(pull, 60_000);
-    const onVis = () => { if (!document.hidden) { pull(); syncLeadsNow(); } };
+    // On the phone the app stays open for days. When a new version is on the site, reload into it
+    // (nothing unsaved is lost: only when no save is waiting, and the screen comes back as it was).
+    const update = async () => {
+      if (document.hidden || pending.current > 0 || BUILD === "dev") return;
+      const v = await fetch("/api/admin/version", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      if (!v?.build || v.build === "dev" || v.build === BUILD || pending.current > 0) return;
+      // once per version, so a mismatch that a reload doesn't fix can't loop
+      let tried = "";
+      try { tried = sessionStorage.getItem("nq-reloaded-for") || ""; sessionStorage.setItem("nq-reloaded-for", v.build); } catch {}
+      if (tried !== v.build) location.reload();
+    };
+    update();
+    const t = setInterval(() => { update(); pull(); }, 60_000);
+    const onVis = () => { if (!document.hidden) { update(); pull(); syncLeadsNow(); } };
     document.addEventListener("visibilitychange", onVis);
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVis); };
     // eslint-disable-next-line react-hooks/exhaustive-deps

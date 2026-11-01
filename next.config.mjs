@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // The version this build came from; the admin app compares it with the site to reload after an update.
+  env: { NEXT_PUBLIC_BUILD: process.env.VERCEL_GIT_COMMIT_SHA || "dev" },
   // Server-only packages (PDF printing, Gmail send and read); keep them out of the bundle.
   experimental: { serverComponentsExternalPackages: ["@sparticuz/chromium", "puppeteer-core", "imapflow", "mailparser", "nodemailer"] },
   async redirects() {
