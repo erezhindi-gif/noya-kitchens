@@ -7,6 +7,7 @@ import { catalogForPrompt, linesFromDraft } from "@/lib/quotes/agent";
 import { getData, getSecrets, putCatalog, putQuote } from "@/lib/quotes/store";
 import { passwordStamp, verifyPayload } from "@/lib/quotes/auth";
 import type { CatNode, Quote } from "@/lib/quotes/types";
+import { MAIL_ERRORS, sendQuoteMail, validEmail } from "@/lib/quotes/send-quote";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -52,7 +53,7 @@ function describeQuote(q: Quote, d: Awaited<ReturnType<typeof getData>>) {
   });
   const coms = (q.commissions || []).filter((x) => +x.pct > 0).map((x) => `${x.name || "עמלה"} ${x.pct}%`).join(", ");
   return [
-    `${qnum(q)} · ${q.client.name} ${q.client.phone} · ${q.project} · ${STATUS_LABEL[q.status]}`,
+    `${qnum(q)} · ${q.client.name} ${q.client.phone}${q.client.email ? ` ${q.client.email}` : ""} · ${q.project} · ${STATUS_LABEL[q.status]}`,
     ...lines,
     q.delivery ? `אספקה: ${q.delivery}` : "",
     `עמלות: ${coms || "אין"} · עלות: ${money(c.base)} · ללקוח לפני מע״מ: ${money(c.price)} · כולל מע״מ: ${money(c.total)}`,
@@ -331,6 +332,36 @@ const handler = createMcpHandler(
     );
 
     server.registerTool(
+      "email_quote",
+      {
+        title: "שליחת ההצעה במייל עם PDF",
+        description:
+          "שולח את ההצעה ללקוח מה-Gmail של ארז, עם קובץ ה-PDF מצורף וקישור לאישור. המייל יוצא מיד ונשמר אצל ארז בדואר היוצא. " +
+          "לתשובה למייל קיים שבו לקוח ביקש הצעה: מצא את המייל עם כלי ה-Gmail, קח את כתובת השולח ואת הנושא, ושלח עם subject = 'Re: ' + הנושא המקורי. " +
+          "לפני הקריאה חובה להציג לארז: אל מי, נושא, ונוסח ההודעה — ולשלוח רק אחרי שאישר במפורש.",
+        inputSchema: z.object({
+          number: z.string(),
+          to: z.string().describe("כתובת המייל של הלקוח"),
+          subject: z.string().optional().describe("ריק = 'הצעת מחיר <מספר> - נויה מטבחים'"),
+          message: z.string().optional().describe("גוף ההודעה בטקסט רגיל. ריק = נוסח ברירת המחדל עם קישור לאישור"),
+          in_reply_to: z.string().optional().describe("Message-ID של המייל המקורי (למשל <abc@mail.gmail.com>), אם ידוע — כדי שהתשובה תשורשר"),
+        }),
+      },
+      async (a) => {
+        const d = await getData();
+        const q = findQuote(d.quotes, a.number);
+        if (!q) return text(`לא נמצאה הצעה ${a.number}.`);
+        if (!validEmail(a.to)) return text("כתובת המייל לא תקינה.");
+        const r = await sendQuoteMail(q, d.settings, { to: a.to, subject: a.subject, message: a.message, inReplyTo: a.in_reply_to }, SITE);
+        if (!r.ok) return text(MAIL_ERRORS[r.error]);
+        q.client.email = a.to.trim();
+        markSentFields(q);
+        await putQuote(q);
+        return text(`ההצעה ${qnum(q)} נשלחה ל-${a.to} עם PDF מצורף. סטטוס: ${STATUS_LABEL[q.status]}.`);
+      }
+    );
+
+    server.registerTool(
       "list_quotes",
       {
         title: "רשימת הצעות המחיר",
@@ -374,13 +405,13 @@ const handler = createMcpHandler(
     );
   },
   {
-    serverInfo: { name: "noya-quotes", version: "1.4.0" },
+    serverInfo: { name: "noya-quotes", version: "1.5.0" },
     instructions:
       "מערכת הצעות המחיר של נויה מטבחים (ארז). תהליך: 1) search_catalog כדי למצוא את הפריטים. " +
       "2) אם חסרה כמות לרכיב כלשהו (למשל ידית לחזיתות), או שיש כמה פריטים אפשריים, שאל את ארז שאלה אחת מרוכזת עם כל החסרים — לפני שבונים. " +
       "3) create_quote_draft רק כשהכול ברור. אל תנחש כמויות ואל תעתיק כמות בין רכיבים. " +
       "כל טיוטה מקבלת אוטומטית את העמלה הקבועה; remove_commission=true רק אם ארז ביקש במפורש בלי עמלה. " +
-      "להוספה להצעה קיימת: add_to_quote. לשינוי כמויות, תיאורים, הסרת שורות או פרטים: get_quote ואז update_quote. לא בונים הצעה חדשה כשארז ביקש לשנות קיימת. אם ארז רוצה לשנות הצעה ולא אמר איזו: list_quotes, הצג לו רשימה ממוספרת קצרה (מספר, לקוח, פרויקט, סכום) ושאל איזו, ורק אחר כך get_quote.  לשליחה ללקוח: whatsapp_link. לעריכת הקטלוג (פריטים, תתי-פריטים, מחירים): search_catalog עם full_tree=true ואז edit_catalog, אחרי שארז אישר את השינויים. דבר עם ארז בעברית.",
+      "להוספה להצעה קיימת: add_to_quote. לשינוי כמויות, תיאורים, הסרת שורות או פרטים: get_quote ואז update_quote. לא בונים הצעה חדשה כשארז ביקש לשנות קיימת. אם ארז רוצה לשנות הצעה ולא אמר איזו: list_quotes, הצג לו רשימה ממוספרת קצרה (מספר, לקוח, פרויקט, סכום) ושאל איזו, ורק אחר כך get_quote.  לשליחה ללקוח: whatsapp_link, או email_quote למייל עם PDF (גם כתשובה למייל שבו הלקוח ביקש הצעה) — תמיד אחרי שארז אישר נמען ונוסח. לעריכת הקטלוג (פריטים, תתי-פריטים, מחירים): search_catalog עם full_tree=true ואז edit_catalog, אחרי שארז אישר את השינויים. דבר עם ארז בעברית.",
   }
 );
 

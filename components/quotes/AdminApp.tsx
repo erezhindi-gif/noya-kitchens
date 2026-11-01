@@ -336,7 +336,8 @@ export default function AdminApp() {
         )}
         {view === "preview" && q && (
           <Preview data={data} q={q} onBack={() => go("edit", q.id)} flash={flash} saveNow={() => saveNow(q.id)}
-            markSent={() => q.status === "draft" && updQuote(q.id, (x) => markSentFields(x), 0)} />
+            markSent={() => q.status === "draft" && updQuote(q.id, (x) => markSentFields(x), 0)}
+            setEmail={(e) => updQuote(q.id, (x) => { x.client.email = e; }, 0)} />
         )}
         {(view === "catalog" || view === "settings") && openId && data.quotes.some((x) => x.id === openId && x.status === "draft") && (() => {
           const oq = data.quotes.find((x) => x.id === openId)!;
@@ -374,7 +375,7 @@ function ListView({ data, onOpen, onNew, onDup, onDelete, onAgent }: { data: App
   const dueCount = rows.filter((x) => fs(x.q).due).length;
   const shown = rows
     .filter((x) => filter === "all" || (filter === "follow" ? fs(x.q).due : x.q.status === filter))
-    .filter((x) => !t || `${x.q.client.name} ${x.q.project} ${qnum(x.q)} ${x.q.client.phone}`.includes(t))
+    .filter((x) => !t || `${x.q.client.name} ${x.q.project} ${qnum(x.q)} ${x.q.client.phone} ${x.q.client.email || ""}`.includes(t))
     .sort((a, b) => qnum(b.q).localeCompare(qnum(a.q)));
 
   return (
@@ -484,6 +485,7 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash }: {
             <div className="nq-fields">
               <label className="f">שם הלקוח<input className="in" value={q.client.name} onChange={(e) => upd((x) => { x.client.name = e.target.value; })} /></label>
               <label className="f">טלפון (לוואטסאפ)<input className="in num" type="tel" value={q.client.phone} onChange={(e) => upd((x) => { x.client.phone = e.target.value; })} /></label>
+              <label className="f">אימייל (לשליחה במייל)<input className="in ltr" type="email" style={{ textAlign: "left" }} value={q.client.email || ""} onChange={(e) => upd((x) => { x.client.email = e.target.value; })} /></label>
               <label className="f full">שם הפרויקט (הכותרת בהצעה)
                 <input className="in" list="nq-projects" value={q.project} placeholder="הקלד או בחר מפרויקטים קודמים" onChange={(e) => upd((x) => { x.project = e.target.value; })} />
               </label>
@@ -747,9 +749,10 @@ function Picker({ cat, onPick, onClose }: { cat: CatNode[]; onPick: (n: CatNode)
 }
 
 /* =================== preview / send =================== */
-function Preview({ data, q, onBack, flash, markSent, saveNow }: { data: AppData; q: Quote; onBack: () => void; flash: (m: string) => void; markSent: () => void; saveNow: () => Promise<void> }) {
+function Preview({ data, q, onBack, flash, markSent, saveNow, setEmail }: { data: AppData; q: Quote; onBack: () => void; flash: (m: string) => void; markSent: () => void; saveNow: () => Promise<void>; setEmail: (e: string) => void }) {
   const box = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
+  const [mailOpen, setMailOpen] = useState(false);
   const c = calc(q, data.settings, data.pros);
   const canShare = typeof navigator !== "undefined" && "canShare" in navigator && /Android|iPhone|iPad/i.test(navigator.userAgent);
 
@@ -791,15 +794,64 @@ function Preview({ data, q, onBack, flash, markSent, saveNow }: { data: AppData;
         <button className="nq-btn sm" disabled={busy} onClick={onDownload}>{busy ? "מכין PDF…" : "הורדת PDF"}</button>
         {canShare && <button className="nq-btn sm" disabled={busy} onClick={onShare}>שיתוף PDF</button>}
         <a className="nq-btn sm" href={`/q/${q.id}`} target="_blank" rel="noopener">עמוד הלקוח</a>
+        <button className="nq-btn sm" onClick={() => setMailOpen(true)}>שליחה במייל</button>
         <button className="nq-btn sm wa" onClick={onWhatsApp}>שליחה בוואטסאפ</button>
       </div>
+      {mailOpen && (
+        <MailModal q={q} settings={data.settings} saveNow={saveNow} onClose={() => setMailOpen(false)}
+          onSent={(to) => { setMailOpen(false); setEmail(to); markSent(); flash("ההצעה נשלחה במייל ✓"); }} />
+      )}
       <div className="nq-note">
-        &quot;שליחה בוואטסאפ&quot; פותח הודעה ללקוח עם קישור אישי להצעה. בקישור הלקוח רואה את ההצעה, מוריד PDF ומאשר. &quot;שיתוף PDF&quot; בטלפון שולח את הקובץ עצמו.
+        &quot;שליחה בוואטסאפ&quot; פותח הודעה ללקוח עם קישור אישי להצעה. בקישור הלקוח רואה את ההצעה, מוריד PDF ומאשר. &quot;שיתוף PDF&quot; בטלפון שולח את הקובץ עצמו. &quot;שליחה במייל&quot; שולח מה-Gmail שלך עם ה-PDF מצורף.
       </div>
       <div ref={box}>
         <DocFrame><QuoteDoc quote={q} settings={data.settings} pros={data.pros} /></DocFrame>
       </div>
     </>
+  );
+}
+
+function MailModal({ q, settings, saveNow, onClose, onSent }: { q: Quote; settings: AppData["settings"]; saveNow: () => Promise<void>; onClose: () => void; onSent: (to: string) => void }) {
+  const [to, setTo] = useState(q.client.email || "");
+  const [subject, setSubject] = useState(`הצעת מחיר ${qnum(q)} - נויה מטבחים`);
+  const [message, setMessage] = useState(
+    [`שלום ${q.client.name || ""},`.replace(" ,", ","), "", `מצורפת הצעת מחיר ${qnum(q)}${q.project ? ` עבור ${q.project}` : ""}.`,
+      `אפשר גם לצפות בהצעה ולאשר אותה כאן: ${typeof window !== "undefined" ? window.location.origin : ""}/q/${q.id}`, "", "בברכה,", settings.owner, "נויה מטבחים", settings.phone].join("\n")
+  );
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !busy && onClose();
+    addEventListener("keydown", onKey);
+    return () => removeEventListener("keydown", onKey);
+  }, [onClose, busy]);
+  const send = async () => {
+    setBusy(true);
+    setErr("");
+    await saveNow();
+    const res = await fetch(`/api/admin/quotes/${q.id}/email`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: to.trim(), subject, message }),
+    }).catch(() => null);
+    setBusy(false);
+    if (res?.ok) return onSent(to.trim());
+    const j = await res?.json().catch(() => null);
+    setErr(j?.message || "השליחה נכשלה. נסה שוב");
+  };
+  return (
+    <div className="nq-scrim" onClick={(e) => e.target === e.currentTarget && !busy && onClose()}>
+      <div className="nq-sheet nq-modal" role="dialog" aria-label="שליחה במייל">
+        <h2>שליחה במייל</h2>
+        <div className="hint">נשלח מה-Gmail שלך (<span className="ltr">{settings.email}</span>) עם קובץ ה-PDF מצורף, ויופיע אצלך ב&quot;דואר יוצא&quot;.</div>
+        <label className="f">אל<input className="in ltr" type="email" style={{ textAlign: "left" }} value={to} onChange={(e) => setTo(e.target.value)} autoFocus placeholder="client@example.com" /></label>
+        <label className="f">נושא<input className="in" value={subject} onChange={(e) => setSubject(e.target.value)} /></label>
+        <label className="f">הודעה<textarea className="in" rows={8} value={message} onChange={(e) => setMessage(e.target.value)} /></label>
+        {err && <div className="nq-err" role="alert">{err}</div>}
+        <div className="nq-head-acts" style={{ justifyContent: "flex-end" }}>
+          <button className="nq-btn" disabled={busy} onClick={onClose}>ביטול</button>
+          <button className="nq-btn pri" disabled={busy || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to.trim())} onClick={send}>{busy ? "שולח…" : "שלח עם PDF"}</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -995,7 +1047,7 @@ function SecurityCard() {
   const [cur, setCur] = useState("");
   const [next, setNext] = useState("");
   const [pwMsg, setPwMsg] = useState("");
-  const [mail, setMail] = useState<{ hasKey: boolean; hasAgentKey?: boolean; email: string } | null>(null);
+  const [mail, setMail] = useState<{ hasKey: boolean; hasAgentKey?: boolean; hasGmail?: boolean; email: string } | null>(null);
   const [key, setKey] = useState("");
   const [keyMsg, setKeyMsg] = useState("");
 
@@ -1012,15 +1064,16 @@ function SecurityCard() {
     if (res?.ok) { setPwMsg("הסיסמה הוחלפה ✓"); setCur(""); setNext(""); }
     else setPwMsg(res?.status === 401 ? "הסיסמה הנוכחית לא נכונה" : "השמירה נכשלה. נסה שוב");
   };
-  const [agentKey, setAgentKey] = useState("");
-  const [agentMsg, setAgentMsg] = useState("");
-  const saveAgentKey = async () => {
-    setAgentMsg("שומר…");
+  const [gPass, setGPass] = useState("");
+  const [gMsg, setGMsg] = useState("");
+  const saveGmail = async () => {
+    setGMsg("בודק מול Gmail…");
     const res = await fetch("/api/admin/mail", {
-      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ anthropicKey: agentKey }),
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ gmailPass: gPass }),
     }).catch(() => null);
-    if (res?.ok) { setAgentMsg("המפתח נשמר ✓"); setAgentKey(""); setMail((m) => (m ? { ...m, hasAgentKey: true } : m)); }
-    else setAgentMsg(res?.status === 400 ? "המפתח לא נראה תקין. הוא מתחיל ב-sk-ant-" : "השמירה נכשלה. נסה שוב");
+    if (res?.ok) { setGMsg("מחובר ✓"); setGPass(""); setMail((m) => (m ? { ...m, hasGmail: true } : m)); return; }
+    const j = await res?.json().catch(() => null);
+    setGMsg(j?.error === "gmail-auth" ? "Gmail לא אישר את הסיסמה. בדוק שהעתקת את כל 16 האותיות" : j?.error === "bad-key" ? "סיסמת אפליקציה היא 16 אותיות באנגלית" : "השמירה נכשלה. נסה שוב");
   };
   const saveKey = async () => {
     setKeyMsg("שומר…");
@@ -1053,13 +1106,13 @@ function SecurityCard() {
           {keyMsg && <div className="hint">{keyMsg}</div>}
         </div>
         <div className="nq-stack">
-          <b>הסוכן (הצעה מהודעה)</b>
+          <b>שליחת הצעות במייל (Gmail)</b>
           <div className="hint">
-            {mail?.hasAgentKey ? "הסוכן מחובר ✓" : "כדי שהסוכן יעבוד צריך מפתח Anthropic אחד (מתחיל ב-sk-ant-)."}
+            {mail?.hasGmail ? <>מחובר ✓ ההצעות נשלחות מ-<span className="ltr">{mail.email}</span>.</> : <>הדבק סיסמת אפליקציה של Gmail (16 אותיות). יוצרים אותה ב-<a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">myaccount.google.com/apppasswords</a>.</>}
           </div>
-          <input className="in ltr" style={{ textAlign: "left" }} placeholder={mail?.hasAgentKey ? "מפתח שמור. להחלפה הדבק מפתח חדש" : "sk-ant-..."} value={agentKey} onChange={(e) => setAgentKey(e.target.value)} />
-          <div><button className="nq-btn sm" disabled={!agentKey.trim()} onClick={saveAgentKey}>שמור מפתח</button></div>
-          {agentMsg && <div className="hint">{agentMsg}</div>}
+          <input className="in ltr" style={{ textAlign: "left" }} placeholder={mail?.hasGmail ? "שמורה. להחלפה הדבק סיסמה חדשה" : "xxxx xxxx xxxx xxxx"} value={gPass} onChange={(e) => setGPass(e.target.value)} autoComplete="off" />
+          <div><button className="nq-btn sm" disabled={!gPass.trim()} onClick={saveGmail}>חבר</button></div>
+          {gMsg && <div className="hint">{gMsg}</div>}
         </div>
       </div>
     </section>

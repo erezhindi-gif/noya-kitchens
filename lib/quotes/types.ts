@@ -54,7 +54,7 @@ export type Quote = {
   date: string; // YYYY-MM-DD, Israel time
   seq: number; // running number within the day
   status: Status;
-  client: { name: string; phone: string };
+  client: { name: string; phone: string; email?: string };
   project: string;
   lines: Line[];
   pros: QuotePro[];
