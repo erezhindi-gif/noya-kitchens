@@ -283,6 +283,7 @@ export default function Kitchen3D({ layout, still = false, height = 420 }: { lay
     return () => { disposed = true; cleanup(); };
   }, [key, still, height]);
 
+  if (failed && still) return <div className="nqp-3d still" data-ready="1" />; // the PDF goes out with the drawings only
   if (failed) return <div className="nqp-3d-fail">התצוגה בתלת-ממד לא נתמכת בדפדפן הזה. השרטוט עם המידות מופיע למטה.</div>;
   if (still)
     return (
