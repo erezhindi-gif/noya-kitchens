@@ -4,9 +4,11 @@ import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
 import { calc, defaultCommissions, fdate, lineTotal, markSentFields, money, pathOf, qnum, STATUS_LABEL, todayIL, uid, waLink } from "@/lib/quotes/calc";
 import { catalogForPrompt, linesFromDraft } from "@/lib/quotes/agent";
-import { getData, getSecrets, putCatalog, putQuote } from "@/lib/quotes/store";
+import { getData, getSecrets, putCatalog, putLead, putQuote } from "@/lib/quotes/store";
+import { SOURCE_LABEL, STAGE_LABEL, ago, findPhone, leadStage } from "@/lib/quotes/leads";
+import { syncLeads } from "@/lib/quotes/lead-sync";
 import { passwordStamp, verifyPayload } from "@/lib/quotes/auth";
-import type { CatNode, Quote } from "@/lib/quotes/types";
+import type { CatNode, Lead, Quote } from "@/lib/quotes/types";
 import { MAIL_ERRORS, sendQuoteMail, validEmail } from "@/lib/quotes/send-quote";
 
 export const runtime = "nodejs";
@@ -115,6 +117,8 @@ const handler = createMcpHandler(
           sections: z.array(SectionSchema),
           not_found: z.array(z.string()).default([]).describe("דברים שארז ביקש ואין להם פריט בקטלוג"),
           remove_commission: z.boolean().default(false).describe("true רק אם ארז ביקש במפורש בלי עמלה. אחרת כל הצעה מקבלת את העמלה הקבועה"),
+          client_email: z.string().default(""),
+          lead_id: z.string().optional().describe("מזהה הפנייה מ-list_leads, כשההצעה נבנית לפנייה"),
         }),
       },
       async (args) => {
@@ -128,7 +132,7 @@ const handler = createMcpHandler(
         const seq = data.quotes.filter((q) => q.date === date).reduce((m, q) => Math.max(m, q.seq), 0) + 1;
         const q: Quote = {
           id: uid(12), date, seq, status: "draft",
-          client: { name: args.client_name, phone: args.client_phone },
+          client: { name: args.client_name, phone: args.client_phone, ...(args.client_email ? { email: args.client_email } : {}) },
           project: args.project, lines, pros: [], round: false,
           commissions: args.remove_commission ? [] : defaultCommissions(data.settings),
           delivery: args.delivery || "אספקה 45 ימי עבודה",
@@ -136,6 +140,8 @@ const handler = createMcpHandler(
           internalNotes: notFound.length ? `לא נמצא בקטלוג (להשלים): ${notFound.join(", ")}` : "",
         };
         await putQuote(q);
+        const lead = args.lead_id ? data.leads.find((l) => l.id === args.lead_id) : undefined;
+        if (lead) await putLead({ ...lead, quoteId: q.id });
         const c = calc(q, data.settings, data.pros);
         return text(
           [
@@ -362,6 +368,76 @@ const handler = createMcpHandler(
     );
 
     server.registerTool(
+      "list_leads",
+      {
+        title: "פניות שמחכות להצעת מחיר",
+        description: "רשימת הפניות (בקשות להצעת מחיר ממייל, וואטסאפ וטלפון) עם מזהה, לקוח, מקור, מתי הגיעה, מה ביקש ואיפה זה עומד. בודק קודם אם נכנסו מיילים חדשים.",
+        inputSchema: z.object({ show: z.enum(["waiting", "open", "all"]).default("waiting") }),
+        annotations: { readOnlyHint: true },
+      },
+      async ({ show }) => {
+        await syncLeads().catch(() => null);
+        const d = await getData();
+        const rows = d.leads
+          .map((l) => ({ l, s: leadStage(l, d.quotes) }))
+          .filter(({ s }) => show === "all" || (show === "waiting" ? s.stage === "waiting" : s.stage !== "closed"))
+          .sort((a, b) => b.l.createdAt.localeCompare(a.l.createdAt))
+          .slice(0, 30)
+          .map(({ l, s }) =>
+            `${l.id} | ${l.name || "ללא שם"} | ${[l.phone, l.email].filter(Boolean).join(" ")} | ${SOURCE_LABEL[l.source]} ${ago(l.createdAt)} | ${s.overdue ? "מחכה מעל יומיים" : STAGE_LABEL[s.stage]}${s.quote ? ` (${qnum(s.quote)})` : ""}\n   ${(l.subject ? l.subject + ": " : "") + l.text.replace(/\s+/g, " ").slice(0, 300)}`
+          );
+        return text(rows.length ? rows.join("\n") : show === "waiting" ? "אין פניות שמחכות להצעה." : "אין פניות.");
+      }
+    );
+
+    server.registerTool(
+      "add_lead",
+      {
+        title: "הוספת פנייה",
+        description:
+          "שומר בקשה להצעת מחיר ברשימת הפניות, כדי שלא תישכח. לרוב ארז משתף הודעת וואטסאפ או מכתיב פרטים. " +
+          "חלץ שם, טלפון, מייל ומה הלקוח ביקש; מה שלא ידוע — השאר ריק (אל תמציא). אחרי השמירה הצע לבנות לה הצעה.",
+        inputSchema: z.object({
+          name: z.string().default(""),
+          phone: z.string().default(""),
+          email: z.string().default(""),
+          source: z.enum(["whatsapp", "email", "phone", "site", "other"]).default("whatsapp"),
+          request: z.string().describe("מה הלקוח ביקש, במילים שלו ככל האפשר"),
+          received: z.string().optional().describe("מתי הגיעה הפנייה, ISO, אם ידוע. ריק = עכשיו"),
+        }),
+      },
+      async (a) => {
+        const lead: Lead = {
+          id: uid(12),
+          createdAt: a.received && !isNaN(Date.parse(a.received)) ? new Date(a.received).toISOString() : new Date().toISOString(),
+          source: a.source,
+          name: a.name.trim(),
+          phone: a.phone.trim() || findPhone(a.request),
+          email: a.email.trim(),
+          text: a.request.trim(),
+        };
+        await putLead(lead);
+        return text(`נשמרה פנייה מ${lead.name || "לקוח"} (${SOURCE_LABEL[lead.source]}). מזהה: ${lead.id}. היא מופיעה ב"פניות" עד שתיבנה לה הצעה.`);
+      }
+    );
+
+    server.registerTool(
+      "close_lead",
+      {
+        title: "סימון פנייה כלא רלוונטית",
+        description: "מוציא פנייה מהרשימה של מחכות להצעה (לא לקוח, ספק, כבר טופל). רק כשארז ביקש.",
+        inputSchema: z.object({ lead_id: z.string() }),
+      },
+      async ({ lead_id }) => {
+        const d = await getData();
+        const l = d.leads.find((x) => x.id === lead_id);
+        if (!l) return text("לא נמצאה פנייה כזאת.");
+        await putLead({ ...l, closed: true });
+        return text(`הפנייה של ${l.name || "הלקוח"} סומנה כלא רלוונטית.`);
+      }
+    );
+
+    server.registerTool(
       "list_quotes",
       {
         title: "רשימת הצעות המחיר",
@@ -405,13 +481,13 @@ const handler = createMcpHandler(
     );
   },
   {
-    serverInfo: { name: "noya-quotes", version: "1.5.0" },
+    serverInfo: { name: "noya-quotes", version: "1.6.0" },
     instructions:
       "מערכת הצעות המחיר של נויה מטבחים (ארז). תהליך: 1) search_catalog כדי למצוא את הפריטים. " +
       "2) אם חסרה כמות לרכיב כלשהו (למשל ידית לחזיתות), או שיש כמה פריטים אפשריים, שאל את ארז שאלה אחת מרוכזת עם כל החסרים — לפני שבונים. " +
       "3) create_quote_draft רק כשהכול ברור. אל תנחש כמויות ואל תעתיק כמות בין רכיבים. " +
       "כל טיוטה מקבלת אוטומטית את העמלה הקבועה; remove_commission=true רק אם ארז ביקש במפורש בלי עמלה. " +
-      "להוספה להצעה קיימת: add_to_quote. לשינוי כמויות, תיאורים, הסרת שורות או פרטים: get_quote ואז update_quote. לא בונים הצעה חדשה כשארז ביקש לשנות קיימת. אם ארז רוצה לשנות הצעה ולא אמר איזו: list_quotes, הצג לו רשימה ממוספרת קצרה (מספר, לקוח, פרויקט, סכום) ושאל איזו, ורק אחר כך get_quote.  לשליחה ללקוח: whatsapp_link, או email_quote למייל עם PDF (גם כתשובה למייל שבו הלקוח ביקש הצעה) — תמיד אחרי שארז אישר נמען ונוסח. לעריכת הקטלוג (פריטים, תתי-פריטים, מחירים): search_catalog עם full_tree=true ואז edit_catalog, אחרי שארז אישר את השינויים. דבר עם ארז בעברית.",
+      "להוספה להצעה קיימת: add_to_quote. לשינוי כמויות, תיאורים, הסרת שורות או פרטים: get_quote ואז update_quote. לא בונים הצעה חדשה כשארז ביקש לשנות קיימת. אם ארז רוצה לשנות הצעה ולא אמר איזו: list_quotes, הצג לו רשימה ממוספרת קצרה (מספר, לקוח, פרויקט, סכום) ושאל איזו, ורק אחר כך get_quote.  לשליחה ללקוח: whatsapp_link, או email_quote למייל עם PDF (גם כתשובה למייל שבו הלקוח ביקש הצעה) — תמיד אחרי שארז אישר נמען ונוסח. לעריכת הקטלוג (פריטים, תתי-פריטים, מחירים): search_catalog עם full_tree=true ואז edit_catalog, אחרי שארז אישר את השינויים. פניות (בקשות להצעה): כשארז משתף הודעה מלקוח או אומר 'תוסיף פנייה' — add_lead. 'מה מחכה?' — list_leads. כשבונים הצעה לפנייה, העבר lead_id ואת פרטי הלקוח מהפנייה ל-create_quote_draft. דבר עם ארז בעברית.",
   }
 );
 

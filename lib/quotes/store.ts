@@ -6,6 +6,7 @@ import { createClient } from "@sanity/client";
 import { promises as fs } from "fs";
 import path from "path";
 import { DEFAULT_SETTINGS, defaultCatalog } from "./defaults";
+import type { AppData, CatNode, Lead, Pro, Quote, Settings } from "./types";
 
 // Saved settings over the defaults. The earlier default payment wording is replaced by the current one.
 const OLD_PAYMENT = "50% בחתימת הזמנה, 50% לפני התקנה.";
@@ -14,7 +15,6 @@ const withDefaults = (s?: Partial<Settings> | null): Settings => {
   if (out.payment?.trim() === OLD_PAYMENT) out.payment = DEFAULT_SETTINGS.payment;
   return out;
 };
-import type { AppData, CatNode, Pro, Quote, Settings } from "./types";
 
 const token = process.env.SANITY_API_TOKEN;
 const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID;
@@ -39,7 +39,7 @@ const NO_CACHE = { cache: "no-store" as const };
 const readDoc = (id: string) =>
   sanity!.fetch<Record<string, unknown> | null>(`*[_id == $id][0]`, { id }, NO_CACHE);
 
-const ID = { settings: "noyaq.settings", catalog: "noyaq.catalog", quote: (id: string) => `noyaq.quote.${id}` };
+const ID = { settings: "noyaq.settings", catalog: "noyaq.catalog", quote: (id: string) => `noyaq.quote.${id}`, lead: (id: string) => `noyaq.lead.${id}` };
 
 /* Sanity wants a _key on every object inside an array; strip Sanity's own fields on the way out. */
 const withKeys = <T extends { id: string }>(arr: T[]) => arr.map((x) => ({ ...x, _key: x.id }));
@@ -62,7 +62,7 @@ const quoteDoc = (q: Quote) => ({
 
 /* ---------- local file fallback ---------- */
 const FILE = path.join(process.cwd(), ".data", "noya-quotes.json");
-type FileData = { settings?: Settings; pros?: Pro[]; cat?: CatNode[]; quotes: Quote[] };
+type FileData = { settings?: Settings; pros?: Pro[]; cat?: CatNode[]; quotes: Quote[]; leads?: Lead[] };
 async function readFile(): Promise<FileData> {
   try {
     return JSON.parse(await fs.readFile(FILE, "utf8"));
@@ -78,10 +78,11 @@ async function writeFile(d: FileData) {
 /* ---------- API ---------- */
 export async function getData(): Promise<AppData> {
   if (sanity) {
-    const [settingsDoc, catalogDoc, quotes] = await Promise.all([
+    const [settingsDoc, catalogDoc, quotes, leads] = await Promise.all([
       readDoc(ID.settings),
       readDoc(ID.catalog),
       sanity.fetch<Record<string, unknown>[]>(`*[_type == "nq_quote" && _id in path("noyaq.quote.*")]`, {}, NO_CACHE),
+      sanity.fetch<Record<string, unknown>[]>(`*[_type == "nq_lead" && _id in path("noyaq.lead.*")]`, {}, NO_CACHE),
     ]);
     const s = settingsDoc ? clean<{ settings: Settings; pros: Pro[] }>(settingsDoc) : null;
     return {
@@ -89,6 +90,7 @@ export async function getData(): Promise<AppData> {
       pros: s?.pros || [],
       cat: catalogDoc ? clean<{ nodes: CatNode[] }>(catalogDoc).nodes || [] : defaultCatalog(),
       quotes: quotes.map((q) => clean<Quote>(q)),
+      leads: leads.map((l) => clean<Lead>(l)),
     };
   }
   const d = await readFile();
@@ -97,6 +99,7 @@ export async function getData(): Promise<AppData> {
     pros: d.pros || [],
     cat: d.cat || defaultCatalog(),
     quotes: d.quotes,
+    leads: d.leads || [],
   };
 }
 
@@ -136,6 +139,39 @@ export async function deleteQuote(id: string) {
   await writeFile(d);
 }
 
+/* ---------- leads (requests for a quote) ---------- */
+export async function putLead(l: Lead) {
+  if (sanity) return void (await sanity.createOrReplace({ _id: ID.lead(l.id), _type: "nq_lead", ...l }));
+  const d = await readFile();
+  d.leads = [...(d.leads || []).filter((x) => x.id !== l.id), l];
+  await writeFile(d);
+}
+
+/** Saves a new lead only if no lead with this id exists yet. Returns false when it already did,
+ *  so two imports running at once can't both send the client an auto-reply. */
+export async function insertLead(l: Lead): Promise<boolean> {
+  if (sanity) {
+    try {
+      await sanity.create({ _id: ID.lead(l.id), _type: "nq_lead", ...l });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  const d = await readFile();
+  if ((d.leads || []).some((x) => x.id === l.id)) return false;
+  d.leads = [...(d.leads || []), l];
+  await writeFile(d);
+  return true;
+}
+
+export async function deleteLead(id: string) {
+  if (sanity) return void (await sanity.delete(ID.lead(id)));
+  const d = await readFile();
+  d.leads = (d.leads || []).filter((x) => x.id !== id);
+  await writeFile(d);
+}
+
 export async function putCatalog(nodes: CatNode[]) {
   if (sanity) return void (await sanity.createOrReplace({ _id: ID.catalog, _type: "nq_catalog", nodes: withKeys(nodes.map((n) => (n.options ? { ...n, options: withKeys(n.options) } : n))) }));
   const d = await readFile();
@@ -154,7 +190,7 @@ export async function putSettings(settings: Settings, pros: Pro[]) {
 
 /* ---------- secrets: password hash and mail key ----------
    Kept in their own private document so they never travel with settings to the browser. */
-export type Secrets = { passHash?: string; passSalt?: string; resendKey?: string; lastResetAt?: number; lastFollowupMail?: string; anthropicKey?: string; gmailPass?: string };
+export type Secrets = { passHash?: string; passSalt?: string; resendKey?: string; lastResetAt?: number; lastFollowupMail?: string; anthropicKey?: string; gmailPass?: string; lastLeadSync?: number };
 const SECRETS_ID = "noyaq.secrets";
 
 export async function getSecrets(): Promise<Secrets> {

@@ -19,6 +19,9 @@ export const DEFAULT_SETTINGS: Settings = {
   ].join("\n"),
   roundTo: 100,
   defaultCommissionPct: 5,
+  leadAutoReply: true,
+  leadReplyText:
+    "שלום {שם},\n\nתודה על פנייתך לנויה מטבחים. קיבלנו את הבקשה, ונחזור אליך עם הצעת מחיר תוך 2 ימי עסקים.\n\nבברכה,\nארז\nנויה מטבחים\n050-2808180",
 };
 
 /** Starting folder skeleton — Erez fills in the items and prices himself. */

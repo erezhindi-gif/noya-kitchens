@@ -22,6 +22,7 @@
 .nq-tabs button[aria-current="true"] { background: var(--gold-soft); color: var(--gold-ink); }
 .nq-save { margin-inline-start: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
 .nq-save.err { color: var(--bad); font-weight: 700; }
+@media (max-width: 480px) { .nq-top-in { gap: 8px; } .nq-top img { height: 30px; } .nq-tabs button { padding: 7px 8px; font-size: 13.5px; } .nq-save:not(.err) { display: none; } }
 
 .nq-wrap { max-width: 1180px; margin: 0 auto; padding: 22px max(16px, env(safe-area-inset-right)) 22px max(16px, env(safe-area-inset-left)); }
 .nq h1 { font-size: 26px; font-weight: 800; margin: 0; }
@@ -50,6 +51,21 @@
 .nq-st-sent { background: var(--info-bg); color: var(--info); }
 .nq-st-approved { background: var(--ok-bg); color: var(--ok); }
 .nq-st-rejected { background: var(--bad-bg); color: var(--bad); }
+.nq-st-wait { background: var(--gold-soft); color: var(--gold-ink); }
+
+/* leads */
+.nq-badge { display: inline-block; min-width: 18px; padding: 0 5px; margin-inline-start: 6px; border-radius: 999px; background: var(--bad, #b4442f); color: #fff; font-size: 11px; line-height: 18px; text-align: center; font-weight: 700; }
+.nq-leads { display: flex; flex-direction: column; gap: 10px; }
+.nq-lead { display: flex; flex-direction: column; gap: 10px; }
+.nq-lead.late { border-color: var(--bad, #b4442f); box-shadow: inset 4px 0 0 var(--bad, #b4442f); }
+.nq-lead-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.nq-lead-name { font-size: 16px; }
+.nq-lead-text { white-space: pre-wrap; font-size: 14px; color: var(--ink); background: var(--surface-2); border-radius: 10px; padding: 10px 12px; max-height: 4.8em; overflow: hidden; cursor: pointer; position: relative; }
+.nq-lead-text.open { max-height: none; }
+.nq-lead-contact, .nq-lead-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.nq-leads-alert { width: 100%; border: 0; cursor: pointer; text-align: start; font: inherit; }
+.nq-check { flex-direction: row !important; align-items: center; gap: 8px; }
+.nq-btn.danger { background: var(--bad-bg); color: var(--bad); border-color: transparent; }
 
 /* list */
 .nq-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }

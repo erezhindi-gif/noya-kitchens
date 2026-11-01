@@ -4,13 +4,14 @@ import {
   STATUS_LABEL, UNIT_LABEL, ancestors, calc, descendantIds, fdate, kids, leafCount, lineFrom, lineTotal,
   autoDesc, commissionsOf, defaultCommissions, followState, markSentFields, tidyLineDesc, composeDesc, label, money, pathPrice, priceOf, normalizeCat, optPrice, pathOf, tidyCat, qnum, todayIL, uid, waLink,
 } from "@/lib/quotes/calc";
-import type { AppData, CatNode, CatOption, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
+import type { AppData, CatNode, CatOption, Lead, LeadSource, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
+import { SOURCE_LABEL, STAGE_LABEL, ago, findPhone, leadStage, waitingLeads, type LeadStage } from "@/lib/quotes/leads";
 import QuoteDoc from "./QuoteDoc";
 import DocFrame from "./DocFrame";
 import { downloadBlob, pdfName, quotePdf, sharePdf } from "./pdf";
 import "./admin.css";
 
-type View = "list" | "edit" | "preview" | "catalog" | "settings";
+type View = "list" | "edit" | "preview" | "catalog" | "settings" | "leads";
 type SaveState = "idle" | "saving" | "saved" | "error";
 
 const LINE_TAG: Record<Exclude<LineType, "cat">, string> = {
@@ -88,10 +89,11 @@ export default function AdminApp() {
         if (fromLink) { last = fromLink; lastView = "edit"; history.replaceState(history.state, "", window.location.pathname); }
         const known = !!last && d.quotes.some((q) => q.id === last);
         // A refresh reopens the quote only if Erez was inside it; otherwise it stays on the screen he was on.
-        if (lastView === "catalog" || lastView === "settings") {
+        if (lastView === "catalog" || lastView === "settings" || lastView === "leads") {
           setView(lastView);
           history.replaceState({ view: lastView, curId: null }, "");
         }
+        syncLeadsNow();
         if (known && lastView !== "edit" && lastView !== "preview") setOpenId(last);
         else if (known) {
           setOpenId(last);
@@ -156,14 +158,14 @@ export default function AdminApp() {
       });
       // quotes created here that the server hasn't returned yet stay
       for (const lq of cur.quotes) if (!quotes.some((q) => q.id === lq.id) && timers.current["q:" + lq.id]) quotes.push(lq);
-      const next = { ...cur, quotes };
+      const next = { ...cur, quotes, leads: d.leads || cur.leads };
       dataRef.current = next;
       setData(next);
       if (newlyApproved.length)
         flash(newlyApproved.map((q) => `✓ ${qnum(q)} אושרה על ידי ${q.approvedBy}`).join(" · "));
     };
     const t = setInterval(pull, 60_000);
-    const onVis = () => { if (!document.hidden) pull(); };
+    const onVis = () => { if (!document.hidden) { pull(); syncLeadsNow(); } };
     document.addEventListener("visibilitychange", onVis);
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVis); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -262,13 +264,43 @@ export default function AdminApp() {
     if (pending.current === 0) setSave("saved");
   };
 
-  const newQuote = (from?: Quote, message?: string) => {
+  // New requests labeled in Gmail come in when the app opens (and every 10 minutes on the server).
+  const syncLeadsNow = async () => {
+    const r = await fetch("/api/admin/leads/sync", { method: "POST" }).then((x) => x.json()).catch(() => null);
+    if (!r?.added) return;
+    const d: AppData | null = await fetch("/api/admin/data", { cache: "no-store" }).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+    if (!d) return;
+    setData((cur) => {
+      const next = cur ? { ...cur, leads: d.leads } : cur;
+      dataRef.current = next;
+      return next;
+    });
+    flash(r.added === 1 ? "נכנסה פנייה חדשה מהמייל" : `נכנסו ${r.added} פניות חדשות מהמייל`);
+  };
+  const saveLead = async (l: Lead, isNew = false) => {
+    setData((d) => {
+      const next = d ? { ...d, leads: [...d.leads.filter((x) => x.id !== l.id), l] } : d;
+      dataRef.current = next;
+      return next;
+    });
+    await api(isNew ? "/api/admin/leads" : `/api/admin/leads/${l.id}`, isNew ? "POST" : "PUT", l).catch(() => flash("שמירת הפנייה נכשלה. נסה שוב"));
+  };
+  const removeLead = async (id: string) => {
+    setData((d) => (d ? { ...d, leads: d.leads.filter((x) => x.id !== id) } : d));
+    await api(`/api/admin/leads/${id}`, "DELETE").catch(() => flash("המחיקה נכשלה. נסה שוב"));
+  };
+  const quoteFromLead = (l: Lead) => {
+    const id = newQuote(undefined, "נפתחה הצעה לפנייה:", { name: l.name, phone: l.phone, email: l.email });
+    if (id) saveLead({ ...l, quoteId: id });
+  };
+
+  const newQuote = (from?: Quote, message?: string, client?: Quote["client"]) => {
     if (!data) return;
     const date = todayIL();
     const seq = (dataRef.current || data).quotes.filter((q) => q.date === date).reduce((m, q) => Math.max(m, q.seq), 0) + 1;
     const base: Omit<Quote, "id" | "date" | "seq" | "status"> = from
       ? structuredClone({ ...from, approvedBy: undefined, approvedAt: undefined, sentAt: undefined, followUp: undefined })
-      : { client: { name: "", phone: "" }, project: "", lines: [], pros: [], commissions: defaultCommissions(data.settings), round: true, delivery: "אספקה 45 ימי עבודה", notes: "" };
+      : { client: client || { name: "", phone: "" }, project: "", lines: [], pros: [], commissions: defaultCommissions(data.settings), round: true, delivery: "אספקה 45 ימי עבודה", notes: "" };
     const q: Quote = { ...base, id: uid(12), date, seq, status: "draft", updatedAt: new Date().toISOString() };
     q.lines = q.lines.map((l) => ({ ...l, id: uid() }));
     backup(q);
@@ -280,6 +312,7 @@ export default function AdminApp() {
     saveQuoteLater(q.id, 0);
     go("edit", q.id);
     flash(message ? `${message} ${qnum(q)}` : from ? `שוכפלה להצעה ${qnum(q)}` : `נפתחה הצעה ${qnum(q)}`);
+    return q.id;
   };
 
   const removeQuote = async (id: string) => {
@@ -305,7 +338,8 @@ export default function AdminApp() {
   if (!data) return <div className="nq"><div className="nq-wrap"><div className="nq-empty">טוען…</div></div></div>;
 
   const q = curId ? data.quotes.find((x) => x.id === curId) : undefined;
-  const tab = view === "catalog" || view === "settings" ? view : "list";
+  const tab = view === "catalog" || view === "settings" || view === "leads" ? view : "list";
+  const waiting = waitingLeads(data.leads, data.quotes).length;
 
   return (
     <div className="nq nq-admin">
@@ -314,6 +348,7 @@ export default function AdminApp() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/images/quote-logo.png" alt="NOYA" />
           <nav className="nq-tabs">
+            <button aria-current={tab === "leads"} onClick={() => go("leads")}>פניות{waiting ? <span className="nq-badge num">{waiting}</span> : null}</button>
             <button aria-current={tab === "list"} onClick={() => go("list")}>הצעות</button>
             <button aria-current={tab === "catalog"} onClick={() => go("catalog")}>קטלוג</button>
             <button aria-current={tab === "settings"} onClick={() => go("settings")}>הגדרות</button>
@@ -325,6 +360,12 @@ export default function AdminApp() {
       </header>
 
       <main className="nq-wrap">
+        {view === "leads" && <LeadsView data={data} onSave={saveLead} onDelete={removeLead} onQuote={quoteFromLead} onOpenQuote={(id) => go("edit", id)} />}
+        {view === "list" && waiting > 0 && (
+          <button className="nq-back nq-leads-alert" onClick={() => go("leads")}>
+            <span><b className="num">{waiting}</b> {waiting === 1 ? "פנייה מחכה" : "פניות מחכות"} להצעת מחיר</span><span className="nq-btn sm pri">לפניות ›</span>
+          </button>
+        )}
         {view === "list" && <ListView data={data} onOpen={(id) => go("edit", id)} onNew={() => newQuote()} onDup={(q) => newQuote(q)} onDelete={removeQuote}
           onAgent={(d) => newQuote({ ...d, pros: [], commissions: defaultCommissions(data.settings), round: false } as unknown as Quote, "טיוטה מהסוכן נפתחה:")} />}
         {view === "edit" && q && (
@@ -353,6 +394,126 @@ export default function AdminApp() {
         {(view === "edit" || view === "preview") && !q && <div className="nq-empty">ההצעה לא נמצאה</div>}
       </main>
       {toast && <div className="nq-toast" role="status">{toast}</div>}
+    </div>
+  );
+}
+
+/* =================== leads: requests waiting for a quote =================== */
+const STAGE_CLASS: Record<LeadStage, string> = {
+  waiting: "nq-st-wait", draft: "nq-st-draft", sent: "nq-st-sent", approved: "nq-st-approved", rejected: "nq-st-rejected", closed: "nq-st-draft",
+};
+const waPhone = (p: string) => { const d = p.replace(/\D/g, ""); return d.startsWith("0") ? "972" + d.slice(1) : d; };
+
+function LeadsView({ data, onSave, onDelete, onQuote, onOpenQuote }: {
+  data: AppData; onSave: (l: Lead, isNew?: boolean) => void; onDelete: (id: string) => void; onQuote: (l: Lead) => void; onOpenQuote: (id: string) => void;
+}) {
+  const [filter, setFilter] = useState<"waiting" | "open" | "all">("waiting");
+  const [form, setForm] = useState<Lead | null>(null);
+  const [isNew, setIsNew] = useState(false);
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const rows = data.leads
+    .map((l) => ({ l, s: leadStage(l, data.quotes) }))
+    .sort((a, b) => b.l.createdAt.localeCompare(a.l.createdAt));
+  const count = { waiting: rows.filter((r) => r.s.stage === "waiting").length, open: rows.filter((r) => r.s.stage !== "closed").length, all: rows.length };
+  const shown = rows.filter((r) => filter === "all" || (filter === "waiting" ? r.s.stage === "waiting" : r.s.stage !== "closed"));
+  const blank = (): Lead => ({ id: uid(12), createdAt: new Date().toISOString(), source: "whatsapp", name: "", phone: "", email: "", text: "" });
+
+  return (
+    <>
+      <div className="nq-head">
+        <div><h1>פניות</h1><div className="sub">בקשות להצעת מחיר. כשבונים הצעה ללקוח, הפנייה מתעדכנת לבד</div></div>
+        <div className="nq-head-acts">
+          <a className="nq-btn" href={claudeLink("פנייה חדשה במערכת נויה. הנה ההודעה מהלקוח: ")} target="_blank" rel="noopener">✨ פנייה בקלוד</a>
+          <button className="nq-btn pri" onClick={() => { setIsNew(true); setForm(blank()); }}>+ פנייה</button>
+        </div>
+      </div>
+      <div className="nq-chips">
+        {([["waiting", "מחכות להצעה"], ["open", "פתוחות"], ["all", "הכול"]] as const).map(([k, t]) => (
+          <button key={k} className="nq-chip" aria-pressed={filter === k} onClick={() => setFilter(k)}>{t} · {count[k]}</button>
+        ))}
+      </div>
+      {!shown.length && (
+        <div className="nq-empty">
+          {filter === "waiting" ? "אין פניות שמחכות להצעה 👌" : "עוד אין פניות"}
+          <div className="hint" style={{ marginTop: 8 }}>מייל: מסמנים ב-Gmail בתווית &quot;הצעת מחיר&quot;. וואטסאפ: משתפים את ההודעה לאפליקציית Claude ואומרים &quot;תוסיף פנייה&quot;, או לוחצים &quot;+ פנייה&quot;.</div>
+        </div>
+      )}
+      <div className="nq-leads">
+        {shown.map(({ l, s }) => (
+          <article key={l.id} className={`nq-card nq-lead ${s.overdue ? "late" : ""}`}>
+            <div className="nq-lead-top">
+              <div>
+                <b className="nq-lead-name">{l.name || "ללא שם"}</b>
+                <div className="hint">{SOURCE_LABEL[l.source]} · {ago(l.createdAt)} · {fdate(l.createdAt.slice(0, 10))}{l.autoReplied ? " · נשלח מענה אוטומטי" : ""}</div>
+              </div>
+              <span className={`nq-pill ${s.overdue ? "nq-st-rejected" : STAGE_CLASS[s.stage]}`}>{s.overdue ? "מחכה מעל יומיים" : STAGE_LABEL[s.stage]}</span>
+            </div>
+            {l.text && (
+              <div className={`nq-lead-text ${expanded === l.id ? "open" : ""}`} onClick={() => setExpanded(expanded === l.id ? null : l.id)}>
+                {l.subject ? <b>{l.subject}<br /></b> : null}{l.text}
+              </div>
+            )}
+            <div className="nq-lead-contact">
+              {l.phone && <a className="nq-btn sm" href={`tel:${l.phone}`}>📞 <span className="ltr num">{l.phone}</span></a>}
+              {l.phone && <a className="nq-btn sm wa" href={`https://wa.me/${waPhone(l.phone)}`} target="_blank" rel="noopener">וואטסאפ</a>}
+              {l.email && <a className="nq-btn sm" href={`mailto:${l.email}`}><span className="ltr">{l.email}</span></a>}
+            </div>
+            <div className="nq-lead-acts">
+              {s.quote
+                ? <button className="nq-btn sm pri" onClick={() => onOpenQuote(s.quote!.id)}>פתח הצעה {qnum(s.quote)}</button>
+                : s.stage !== "closed" && <button className="nq-btn sm pri" onClick={() => onQuote(l)}>בנה הצעה</button>}
+              {!s.quote && s.stage !== "closed" && (
+                <a className="nq-btn sm" href={claudeLink(`תבנה הצעה לפנייה של ${l.name}${l.phone ? ` (${l.phone})` : ""} במערכת נויה: `)} target="_blank" rel="noopener">✨ בקלוד</a>
+              )}
+              <button className="nq-btn sm" onClick={() => { setIsNew(false); setForm({ ...l }); }}>ערוך</button>
+              {s.stage === "closed"
+                ? <button className="nq-btn sm" onClick={() => onSave({ ...l, closed: false })}>החזר לפתוחות</button>
+                : !s.quote && <button className="nq-btn sm" onClick={() => onSave({ ...l, closed: true })}>לא רלוונטי</button>}
+              {confirmDel === l.id
+                ? <><button className="nq-btn sm danger" onClick={() => { onDelete(l.id); setConfirmDel(null); }}>כן, למחוק</button><button className="nq-btn sm" onClick={() => setConfirmDel(null)}>ביטול</button></>
+                : <button className="nq-btn sm ghost" onClick={() => setConfirmDel(l.id)}>מחק</button>}
+            </div>
+          </article>
+        ))}
+      </div>
+      {form && <LeadForm lead={form} isNew={isNew} onClose={() => setForm(null)} onSave={(l) => { onSave(l, isNew); setForm(null); }} />}
+    </>
+  );
+}
+
+function LeadForm({ lead, isNew, onClose, onSave }: { lead: Lead; isNew: boolean; onClose: () => void; onSave: (l: Lead) => void }) {
+  const [l, setL] = useState(lead);
+  const set = (p: Partial<Lead>) => setL((x) => ({ ...x, ...p }));
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    addEventListener("keydown", onKey);
+    return () => removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="nq-scrim" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <form className="nq-sheet nq-modal" role="dialog" aria-label="פנייה" onSubmit={(e) => { e.preventDefault(); onSave({ ...l, name: l.name.trim(), phone: l.phone.trim(), email: l.email.trim(), text: l.text.trim() }); }}>
+        <button type="button" className="nq-btn sm nq-x" onClick={onClose} aria-label="סגור">×</button>
+        <h2>{isNew ? "פנייה חדשה" : "עריכת פנייה"}</h2>
+        <label className="f">מה הלקוח ביקש (אפשר להדביק את ההודעה)
+          <textarea className="in" rows={4} value={l.text} autoFocus={isNew}
+            onChange={(e) => { const text = e.target.value; set({ text, ...(!l.phone && findPhone(text) ? { phone: findPhone(text) } : {}) }); }} />
+        </label>
+        <div className="nq-fields">
+          <label className="f">שם<input className="in" value={l.name} onChange={(e) => set({ name: e.target.value })} /></label>
+          <label className="f">טלפון<input className="in num" type="tel" value={l.phone} onChange={(e) => set({ phone: e.target.value })} /></label>
+          <label className="f">אימייל<input className="in ltr" type="email" style={{ textAlign: "left" }} value={l.email} onChange={(e) => set({ email: e.target.value })} /></label>
+          <label className="f">מקור
+            <select className="in" value={l.source} onChange={(e) => set({ source: e.target.value as LeadSource })}>
+              {(Object.keys(SOURCE_LABEL) as LeadSource[]).map((k) => <option key={k} value={k}>{SOURCE_LABEL[k]}</option>)}
+            </select>
+          </label>
+        </div>
+        <div className="nq-head-acts" style={{ justifyContent: "flex-end" }}>
+          <button type="button" className="nq-btn" onClick={onClose}>ביטול</button>
+          <button className="nq-btn pri" disabled={!l.name.trim() && !l.phone.trim() && !l.email.trim()}>{isNew ? "הוסף פנייה" : "שמור"}</button>
+        </div>
+      </form>
     </div>
   );
 }
@@ -1011,6 +1172,18 @@ function SettingsView({ data, upd }: { data: AppData; upd: (fn: (s: Settings, pr
               <textarea className="in" rows={5} value={st.clauses} onChange={(e) => upd((s) => { s.clauses = e.target.value; })} />
             </label>
             {field("defaultCommissionPct", "עמלה קבועה % (בכל הצעה חדשה)", { type: "number" })}{field("validity", "תוקף הצעה (ימים)", { type: "number" })}{field("vat", "מע״מ %", { type: "number" })}
+          </div>
+        </section>
+        <section className="nq-card" style={{ gridColumn: "1 / -1" }}>
+          <div className="nq-card-h"><h2>פניות מהמייל</h2><span className="hint">מייל שתסמן ב-Gmail בתווית &quot;הצעת מחיר&quot; נכנס לפניות תוך כמה דקות</span></div>
+          <div className="nq-fields">
+            <label className="f full nq-check">
+              <input type="checkbox" checked={st.leadAutoReply !== false} onChange={(e) => upd((s) => { s.leadAutoReply = e.target.checked; })} />
+              לשלוח ללקוח מענה אוטומטי כשהפנייה נכנסת (רק לפניות מהיומיים האחרונים)
+            </label>
+            <label className="f full">נוסח המענה ({"{שם}"} = שם הלקוח)
+              <textarea className="in" rows={7} value={st.leadReplyText || ""} disabled={st.leadAutoReply === false} onChange={(e) => upd((s) => { s.leadReplyText = e.target.value; })} />
+            </label>
           </div>
         </section>
         <section className="nq-card" style={{ gridColumn: "1 / -1" }}>

@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Real PDFs are printed by headless Chromium on the server; keep these out of the bundle.
-  experimental: { serverComponentsExternalPackages: ["@sparticuz/chromium", "puppeteer-core"] },
+  // Server-only packages (PDF printing, Gmail send and read); keep them out of the bundle.
+  experimental: { serverComponentsExternalPackages: ["@sparticuz/chromium", "puppeteer-core", "imapflow", "mailparser", "nodemailer"] },
   async redirects() {
     return [
       { source: '/contact', destination: '/', permanent: false },

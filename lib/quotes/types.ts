@@ -98,9 +98,34 @@ export type Settings = {
   roundTo: number;
   /** Commission added to every new quote unless Erez removes it */
   defaultCommissionPct?: number;
+  /** Automatic "we got your request" email to a client whose request came in by mail */
+  leadAutoReply?: boolean;
+  leadReplyText?: string;
 };
 
-export type AppData = { settings: Settings; pros: Pro[]; cat: CatNode[]; quotes: Quote[] };
+export type LeadSource = "email" | "whatsapp" | "phone" | "site" | "other";
+
+/** A client's request for a quote, waiting until Erez builds one. */
+export type Lead = {
+  id: string;
+  createdAt: string; // ISO time the request came in
+  source: LeadSource;
+  name: string;
+  phone: string;
+  email: string;
+  /** What the client asked for, in their words */
+  text: string;
+  subject?: string;
+  /** Message-ID of the request email, so it is imported once and the auto-reply threads */
+  msgId?: string;
+  /** The quote built for it; without it, a quote with the same phone or email links on its own */
+  quoteId?: string;
+  /** Erez marked it as not a real request */
+  closed?: boolean;
+  autoReplied?: boolean;
+};
+
+export type AppData = { settings: Settings; pros: Pro[]; cat: CatNode[]; quotes: Quote[]; leads: Lead[] };
 
 /** What the public quote page needs — never includes commissions or line prices */
 export type PublicQuote = { quote: Quote; settings: Settings };
