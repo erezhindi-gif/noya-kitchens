@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { qnum } from "@/lib/quotes/calc";
 import type { Quote, Settings } from "@/lib/quotes/types";
+import type { KitchenLayout } from "@/lib/quotes/layout";
 import dynamic from "next/dynamic";
 import DocFrame from "./DocFrame";
 import KitchenPlan from "./KitchenPlan";
@@ -11,7 +11,7 @@ const Kitchen3D = dynamic(() => import("./Kitchen3D"), { ssr: false, loading: ()
 
 /** The client's view of their quote: the sheet, a PDF download and the approve form.
  *  `quote` arrives already stripped of prices; the sheet itself is rendered on the server. */
-export default function ClientQuote({ quote: q, settings, doc }: { quote: Quote; settings: Settings; doc: React.ReactNode }) {
+export default function ClientQuote({ quote: q, settings, doc, layout }: { quote: Quote; settings: Settings; doc: React.ReactNode; layout?: KitchenLayout }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [sending, setSending] = useState(false);
@@ -45,7 +45,7 @@ export default function ClientQuote({ quote: q, settings, doc }: { quote: Quote;
           <a className="nq-btn" href={`https://wa.me/972${settings.phone.replace(/\D/g, "").replace(/^0/, "")}`} target="_blank" rel="noopener">שאלה לארז בוואטסאפ</a>
         </div>
         <DocFrame>{doc}</DocFrame>
-        {q.layout && (
+        {layout && (
           <section className="nq-card nqp-client">
             <h2>תכנון המטבח</h2>
             <div className="sub">בקנה מידה, לפי המידות שבהצעה. {view === "3d" ? "אפשר לסובב ולהתקרב עם האצבע." : "כל המידות בס״מ."}</div>
@@ -53,7 +53,7 @@ export default function ClientQuote({ quote: q, settings, doc }: { quote: Quote;
               <button type="button" role="tab" aria-selected={view === "3d"} className="nq-chip" aria-pressed={view === "3d"} onClick={() => setView("3d")}>תלת-ממד</button>
               <button type="button" role="tab" aria-selected={view === "plan"} className="nq-chip" aria-pressed={view === "plan"} onClick={() => setView("plan")}>שרטוט עם מידות</button>
             </div>
-            {view === "3d" ? <Kitchen3D layout={q.layout} height={360} /> : <KitchenPlan layout={q.layout} />}
+            {view === "3d" ? <Kitchen3D layout={layout} height={360} /> : <KitchenPlan layout={layout} />}
           </section>
         )}
         <div className="nq-approve nq-card">

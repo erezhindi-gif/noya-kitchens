@@ -487,8 +487,7 @@ const handler = createMcpHandler(
         const q = findQuote(d.quotes, number);
         if (!q) return text(`לא נמצאה הצעה ${number}.`);
         const plan = q.planId ? d.plans.find((p) => p.id === q.planId) : undefined;
-        const layout = plan?.layout || q.layout;
-        return text(describeQuote(q, d) + (layout ? `\n\nתכנון המטבח (${plan ? `תכנון ${plan.id}` : "שמור בהצעה"}):\n${describeLayout(layout)}` : ""));
+        return text(describeQuote(q, d) + (plan ? `\n\nנבנתה מתכנון ${plan.id}:\n${describeLayout(plan.layout)}` : ""));
       }
     );
 
@@ -539,7 +538,7 @@ const handler = createMcpHandler(
         title: "שרטוט ותלת-ממד למטבח",
         description:
           "שומר תכנון מטבח (בלשונית 'תכנונים' במערכת), בס״מ. ממנו נבנים שרטוט בקנה מידה עם קווי מידה ותצוגת תלת-ממד. תכנון נבנה לפני ההצעה; כשהוא מוכן, בונים ממנו הצעה עם create_quote_draft ו-plan_id, והשרטוט מוצג ללקוח עם ההצעה וב-PDF. " +
-          "תכנון חדש: בלי plan_id, עם client_name (וטלפון אם ידוע). תיקון תכנון קיים: plan_id מ-list_plans — שלח את כל התכנון המעודכן, לא רק את השינוי. אפשר גם number של הצעה: אז נשמר התכנון של ההצעה (או נוצר ומקושר אליה). " +
+          "תכנון חדש: בלי plan_id, עם client_name (וטלפון אם ידוע). תיקון תכנון קיים: plan_id מ-list_plans (או מ-get_quote של הצעה שנבנתה ממנו) — שלח את כל התכנון המעודכן, לא רק את השינוי. " +
           "לרוב ארז שולח צילום של סקיצה ידנית: קרא ממנה את אורכי הקירות, את הארונות לפי הסדר ואת הרוחב של כל אחד. " +
           "כל מידה חייבת להגיע מהסקיצה או מארז. אם מידה חסרה או לא קריאה, שאל לפני השמירה (שאלה אחת מרוכזת) — לא מנחשים. " +
           "walls: קיר אחד = מטבח ישר, שניים = ר׳ (הראשי ואז הימני), שלושה = ח׳ (שמאלי, ראשי, ימני). " +
@@ -553,7 +552,6 @@ const handler = createMcpHandler(
           "אחרי השמירה הצג לארז את הסיכום ואת האזהרות אם יש, ותן את הקישור לבדיקה.",
         inputSchema: z.object({
           plan_id: z.string().optional().describe("תכנון קיים לעדכון"),
-          number: z.string().optional().describe("מספר הצעה, אם התכנון שייך להצעה"),
           client_name: z.string().default(""),
           client_phone: z.string().default(""),
           title: z.string().default("").describe("שם התכנון, למשל מטבח או ארון קיר"),
@@ -569,32 +567,21 @@ const handler = createMcpHandler(
           colors: z.object({ front: z.string().optional(), upper: z.string().optional(), counter: z.string().optional(), handles: z.enum(["bar", "none"]).optional() }).optional(),
         }),
       },
-      async ({ plan_id, number, client_name, client_phone, title, ...raw }) => {
+      async ({ plan_id, client_name, client_phone, title, ...raw }) => {
         const d = await getData();
         const layout = normalizeLayout(raw);
         if (!layout) return text("לא התקבלו קירות. צריך לפחות קיר אחד עם אורך.");
-        const q = number ? findQuote(d.quotes, number) : undefined;
-        if (number && !q) return text(`לא נמצאה הצעה ${number}.`);
-        let p: Plan | undefined = plan_id ? d.plans.find((x) => x.id === plan_id) : q?.planId ? d.plans.find((x) => x.id === q.planId) : undefined;
+        let p: Plan | undefined = plan_id ? d.plans.find((x) => x.id === plan_id) : undefined;
         if (plan_id && !p) return text(`לא נמצא תכנון ${plan_id}. אפשר לראות את התכנונים עם list_plans.`);
         const now = new Date().toISOString();
         if (p) {
           p = { ...p, layout, ...(title ? { title } : {}), ...(client_name ? { client: { ...p.client, name: client_name, ...(client_phone ? { phone: client_phone } : {}) } } : {}) };
         } else {
-          p = {
-            id: uid(12), createdAt: now, title: title || "מטבח", layout,
-            client: q ? { ...q.client } : { name: client_name, phone: client_phone },
-            ...(q ? { quoteId: q.id } : {}),
-          };
+          p = { id: uid(12), createdAt: now, title: title || "מטבח", layout, client: { name: client_name, phone: client_phone } };
         }
         await putPlan(p);
-        if (q && q.planId !== p.id) {
-          q.planId = p.id;
-          delete q.layout;
-          await putQuote(q);
-        }
         const warns = layoutWarnings(layout);
-        const linked = q || d.quotes.find((x) => x.id === p!.quoteId);
+        const linked = d.quotes.find((x) => x.id === p!.quoteId || x.planId === p!.id);
         return text(
           `נשמר תכנון ${p.title} ל${p.client.name || "לקוח"} (מזהה ${p.id}).\n${describeLayout(layout)}` +
           (warns.length ? `\n\nלתשומת לב:\n- ${warns.join("\n- ")}` : "") +

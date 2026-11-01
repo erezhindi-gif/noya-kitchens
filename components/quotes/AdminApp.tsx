@@ -2,11 +2,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   STATUS_LABEL, UNIT_LABEL, ancestors, calc, descendantIds, fdate, kids, leafCount, lineFrom, lineTotal,
-  autoDesc, commissionsOf, defaultCommissions, followState, markSentFields, tidyLineDesc, composeDesc, label, money, pathPrice, priceOf, normalizeCat, optPrice, pathOf, tidyCat, qnum, reviewLines, todayIL, uid, waLink,
+  commissionsOf, defaultCommissions, followState, markSentFields, tidyLineDesc, composeDesc, label, money, pathPrice, priceOf, normalizeCat, tidyCat, qnum, reviewLines, todayIL, uid, waLink,
 } from "@/lib/quotes/calc";
-import type { AppData, CatNode, CatOption, Lead, LeadFile, LeadSource, Plan, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
+import type { AppData, CatNode, Lead, LeadFile, LeadSource, Plan, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
 import { STARTER_LAYOUT } from "./LayoutEditor";
-import { PlanScreen, PlansView, QuotePlanCard } from "./PlansView";
+import { PlanScreen, PlansView, QuotePlanLink } from "./PlansView";
 import { FILE_TYPE_OK, MAX_UPLOAD, SOURCE_LABEL, STAGE_LABEL, ago, findPhone, gmailLink, leadStage, waitingLeads, type LeadStage } from "@/lib/quotes/leads";
 import QuoteDoc from "./QuoteDoc";
 import DocFrame from "./DocFrame";
@@ -413,15 +413,13 @@ export default function AdminApp() {
     }));
     savePlanLater(id, delay);
   };
-  /** A new plan, for a client (and linked to a quote) when given. */
-  const newPlan = (client?: Quote["client"], quoteId?: string, layout?: Plan["layout"]) => {
+  const newPlan = () => {
     const p: Plan = {
       id: uid(12), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), title: "מטבח",
-      client: client ? { ...client } : { name: "", phone: "" }, layout: layout || STARTER_LAYOUT(), ...(quoteId ? { quoteId } : {}),
+      client: { name: "", phone: "" }, layout: STARTER_LAYOUT(),
     };
     setPlans((ps) => [...ps, p]);
     savePlanLater(p.id, 0);
-    if (quoteId) updQuote(quoteId, (x) => { x.planId = p.id; delete x.layout; }, 0);
     return p;
   };
   const quoteFromPlan = (p: Plan) => {
@@ -429,12 +427,6 @@ export default function AdminApp() {
     if (!id) return;
     updQuote(id, (x) => { x.planId = p.id; if (!x.project) x.project = p.title; }, 0);
     updPlan(p.id, (x) => { x.quoteId = id; }, 0);
-  };
-  const linkPlan = (quoteId: string, planId: string | null) => {
-    const q = data?.quotes.find((x) => x.id === quoteId);
-    if (q?.planId && q.planId !== planId) updPlan(q.planId, (x) => { if (x.quoteId === quoteId) delete x.quoteId; }, 0);
-    updQuote(quoteId, (x) => { if (planId) x.planId = planId; else delete x.planId; }, 0);
-    if (planId) updPlan(planId, (x) => { x.quoteId = quoteId; }, 0);
   };
   const removePlan = async (id: string) => {
     if (timers.current["p:" + id]) {
@@ -516,8 +508,7 @@ export default function AdminApp() {
         )}
         {view === "edit" && q && (
           <Editor
-            planCard={<QuotePlanCard q={q} data={data} onOpen={(id) => go("plan", id)} onLink={(pid) => linkPlan(q.id, pid)} onUnlink={() => linkPlan(q.id, null)}
-              onNew={() => go("plan", newPlan(q.client, q.id).id)} onMove={() => { const p = newPlan(q.client, q.id, q.layout); flash("השרטוט הועבר לתכנונים"); go("plan", p.id); }} />}
+            planLink={<QuotePlanLink q={q} data={data} onOpen={(id) => go("plan", id)} />}
             data={data} q={q} upd={(fn, delay) => updQuote(q.id, fn, delay)}
             onPreview={() => go("preview", q.id)} onBack={() => go("list")}
             onDup={() => newQuote(q)} onDelete={() => removeQuote(q.id)} flash={flash}
@@ -792,8 +783,8 @@ function ListView({ data, onOpen, onNew, onDup, onDelete, onAgent }: { data: App
 }
 
 /* =================== editor =================== */
-function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash, planCard }: {
-  data: AppData; q: Quote; upd: (fn: (q: Quote) => void, delay?: number) => void; planCard: React.ReactNode;
+function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash, planLink }: {
+  data: AppData; q: Quote; upd: (fn: (q: Quote) => void, delay?: number) => void; planLink: React.ReactNode;
   onPreview: () => void; onBack: () => void; onDup: () => void; onDelete: () => void; flash: (m: string) => void;
 }) {
   const [picker, setPicker] = useState(false);
@@ -827,6 +818,7 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash, planC
         </label>
       </div>
 
+      {planLink}
       <div className="nq-ed">
         <div className="nq-stack">
           <section className="nq-card">
@@ -956,7 +948,6 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash, planC
             })}
           </section>
 
-          {planCard}
 
           <section className="nq-card">
             <h2 style={{ marginBottom: 12 }}>מעקב (רק לך)</h2>

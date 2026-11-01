@@ -106,25 +106,22 @@ export async function getData(): Promise<AppData> {
   };
 }
 
-export async function getQuote(id: string): Promise<{ quote: Quote; settings: Settings } | null> {
+/** A quote, the settings, and the plan it was made from (for the client's page and the PDF). */
+export async function getQuote(id: string): Promise<{ quote: Quote; settings: Settings; plan: Plan | null } | null> {
   if (!/^[a-z0-9]{6,32}$/.test(id)) return null;
   if (sanity) {
     const [q, s] = await Promise.all([readDoc(ID.quote(id)), readDoc(ID.settings)]);
     if (!q) return null;
     const ss = s ? clean<{ settings: Settings }>(s).settings : undefined;
-    return { quote: await withPlan(clean<Quote>(q)), settings: withDefaults(ss) };
+    const quote = clean<Quote>(q);
+    return { quote, settings: withDefaults(ss), plan: await planOf(quote) };
   }
   const d = await readFile();
   const quote = d.quotes.find((q) => q.id === id);
-  return quote ? { quote: await withPlan(quote), settings: withDefaults(d.settings) } : null;
+  return quote ? { quote, settings: withDefaults(d.settings), plan: await planOf(quote) } : null;
 }
 
-/** The quote with the drawing of the plan it was made from, for the client's page and the PDF. */
-async function withPlan(q: Quote): Promise<Quote> {
-  if (!q.planId) return q;
-  const p = await getPlan(q.planId).catch(() => null);
-  return p ? { ...q, layout: p.layout } : q;
-}
+const planOf = (q: Quote) => (q.planId ? getPlan(q.planId).catch(() => null) : Promise.resolve(null));
 
 /* ---------- kitchen plans ---------- */
 export async function getPlan(id: string): Promise<Plan | null> {

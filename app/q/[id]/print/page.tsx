@@ -14,7 +14,7 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 export default async function PrintQuotePage({ params }: { params: { id: string } }) {
   const found = await getQuote(params.id);
   if (!found) notFound();
-  const layout = found.quote.layout;
+  const layout = found.plan?.layout;
   return (
     <>
       <QuoteDoc quote={found.quote} settings={found.settings} pros={[]} print />

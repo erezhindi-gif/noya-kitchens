@@ -22,7 +22,7 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
 export default async function ClientQuotePage({ params }: { params: { id: string } }) {
   const found = await getQuote(params.id);
   if (!found) notFound();
-  const { quote, settings } = found;
+  const { quote, settings, plan } = found;
   // Strip internal pricing before anything is serialized to the browser.
   const safe = {
     ...quote,
@@ -32,5 +32,5 @@ export default async function ClientQuotePage({ params }: { params: { id: string
     lines: quote.lines.map((l) => ({ id: l.id, type: l.type, desc: l.desc, qty: 0, showQty: !!shownQty(l), price: 0 })),
   };
   const doc = <QuoteDoc quote={quote} settings={settings} pros={[]} />;
-  return <ClientQuote quote={safe} settings={settings} doc={doc} />;
+  return <ClientQuote quote={safe} settings={settings} doc={doc} layout={plan?.layout} />;
 }

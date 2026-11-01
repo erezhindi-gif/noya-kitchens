@@ -81,8 +81,6 @@ export type Quote = {
   internalNotes?: string;
   /** The kitchen plan this quote was made from; its drawing and 3D view show with the quote */
   planId?: string;
-  /** Older quotes kept the plan inside the quote; shown when there's no planId */
-  layout?: KitchenLayout;
   updatedAt?: string;
 };
 

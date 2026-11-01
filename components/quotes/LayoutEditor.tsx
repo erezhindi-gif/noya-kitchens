@@ -73,22 +73,9 @@ function UnitRows<K extends string>({ units, labels, onChange, addKind, box }: {
 
 export const STARTER_LAYOUT = (): KitchenLayout => clone(STARTER);
 
-export default function LayoutEditor({ layout, onChange, claudeHref, removable = true }: { layout?: KitchenLayout; onChange: (l: KitchenLayout | undefined) => void; claudeHref: string; removable?: boolean }) {
+export default function LayoutEditor({ layout, onChange, claudeHref }: { layout: KitchenLayout; onChange: (l: KitchenLayout) => void; claudeHref: string }) {
   const [tab, setTab] = useState<"3d" | "plan">("3d");
-  const [confirmDel, setConfirmDel] = useState(false);
   const [showH, setShowH] = useState(false);
-
-  if (!layout)
-    return (
-      <section className="nq-card">
-        <div className="nq-card-h"><h2>שרטוט ותלת-ממד</h2><span className="hint">בקנה מידה, לפי המידות. נכנס להצעה של הלקוח ול-PDF</span></div>
-        <div className="nq-head-acts">
-          <a className="nq-btn" href={claudeHref} target="_blank" rel="noopener">✨ שרטוט בקלוד מהסקיצה</a>
-          <button type="button" className="nq-btn pri" onClick={() => onChange(clone(STARTER))}>+ תכנון ידני</button>
-        </div>
-        <div className="hint" style={{ marginTop: 8 }}>מצלמים את השרטוט הידני ושולחים לקלוד. הוא ממלא את המידות כאן, ושואל אם משהו לא ברור.</div>
-      </section>
-    );
 
   const up = (fn: (l: KitchenLayout) => void) => {
     const l = clone(layout);
@@ -196,10 +183,6 @@ export default function LayoutEditor({ layout, onChange, claudeHref, removable =
 
       <div className="nq-head-acts" style={{ marginTop: 12 }}>
         <a className="nq-btn sm" href={claudeHref} target="_blank" rel="noopener">✨ תיקון בקלוד</a>
-        {!removable ? null : confirmDel ? (
-          <><button type="button" className="nq-btn sm danger" onClick={() => { onChange(undefined); setConfirmDel(false); }}>כן, להסיר את התכנון</button>
-            <button type="button" className="nq-btn sm" onClick={() => setConfirmDel(false)}>ביטול</button></>
-        ) : <button type="button" className="nq-btn sm ghost" onClick={() => setConfirmDel(true)}>הסר תכנון</button>}
       </div>
     </section>
   );

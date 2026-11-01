@@ -59,7 +59,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     await page.goto(`${req.nextUrl.origin}/q/${params.id}/print`, { waitUntil: "networkidle0", timeout: 30000 });
     await page.evaluate(() => document.fonts.ready);
     // the 3D picture of the kitchen plan is drawn in the page; wait for it, but never fail the PDF over it
-    if (found.quote.layout) await page.waitForSelector(".nqp-3d[data-ready]", { timeout: 12000 }).catch(() => console.error("3d picture not ready"));
+    if (found.plan) await page.waitForSelector(".nqp-3d[data-ready]", { timeout: 12000 }).catch(() => console.error("3d picture not ready"));
 
     // One page when it nearly fits: zoom the sheet down (CSS zoom keeps RTL layout intact), centered.
     const h = await page.evaluate(() => (document.querySelector(".nq-doc") as HTMLElement).scrollHeight);

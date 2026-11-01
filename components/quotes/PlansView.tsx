@@ -3,7 +3,6 @@
 // When a plan is ready, a quote is opened from it; the quote then shows the plan to the client.
 import { useState } from "react";
 import { fdate, qnum } from "@/lib/quotes/calc";
-import { describeLayout } from "@/lib/quotes/layout";
 import type { AppData, Plan, Quote } from "@/lib/quotes/types";
 import LayoutEditor from "./LayoutEditor";
 
@@ -88,9 +87,9 @@ export function PlanScreen({ plan: p, data, upd, onBack, onQuote, onOpenQuote, o
             <label className="f full">הערות (רק לך)<textarea className="in" rows={2} value={p.notes || ""} onChange={(e) => upd((x) => { x.notes = e.target.value; })} /></label>
           </div>
         </section>
-        <LayoutEditor layout={p.layout} removable={false}
+        <LayoutEditor layout={p.layout}
           claudeHref={claudeLink(`תיקון התכנון של ${who} במערכת נויה (תכנון ${p.id}): `)}
-          onChange={(l) => l && upd((x) => { x.layout = l; })} />
+          onChange={(l) => upd((x) => { x.layout = l; })} />
         <section className="nq-card">
           {confirmDel ? (
             <div className="nq-confirm">
@@ -107,39 +106,14 @@ export function PlanScreen({ plan: p, data, upd, onBack, onQuote, onOpenQuote, o
   );
 }
 
-/** In the quote editor: which plan the quote shows, with a way to open, change or detach it. */
-export function QuotePlanCard({ q, data, onOpen, onLink, onUnlink, onNew, onMove }: {
-  q: Quote; data: AppData; onOpen: (id: string) => void; onLink: (planId: string) => void; onUnlink: () => void; onNew: () => void; onMove: () => void;
-}) {
+/** In the quote editor: the plan this quote was made from. Plans are made and edited only under "תכנונים". */
+export function QuotePlanLink({ q, data, onOpen }: { q: Quote; data: AppData; onOpen: (id: string) => void }) {
   const plan = q.planId ? data.plans.find((p) => p.id === q.planId) : undefined;
-  const free = data.plans.filter((p) => !p.quoteId || p.quoteId === q.id);
+  if (!plan) return null;
   return (
-    <section className="nq-card">
-      <div className="nq-card-h"><h2>שרטוט ותלת-ממד</h2><span className="hint">מוצג ללקוח עם ההצעה וב-PDF</span></div>
-      {plan ? (
-        <>
-          <div className="hint" style={{ whiteSpace: "pre-line", marginBottom: 10 }}>{describeLayout(plan.layout).split("\n").slice(0, 4).join("\n")}</div>
-          <div className="nq-head-acts">
-            <button className="nq-btn sm pri" onClick={() => onOpen(plan.id)}>פתח את התכנון</button>
-            <button className="nq-btn sm ghost" onClick={onUnlink}>הסר מההצעה</button>
-          </div>
-        </>
-      ) : q.layout ? (
-        <div className="nq-head-acts">
-          <span className="hint">בהצעה הזאת יש שרטוט שנשמר לפני שהיו תכנונים.</span>
-          <button className="nq-btn sm pri" onClick={onMove}>העבר לתכנונים</button>
-        </div>
-      ) : (
-        <div className="nq-head-acts">
-          {free.length > 0 && (
-            <select className="in" style={{ width: "auto" }} value="" onChange={(e) => e.target.value && onLink(e.target.value)} aria-label="צירוף תכנון קיים">
-              <option value="">צירוף תכנון קיים…</option>
-              {free.map((p) => <option key={p.id} value={p.id}>{p.client.name || "ללא שם"}{p.title ? ` · ${p.title}` : ""}</option>)}
-            </select>
-          )}
-          <button className="nq-btn sm" onClick={onNew}>+ תכנון חדש ללקוח</button>
-        </div>
-      )}
-    </section>
+    <div className="nq-back">
+      <span>נבנתה מהתכנון של <b>{plan.client.name || "הלקוח"}</b> · השרטוט והתלת-ממד מוצגים ללקוח עם ההצעה</span>
+      <button className="nq-btn sm pri" onClick={() => onOpen(plan.id)}>פתח תכנון ›</button>
+    </div>
   );
 }
