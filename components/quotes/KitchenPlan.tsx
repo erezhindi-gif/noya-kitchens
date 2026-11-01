@@ -3,8 +3,8 @@
 // is in cm), so proportions are exact at any size. No hooks: renders on the server for the PDF too.
 import "./plan.css";
 import {
-  BASE_LABEL, COUNTER_COLORS, FRONT_COLORS, colorOf, counterSpans, heightsOf, islandBox, partsOf, placed, wallGeometry, wallName,
-  type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperUnit,
+  BASE_LABEL, COUNTER_COLORS, FRONT_COLORS, colorOf, counterSpans, heightsOf, islandBox, partsOf, placed, upperBox, wallGeometry, wallName,
+  type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 
 const INK = "#3a3530";
@@ -15,6 +15,12 @@ const GLASS = "#2c2c2c";
 const GAP = 0.5; // gap between fronts, cm
 
 type Ctx = { h: LayoutHeights; top: number; front: string; upper: string; counter: string; handles: boolean; f: number };
+
+/** Dark fronts (anthracite, black, walnut…) get light writing on them. */
+const isDark = (hex: string) => {
+  const n = parseInt(hex.slice(1), 16);
+  return ((n >> 16) & 255) * 0.299 + ((n >> 8) & 255) * 0.587 + (n & 255) * 0.114 < 120;
+};
 
 /** y in the SVG for a height above the floor */
 const Y = (c: Ctx, cm: number) => c.top - cm;
@@ -73,12 +79,12 @@ function BaseShape({ c, u, x }: { c: Ctx; u: BaseUnit; x: number }) {
       return <Hatch c={c} x={x} y0={0} w={u.w} h={h.base - h.counter} />;
     case "doors":
     case "sink":
-      return <>{plinth}<Doors c={c} x={x} y0={f0} w={u.w} h={fh} n={n} fill={c.front} at="top" />{u.kind === "sink" && <Label c={c} x={mid} y={Y(c, f0 + fh / 2)} t="כיור" />}</>;
+      return <>{plinth}<Doors c={c} x={x} y0={f0} w={u.w} h={fh} n={n} fill={c.front} at="top" />{u.kind === "sink" && <Label c={c} x={mid} y={Y(c, f0 + fh / 2)} t="כיור" light={isDark(c.front)} />}</>;
     case "drawers":
     case "cooktop":
       return <>{plinth}<Stack c={c} x={x} y0={f0} w={u.w} h={fh} n={n} fill={c.front} />{u.kind === "cooktop" && <rect x={x + 4} y={Y(c, h.base) - 1.2} width={u.w - 8} height={1.2} fill={GLASS} />}</>;
     case "dishwasher":
-      return <>{plinth}<Front c={c} x={x} y0={f0} w={u.w} h={fh} fill={c.front} handle="top" /><Label c={c} x={mid} y={Y(c, f0 + fh / 2)} t="מדיח" /></>;
+      return <>{plinth}<Front c={c} x={x} y0={f0} w={u.w} h={fh} fill={c.front} handle="top" /><Label c={c} x={mid} y={Y(c, f0 + fh / 2)} t="מדיח" light={isDark(c.front)} /></>;
     case "oven": {
       const dr = Math.min(18, fh * 0.25);
       return (
@@ -121,10 +127,21 @@ function BaseShape({ c, u, x }: { c: Ctx; u: BaseUnit; x: number }) {
   }
 }
 
-function UpperShape({ c, u, x }: { c: Ctx; u: UpperUnit; x: number }) {
-  const { h } = c;
-  const y0 = h.upperFrom, uh = h.upper;
+function UpperShape({ c, u, x, row, depthTag }: { c: Ctx; u: UpperUnit; x: number; row: UpperRow; depthTag: boolean }) {
+  const { y0, hh: uh, d } = upperBox(u, c.h, row);
   const n = partsOf(u.kind, u.w, u.n, true);
+  const shape = upperFront(c, u, x, y0, uh, n);
+  // when depths differ on a wall, each cabinet says how deep it is
+  if (!shape || !depthTag || u.kind === "hood" || u.kind === "corner") return shape;
+  return (
+    <g>
+      {shape}
+      <text x={x + u.w / 2} y={Y(c, y0 + uh / 2) + c.f * 0.3} fontSize={c.f * 0.7} textAnchor="middle" fill={u.kind === "open" ? INK : isDark(c.upper) ? "#f3efe8" : DIM} direction="rtl">עומק {cm(d)}</text>
+    </g>
+  );
+}
+
+function upperFront(c: Ctx, u: UpperUnit, x: number, y0: number, uh: number, n: number) {
   switch (u.kind) {
     case "gap":
       return null;
@@ -200,20 +217,23 @@ function ctxOf(l: KitchenLayout, length: number): Ctx {
 }
 
 /** Front view of one run of cabinets (a wall, or the island). */
-export function Elevation({ layout, title, length, base, upper, island = false }: { layout: KitchenLayout; title: string; length: number; base: BaseUnit[]; upper: UpperUnit[]; island?: boolean }) {
+export function Elevation({ layout, title, length, base, upper, top = [], island = false }: { layout: KitchenLayout; title: string; length: number; base: BaseUnit[]; upper: UpperUnit[]; top?: UpperUnit[]; island?: boolean }) {
   const c = ctxOf(layout, length);
   const { h } = c;
   const hasUpper = upper.some((u) => u.kind !== "gap");
+  const hasTop = top.some((u) => u.kind !== "gap");
+  const reach = (us: UpperUnit[], row: UpperRow) => us.filter((u) => u.kind !== "gap").map((u) => { const b = upperBox(u, h, row); return b.y0 + b.hh; });
+  const highest = Math.max(0, ...reach(upper, "upper"), ...reach(top, "top"));
+  const depthTag = hasTop || upper.some((u) => u.d !== undefined) || top.some((u) => u.d !== undefined);
   const hasTall = base.some((u) => ["fridge", "tall", "tall_oven"].includes(u.kind));
   const hasHood = upper.some((u) => u.kind === "hood");
-  const shownTop = island ? h.base + 2 : Math.min(h.ceiling, Math.max(h.base + 30, hasUpper ? h.upperFrom + h.upper + (hasHood ? 30 : 10) : 0, hasTall ? h.tall + 10 : 0));
+  const shownTop = island ? h.base + 2 : Math.min(h.ceiling, Math.max(h.base + 30, hasUpper || hasTop ? highest + (hasHood && !hasTop ? 30 : hasTop ? 0 : 10) : 0, hasTall ? h.tall + 10 : 0));
   c.top = shownTop;
   const f = c.f;
-  const left = f * (hasTall ? 4.6 : 3.2), right = f * 1.2, topPad = f * (hasUpper ? 3 : 1.6), bottom = f * 4.4;
+  const left = f * (hasTall ? 4.6 : 3.2), right = f * 1.2, topPad = f * (hasTop ? 3 : 1.6), bottom = f * 4.4;
   const vb = `${-left} ${-topPad} ${length + left + right} ${shownTop + topPad + bottom}`;
-  const pb = placed(base), pu = placed(upper);
+  const pb = placed(base), pu = placed(upper), pt = placed(top);
   const spans = counterSpans(base);
-  const upTop = h.upperFrom + h.upper;
   return (
     <figure className="nqp-fig">
       <figcaption>{title} · {cm(length)} ס״מ</figcaption>
@@ -225,7 +245,8 @@ export function Elevation({ layout, title, length, base, upper, island = false }
           </pattern>
         </defs>
         {!island && <rect x={0} y={0} width={length} height={shownTop} fill="#f8f6f2" />}
-        {pu.map((u, i) => <UpperShape key={"u" + i} c={c} u={u} x={u.a} />)}
+        {pu.map((u, i) => <UpperShape key={"u" + i} c={c} u={u} x={u.a} row="upper" depthTag={depthTag} />)}
+        {pt.map((u, i) => <UpperShape key={"t" + i} c={c} u={u} x={u.a} row="top" depthTag={depthTag} />)}
         {pb.map((u, i) => <BaseShape key={"b" + i} c={c} u={u} x={u.a} />)}
         {spans.map((s, i) => <rect key={"c" + i} x={s.a} y={Y(c, h.base)} width={s.w} height={h.counter} fill={c.counter} stroke={LINE} strokeWidth={0.4} />)}
         <line x1={-left * 0.3} x2={length + right * 0.6} y1={shownTop} y2={shownTop} stroke={INK} strokeWidth={1} />
@@ -235,12 +256,15 @@ export function Elevation({ layout, title, length, base, upper, island = false }
         {/* widths of the base units, then the whole wall */}
         {pb.map((u, i) => <HDim key={"db" + i} c={c} x0={u.a} x1={u.a + u.w} y={shownTop + f * 1.7} t={cm(u.w)} />)}
         <HDim c={c} x0={0} x1={length} y={shownTop + f * 3.6} t={cm(length)} />
-        {hasUpper && pu.map((u, i) => <HDim key={"du" + i} c={c} x0={u.a} x1={u.a + u.w} y={Y(c, Math.min(shownTop, upTop)) - f * 1.2} t={cm(u.w)} />)}
+        {/* upper widths in the free space between the counter and the uppers; the top row's above it */}
+        {hasUpper && pu.map((u, i) => u.kind === "gap" ? null : <HDim key={"du" + i} c={c} x0={u.a} x1={u.a + u.w} y={Y(c, h.upperFrom) + f * (depthTag ? 2.2 : 1.4)} t={cm(u.w)} />)}
+        {hasTop && pt.map((u, i) => u.kind === "gap" ? null : <HDim key={"dt" + i} c={c} x0={u.a} x1={u.a + u.w} y={Y(c, shownTop) - f * 1.2} t={cm(u.w)} />)}
 
         {/* heights */}
         <VDim c={c} x={-f * 1.3} y0={0} y1={h.base} t={cm(h.base)} />
         {hasUpper && <VDim c={c} x={-f * 1.3} y0={h.base} y1={h.upperFrom} t={cm(h.upperFrom - h.base)} />}
-        {hasUpper && <VDim c={c} x={-f * 1.3} y0={h.upperFrom} y1={Math.min(shownTop, upTop)} t={cm(h.upper)} />}
+        {hasUpper && <VDim c={c} x={-f * 1.3} y0={h.upperFrom} y1={Math.min(shownTop, h.upperFrom + h.upper)} t={cm(h.upper)} />}
+        {hasTop && (() => { const b = upperBox({ kind: "doors", w: 1 }, h, "top"); return <VDim c={c} x={-f * 1.3} y0={b.y0} y1={Math.min(shownTop, b.y0 + b.hh)} t={cm(b.hh)} />; })()}
         {hasTall && <VDim c={c} x={-f * 3.2} y0={0} y1={h.tall} t={cm(h.tall)} />}
       </svg>
     </figure>
@@ -293,6 +317,13 @@ export function PlanView({ layout: l }: { layout: KitchenLayout }) {
                   </g>
                 );
               })}
+              {/* upper cabinets as dashed outlines at their own depth (the top row with longer dashes) */}
+              {([["upper", w.upper, "4 3"], ["top", w.top || [], "10 4"]] as const).map(([row, us, dash]) =>
+                placed(us as UpperUnit[]).map((u, k) => {
+                  if (u.kind === "gap" || u.kind === "corner") return null;
+                  const d = upperBox(u, h, row).d;
+                  return <polygon key={row + k} points={poly([P(g, u.a, 0), P(g, u.a + u.w, 0), P(g, u.a + u.w, d), P(g, u.a, d)])} fill="none" stroke={DIM} strokeWidth={0.7} strokeDasharray={dash} />;
+                }))}
               {(() => {
                 const a = P(g, 0, -8 - f * 1.8), b = P(g, w.length, -8 - f * 1.8);
                 const m = P(g, w.length / 2, -8 - f * (g.dz ? 5.6 : 2.3));
@@ -326,7 +357,7 @@ export default function KitchenPlan({ layout }: { layout: KitchenLayout }) {
     <div className="nqp">
       <PlanView layout={layout} />
       {layout.walls.map((w, i) => (
-        <Elevation key={i} layout={layout} title={wallName(layout, i)} length={w.length} base={w.base} upper={w.upper} />
+        <Elevation key={i} layout={layout} title={wallName(layout, i)} length={w.length} base={w.base} upper={w.upper} top={w.top} />
       ))}
       {layout.island && <Elevation layout={layout} title="אי (הצד הפונה לארונות)" length={layout.island.w} base={layout.island.base} upper={[]} island />}
       <div className="nqp-note">כל המידות בס״מ. השרטוט בקנה מידה.</div>

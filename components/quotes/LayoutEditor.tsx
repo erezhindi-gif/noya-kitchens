@@ -22,15 +22,20 @@ const STARTER: KitchenLayout = {
 const SHAPES = [["קיר אחד", 1], ["ר׳ (L)", 2], ["ח׳ (U)", 3]] as const;
 const HEIGHT_LABEL: Record<keyof LayoutHeights, string> = {
   base: "גובה משטח", plinth: "סוקל", counter: "עובי משטח", upperFrom: "תחתית עליונים", upper: "גובה עליונים",
-  tall: "ארון גבוה", ceiling: "תקרה", depth: "עומק תחתון", upperDepth: "עומק עליון",
+  tall: "ארון גבוה", ceiling: "תקרה", depth: "עומק תחתון", upperDepth: "עומק עליון", topDepth: "עומק שורה עליונה",
 };
 const sumW = (us: { w: number }[]) => us.reduce((a, u) => a + u.w, 0);
 const clone = (l: KitchenLayout): KitchenLayout => JSON.parse(JSON.stringify(l));
 
-function UnitRows<K extends string>({ units, labels, onChange, addKind }: {
-  units: { kind: K; w: number; n?: number }[]; labels: Record<K, string>; onChange: (u: { kind: K; w: number; n?: number }[]) => void; addKind: K;
+type Row<K> = { kind: K; w: number; n?: number; d?: number; h?: number; y?: number };
+const optNum = (v: string) => (v === "" ? undefined : Number(v));
+
+/** `box` (upper cabinets only): the row's default depth, height and bottom, shown as placeholders;
+ *  each cabinet can override them. */
+function UnitRows<K extends string>({ units, labels, onChange, addKind, box }: {
+  units: Row<K>[]; labels: Record<K, string>; onChange: (u: Row<K>[]) => void; addKind: K; box?: { d: number; h: number; y: number };
 }) {
-  const set = (i: number, p: Partial<{ kind: K; w: number; n?: number }>) => onChange(units.map((u, j) => (j === i ? { ...u, ...p } : u)));
+  const set = (i: number, p: Partial<Row<K>>) => onChange(units.map((u, j) => (j === i ? { ...u, ...p } : u)));
   const move = (i: number, d: number) => {
     const a = [...units];
     [a[i], a[i + d]] = [a[i + d], a[i]];
@@ -52,6 +57,13 @@ function UnitRows<K extends string>({ units, labels, onChange, addKind }: {
             <button type="button" className="nq-btn sm ghost" disabled={i === units.length - 1} onClick={() => move(i, 1)} aria-label="הזז ימינה">›</button>
             <button type="button" className="nq-btn sm ghost" onClick={() => onChange(units.filter((_, j) => j !== i))} aria-label="הסר">×</button>
           </span>
+          {box && u.kind !== "gap" && u.kind !== "corner" && (
+            <span className="nqp-box">
+              <label>עומק<input className="in num" type="number" inputMode="decimal" placeholder={String(box.d)} value={u.d ?? ""} onChange={(e) => set(i, { d: optNum(e.target.value) })} /></label>
+              <label>גובה<input className="in num" type="number" inputMode="decimal" placeholder={String(box.h)} value={u.h ?? ""} onChange={(e) => set(i, { h: optNum(e.target.value) })} /></label>
+              <label>מגובה<input className="in num" type="number" inputMode="decimal" placeholder={String(box.y)} value={u.y ?? ""} onChange={(e) => set(i, { y: optNum(e.target.value) })} /></label>
+            </span>
+          )}
         </div>
       ))}
       <button type="button" className="nq-btn sm" onClick={() => onChange([...units, { kind: addKind, w: 60 }])}>+ הוסף</button>
@@ -59,7 +71,9 @@ function UnitRows<K extends string>({ units, labels, onChange, addKind }: {
   );
 }
 
-export default function LayoutEditor({ layout, onChange, claudeHref }: { layout?: KitchenLayout; onChange: (l: KitchenLayout | undefined) => void; claudeHref: string }) {
+export const STARTER_LAYOUT = (): KitchenLayout => clone(STARTER);
+
+export default function LayoutEditor({ layout, onChange, claudeHref, removable = true }: { layout?: KitchenLayout; onChange: (l: KitchenLayout | undefined) => void; claudeHref: string; removable?: boolean }) {
   const [tab, setTab] = useState<"3d" | "plan">("3d");
   const [confirmDel, setConfirmDel] = useState(false);
   const [showH, setShowH] = useState(false);
@@ -137,7 +151,21 @@ export default function LayoutEditor({ layout, onChange, claudeHref }: { layout?
           <div className="nqp-sub">ארונות תחתונים · <span className={sumW(w.base) > w.length ? "bad" : ""}>{sumW(w.base)} מתוך {w.length}</span></div>
           <UnitRows<BaseKind> units={w.base} labels={BASE_LABEL} addKind="doors" onChange={(us) => up((l) => { l.walls[i].base = us as BaseUnit[]; })} />
           <div className="nqp-sub">ארונות עליונים · <span className={sumW(w.upper) > w.length ? "bad" : ""}>{sumW(w.upper)} מתוך {w.length}</span></div>
-          <UnitRows<UpperKind> units={w.upper} labels={UPPER_LABEL} addKind="doors" onChange={(us) => up((l) => { l.walls[i].upper = us as UpperUnit[]; })} />
+          <UnitRows<UpperKind> units={w.upper} labels={UPPER_LABEL} addKind="doors" box={{ d: h.upperDepth, h: h.upper, y: h.upperFrom }}
+            onChange={(us) => up((l) => { l.walls[i].upper = us as UpperUnit[]; })} />
+          {w.top?.length ? (
+            <>
+              <div className="nqp-sub">שורה עליונה עד התקרה · <span className={sumW(w.top) > w.length ? "bad" : ""}>{sumW(w.top)} מתוך {w.length}</span>
+                {" "}<button type="button" className="nq-btn sm ghost" onClick={() => up((l) => { delete l.walls[i].top; })}>הסר שורה</button></div>
+              <UnitRows<UpperKind> units={w.top} labels={UPPER_LABEL} addKind="doors" box={{ d: h.topDepth, h: Math.max(5, h.ceiling - h.upperFrom - h.upper), y: h.upperFrom + h.upper }}
+                onChange={(us) => up((l) => { l.walls[i].top = us as UpperUnit[]; })} />
+            </>
+          ) : (
+            <button type="button" className="nq-btn sm" style={{ marginTop: 8 }}
+              onClick={() => up((l) => { l.walls[i].top = l.walls[i].upper.map((u) => ({ kind: u.kind === "hood" || u.kind === "gap" ? "gap" as const : u.kind === "corner" ? "corner" as const : "doors" as const, w: u.kind === "corner" ? h.topDepth : u.w })); })}>
+              + שורה עליונה עד התקרה
+            </button>
+          )}
         </div>
       ))}
 
@@ -168,7 +196,7 @@ export default function LayoutEditor({ layout, onChange, claudeHref }: { layout?
 
       <div className="nq-head-acts" style={{ marginTop: 12 }}>
         <a className="nq-btn sm" href={claudeHref} target="_blank" rel="noopener">✨ תיקון בקלוד</a>
-        {confirmDel ? (
+        {!removable ? null : confirmDel ? (
           <><button type="button" className="nq-btn sm danger" onClick={() => { onChange(undefined); setConfirmDel(false); }}>כן, להסיר את התכנון</button>
             <button type="button" className="nq-btn sm" onClick={() => setConfirmDel(false)}>ביטול</button></>
         ) : <button type="button" className="nq-btn sm ghost" onClick={() => setConfirmDel(true)}>הסר תכנון</button>}

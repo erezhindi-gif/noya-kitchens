@@ -4,15 +4,16 @@ import {
   STATUS_LABEL, UNIT_LABEL, ancestors, calc, descendantIds, fdate, kids, leafCount, lineFrom, lineTotal,
   autoDesc, commissionsOf, defaultCommissions, followState, markSentFields, tidyLineDesc, composeDesc, label, money, pathPrice, priceOf, normalizeCat, optPrice, pathOf, tidyCat, qnum, reviewLines, todayIL, uid, waLink,
 } from "@/lib/quotes/calc";
-import type { AppData, CatNode, CatOption, Lead, LeadFile, LeadSource, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
-import LayoutEditor from "./LayoutEditor";
+import type { AppData, CatNode, CatOption, Lead, LeadFile, LeadSource, Plan, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
+import { STARTER_LAYOUT } from "./LayoutEditor";
+import { PlanScreen, PlansView, QuotePlanCard } from "./PlansView";
 import { FILE_TYPE_OK, MAX_UPLOAD, SOURCE_LABEL, STAGE_LABEL, ago, findPhone, gmailLink, leadStage, waitingLeads, type LeadStage } from "@/lib/quotes/leads";
 import QuoteDoc from "./QuoteDoc";
 import DocFrame from "./DocFrame";
 import { downloadBlob, pdfName, quotePdf, sharePdf } from "./pdf";
 import "./admin.css";
 
-type View = "list" | "edit" | "preview" | "catalog" | "settings" | "leads";
+type View = "list" | "edit" | "preview" | "catalog" | "settings" | "leads" | "plans" | "plan";
 type SaveState = "idle" | "saving" | "saved" | "error";
 
 const LINE_TAG: Record<Exclude<LineType, "cat">, string> = {
@@ -93,14 +94,29 @@ export default function AdminApp() {
         // and …/admin?view=leads opens the requests screen (after Claude saves a request)
         const params = new URLSearchParams(window.location.search);
         const fromLink = params.get("q");
+        const planLink = params.get("plan");
+        let lastPlan: string | null = null;
+        try { lastPlan = localStorage.getItem("nq-plan"); } catch {}
         if (fromLink) { last = fromLink; lastView = "edit"; }
-        else if (params.get("view") === "leads") lastView = "leads";
+        else if (planLink) { lastPlan = planLink; lastView = "plan"; }
+        else if (params.get("view") === "leads" || params.get("view") === "plans") lastView = params.get("view");
+        // remembered too, so the screen the link asked for survives the address being cleaned
+        try {
+          if (lastView) localStorage.setItem("nq-view", lastView);
+          if (fromLink) localStorage.setItem("nq-open", fromLink);
+          if (planLink) localStorage.setItem("nq-plan", planLink);
+        } catch {}
         if (window.location.search) history.replaceState(history.state, "", window.location.pathname);
         const known = !!last && d.quotes.some((q) => q.id === last);
         // A refresh reopens the quote only if Erez was inside it; otherwise it stays on the screen he was on.
-        if (lastView === "catalog" || lastView === "settings" || lastView === "leads") {
+        if (lastView === "catalog" || lastView === "settings" || lastView === "leads" || lastView === "plans") {
           setView(lastView);
           history.replaceState({ view: lastView, curId: null }, "");
+        }
+        if (lastView === "plan" && lastPlan && (d.plans || []).some((p) => p.id === lastPlan)) {
+          setView("plan");
+          setCurId(lastPlan);
+          history.replaceState({ view: "plan", curId: lastPlan }, "");
         }
         syncLeadsNow();
         if (known && lastView !== "edit" && lastView !== "preview") setOpenId(last);
@@ -140,6 +156,9 @@ export default function AdminApp() {
         if (key.startsWith("q:")) {
           const q = d.quotes.find((x) => x.id === key.slice(2));
           if (q) send(`/api/admin/quotes/${q.id}`, q);
+        } else if (key.startsWith("p:")) {
+          const p = d.plans.find((x) => x.id === key.slice(2));
+          if (p) send(`/api/admin/plans/${p.id}`, p);
         } else if (key === "cat") send("/api/admin/catalog", d.cat);
         else if (key === "settings") send("/api/admin/settings", { settings: d.settings, pros: d.pros });
       }
@@ -167,7 +186,12 @@ export default function AdminApp() {
       });
       // quotes created here that the server hasn't returned yet stay
       for (const lq of cur.quotes) if (!quotes.some((q) => q.id === lq.id) && timers.current["q:" + lq.id]) quotes.push(lq);
-      const next = { ...cur, quotes, leads: d.leads || cur.leads };
+      const plans = (d.plans || []).map((sp) => {
+        const lp = cur.plans.find((x) => x.id === sp.id);
+        return lp && (lp.updatedAt || "") > (sp.updatedAt || "") ? lp : sp;
+      });
+      for (const lp of cur.plans) if (!plans.some((p) => p.id === lp.id) && timers.current["p:" + lp.id]) plans.push(lp);
+      const next = { ...cur, quotes, leads: d.leads || cur.leads, plans };
       dataRef.current = next;
       setData(next);
       if (newlyApproved.length)
@@ -196,6 +220,7 @@ export default function AdminApp() {
     setView(v);
     setCurId(id);
     try { localStorage.setItem("nq-view", v); } catch {}
+    if (v === "plan" && id) { try { localStorage.setItem("nq-plan", id); } catch {} }
     if ((v === "edit" || v === "preview") && id) {
       setOpenId(id);
       try { localStorage.setItem("nq-open", id); } catch {}
@@ -366,6 +391,68 @@ export default function AdminApp() {
     return q.id;
   };
 
+  /* ---------- kitchen plans ---------- */
+  const setPlans = (fn: (ps: Plan[]) => Plan[]) =>
+    setData((d) => {
+      const next = d ? { ...d, plans: fn(d.plans) } : d;
+      dataRef.current = next;
+      return next;
+    });
+  const savePlanLater = (id: string, delay?: number) =>
+    schedule("p:" + id, (d) => {
+      const p = d.plans.find((x) => x.id === id);
+      return p ? api(`/api/admin/plans/${id}`, "PUT", p) : Promise.resolve();
+    }, delay);
+  const updPlan = (id: string, fn: (p: Plan) => void, delay?: number) => {
+    setPlans((ps) => ps.map((p) => {
+      if (p.id !== id) return p;
+      const c = structuredClone(p);
+      fn(c);
+      c.updatedAt = new Date().toISOString();
+      return c;
+    }));
+    savePlanLater(id, delay);
+  };
+  /** A new plan, for a client (and linked to a quote) when given. */
+  const newPlan = (client?: Quote["client"], quoteId?: string, layout?: Plan["layout"]) => {
+    const p: Plan = {
+      id: uid(12), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), title: "מטבח",
+      client: client ? { ...client } : { name: "", phone: "" }, layout: layout || STARTER_LAYOUT(), ...(quoteId ? { quoteId } : {}),
+    };
+    setPlans((ps) => [...ps, p]);
+    savePlanLater(p.id, 0);
+    if (quoteId) updQuote(quoteId, (x) => { x.planId = p.id; delete x.layout; }, 0);
+    return p;
+  };
+  const quoteFromPlan = (p: Plan) => {
+    const id = newQuote(undefined, "נפתחה הצעה מהתכנון:", { ...p.client });
+    if (!id) return;
+    updQuote(id, (x) => { x.planId = p.id; if (!x.project) x.project = p.title; }, 0);
+    updPlan(p.id, (x) => { x.quoteId = id; }, 0);
+  };
+  const linkPlan = (quoteId: string, planId: string | null) => {
+    const q = data?.quotes.find((x) => x.id === quoteId);
+    if (q?.planId && q.planId !== planId) updPlan(q.planId, (x) => { if (x.quoteId === quoteId) delete x.quoteId; }, 0);
+    updQuote(quoteId, (x) => { if (planId) x.planId = planId; else delete x.planId; }, 0);
+    if (planId) updPlan(planId, (x) => { x.quoteId = quoteId; }, 0);
+  };
+  const removePlan = async (id: string) => {
+    if (timers.current["p:" + id]) {
+      clearTimeout(timers.current["p:" + id]);
+      delete timers.current["p:" + id];
+      pending.current = Math.max(0, pending.current - 1);
+    }
+    try {
+      await api(`/api/admin/plans/${id}`, "DELETE");
+      for (const q of dataRef.current?.quotes || []) if (q.planId === id) updQuote(q.id, (x) => { delete x.planId; }, 0);
+      setPlans((ps) => ps.filter((p) => p.id !== id));
+      go("plans");
+      flash("התכנון נמחק");
+    } catch {
+      flash("המחיקה נכשלה. נסה שוב");
+    }
+  };
+
   const removeQuote = async (id: string) => {
     // Cancel a waiting save, or it would recreate the quote right after the delete.
     if (timers.current["q:" + id]) {
@@ -389,7 +476,8 @@ export default function AdminApp() {
   if (!data) return <div className="nq"><div className="nq-wrap"><div className="nq-empty">טוען…</div></div></div>;
 
   const q = curId ? data.quotes.find((x) => x.id === curId) : undefined;
-  const tab = view === "catalog" || view === "settings" || view === "leads" ? view : "list";
+  const tab = view === "catalog" || view === "settings" || view === "leads" ? view : view === "plans" || view === "plan" ? "plans" : "list";
+  const plan = view === "plan" && curId ? data.plans.find((x) => x.id === curId) : undefined;
   const waiting = waitingLeads(data.leads, data.quotes).length;
 
   return (
@@ -400,6 +488,7 @@ export default function AdminApp() {
           <img src="/images/quote-logo.png" alt="NOYA" />
           <nav className="nq-tabs">
             <button aria-current={tab === "leads"} onClick={() => go("leads")}>פניות{waiting ? <span className="nq-badge num">{waiting}</span> : null}</button>
+            <button aria-current={tab === "plans"} onClick={() => go("plans")}>תכנונים</button>
             <button aria-current={tab === "list"} onClick={() => go("list")}>הצעות</button>
             <button aria-current={tab === "catalog"} onClick={() => go("catalog")}>קטלוג</button>
             <button aria-current={tab === "settings"} onClick={() => go("settings")}>הגדרות</button>
@@ -420,8 +509,15 @@ export default function AdminApp() {
         )}
         {view === "list" && <ListView data={data} onOpen={(id) => go("edit", id)} onNew={() => newQuote()} onDup={(q) => newQuote(q)} onDelete={removeQuote}
           onAgent={(d) => newQuote({ ...d, pros: [], commissions: defaultCommissions(data.settings), round: false } as unknown as Quote, "טיוטה מהסוכן נפתחה:")} />}
+        {view === "plans" && <PlansView data={data} onOpen={(id) => go("plan", id)} onNew={() => go("plan", newPlan().id)} onQuote={quoteFromPlan} onOpenQuote={(id) => go("edit", id)} />}
+        {view === "plan" && plan && (
+          <PlanScreen plan={plan} data={data} upd={(fn) => updPlan(plan.id, fn)} onBack={() => go("plans")}
+            onQuote={quoteFromPlan} onOpenQuote={(id) => go("edit", id)} onDelete={() => removePlan(plan.id)} />
+        )}
         {view === "edit" && q && (
           <Editor
+            planCard={<QuotePlanCard q={q} data={data} onOpen={(id) => go("plan", id)} onLink={(pid) => linkPlan(q.id, pid)} onUnlink={() => linkPlan(q.id, null)}
+              onNew={() => go("plan", newPlan(q.client, q.id).id)} onMove={() => { const p = newPlan(q.client, q.id, q.layout); flash("השרטוט הועבר לתכנונים"); go("plan", p.id); }} />}
             data={data} q={q} upd={(fn, delay) => updQuote(q.id, fn, delay)}
             onPreview={() => go("preview", q.id)} onBack={() => go("list")}
             onDup={() => newQuote(q)} onDelete={() => removeQuote(q.id)} flash={flash}
@@ -696,8 +792,8 @@ function ListView({ data, onOpen, onNew, onDup, onDelete, onAgent }: { data: App
 }
 
 /* =================== editor =================== */
-function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash }: {
-  data: AppData; q: Quote; upd: (fn: (q: Quote) => void, delay?: number) => void;
+function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash, planCard }: {
+  data: AppData; q: Quote; upd: (fn: (q: Quote) => void, delay?: number) => void; planCard: React.ReactNode;
   onPreview: () => void; onBack: () => void; onDup: () => void; onDelete: () => void; flash: (m: string) => void;
 }) {
   const [picker, setPicker] = useState(false);
@@ -860,8 +956,7 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash }: {
             })}
           </section>
 
-          <LayoutEditor layout={q.layout} claudeHref={claudeLink(`שרטוט ותלת-ממד למטבח בהצעה ${qnum(q)} במערכת נויה. הנה הסקיצה עם המידות: `)}
-            onChange={(l) => upd((x) => { if (l) x.layout = l; else delete x.layout; })} />
+          {planCard}
 
           <section className="nq-card">
             <h2 style={{ marginBottom: 12 }}>מעקב (רק לך)</h2>

@@ -79,7 +79,9 @@ export type Quote = {
   followUp?: string;
   /** Notes only Erez sees */
   internalNotes?: string;
-  /** Kitchen plan in cm: the to-scale drawing and the 3D view shown to the client */
+  /** The kitchen plan this quote was made from; its drawing and 3D view show with the quote */
+  planId?: string;
+  /** Older quotes kept the plan inside the quote; shown when there's no planId */
   layout?: KitchenLayout;
   updatedAt?: string;
 };
@@ -136,7 +138,20 @@ export type Lead = {
 /** A file kept with a request. The content is stored apart, by id, and opened only through the admin. */
 export type LeadFile = { id: string; name: string; type: string; size: number };
 
-export type AppData = { settings: Settings; pros: Pro[]; cat: CatNode[]; quotes: Quote[]; leads: Lead[] };
+/** A kitchen plan (drawing + 3D), made before the quote; a quote can be opened from it. */
+export type Plan = {
+  id: string;
+  createdAt: string;
+  updatedAt?: string;
+  title: string;
+  client: { name: string; phone: string; email?: string };
+  layout: KitchenLayout;
+  notes?: string;
+  /** the quote made from this plan */
+  quoteId?: string;
+};
+
+export type AppData = { settings: Settings; pros: Pro[]; cat: CatNode[]; quotes: Quote[]; leads: Lead[]; plans: Plan[] };
 
 /** What the public quote page needs — never includes commissions or line prices */
 export type PublicQuote = { quote: Quote; settings: Settings };

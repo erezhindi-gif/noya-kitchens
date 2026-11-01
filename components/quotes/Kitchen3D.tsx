@@ -4,8 +4,8 @@
 import { useEffect, useRef, useState } from "react";
 import type * as T from "three";
 import {
-  COUNTER_COLORS, FRONT_COLORS, colorOf, counterSpans, heightsOf, islandBox, mainWallIndex, partsOf, placed, wallGeometry,
-  type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperUnit,
+  COUNTER_COLORS, FRONT_COLORS, colorOf, counterSpans, heightsOf, islandBox, mainWallIndex, partsOf, placed, upperBox, wallGeometry,
+  type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 
 type Three = typeof import("three");
@@ -126,10 +126,11 @@ function buildKitchen(three: Three, l: KitchenLayout) {
     if (withCounter) for (const s of counterSpans(units)) box(p, mats.counter, s.w, hs.counter, depth + 2, s.a + s.w / 2, hs.base - hs.counter / 2, (depth + 2) / 2);
   };
 
-  const upperRun = (p: T.Object3D, units: UpperUnit[]) => {
-    const d = h.upperDepth, y0 = h.upperFrom, uh = h.upper;
+  /** a row of upper cabinets; each cabinet may have its own depth, height and bottom */
+  const upperRun = (p: T.Object3D, units: UpperUnit[], row: UpperRow) => {
     for (const u of placed(units)) {
       const x = u.a, w = u.w, n = partsOf(u.kind, u.w, u.n, true);
+      const { y0, hh: uh, d } = upperBox(u, h, row);
       if (u.kind === "gap" || u.kind === "corner") continue;
       if (u.kind === "hood") {
         box(p, mats.steel, w - 2, 12, 50, x + w / 2, y0 + 6, 25);
@@ -162,7 +163,8 @@ function buildKitchen(three: Three, l: KitchenLayout) {
     wall.receiveShadow = true;
     grp.add(wall);
     baseRun(grp, w.base, h.depth, h);
-    upperRun(grp, w.upper);
+    upperRun(grp, w.upper, "upper");
+    upperRun(grp, w.top || [], "top");
     root.add(grp);
   });
 
@@ -244,6 +246,9 @@ export default function Kitchen3D({ layout, still = false, height = 420 }: { lay
       const walls = (JSON.parse(key) as KitchenLayout).walls.length;
       const side = walls === 2 ? -0.42 : walls === 1 ? 0.18 : 0;
       cam.position.set(center.x + size * side, 1.6 + size * 0.2, center.z + size * 0.85 + 0.8);
+      // a narrow (phone) frame needs the camera further back to fit the whole kitchen
+      const back = Math.max(1, (1.25 * H) / W);
+      cam.position.sub(center).multiplyScalar(back).add(center);
       cam.lookAt(center);
 
       const render = () => renderer.render(scene, cam);

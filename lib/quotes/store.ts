@@ -6,7 +6,7 @@ import { createClient } from "@sanity/client";
 import { promises as fs } from "fs";
 import path from "path";
 import { DEFAULT_SETTINGS, defaultCatalog } from "./defaults";
-import type { AppData, CatNode, Lead, LeadFile, Pro, Quote, Settings } from "./types";
+import type { AppData, CatNode, Lead, LeadFile, Plan, Pro, Quote, Settings } from "./types";
 
 // Saved settings over the defaults. The earlier default payment wording is replaced by the current one.
 const OLD_PAYMENT = "50% בחתימת הזמנה, 50% לפני התקנה.";
@@ -39,7 +39,7 @@ const NO_CACHE = { cache: "no-store" as const };
 const readDoc = (id: string) =>
   sanity!.fetch<Record<string, unknown> | null>(`*[_id == $id][0]`, { id }, NO_CACHE);
 
-const ID = { settings: "noyaq.settings", catalog: "noyaq.catalog", quote: (id: string) => `noyaq.quote.${id}`, lead: (id: string) => `noyaq.lead.${id}`, file: (id: string) => `noyaq.lfile.${id}` };
+const ID = { settings: "noyaq.settings", catalog: "noyaq.catalog", quote: (id: string) => `noyaq.quote.${id}`, lead: (id: string) => `noyaq.lead.${id}`, file: (id: string) => `noyaq.lfile.${id}`, plan: (id: string) => `noyaq.plan.${id}` };
 
 /* Sanity wants a _key on every object inside an array; strip Sanity's own fields on the way out. */
 const withKeys = <T extends { id: string }>(arr: T[]) => arr.map((x) => ({ ...x, _key: x.id }));
@@ -62,7 +62,7 @@ const quoteDoc = (q: Quote) => ({
 
 /* ---------- local file fallback ---------- */
 const FILE = path.join(process.cwd(), ".data", "noya-quotes.json");
-type FileData = { settings?: Settings; pros?: Pro[]; cat?: CatNode[]; quotes: Quote[]; leads?: Lead[] };
+type FileData = { settings?: Settings; pros?: Pro[]; cat?: CatNode[]; quotes: Quote[]; leads?: Lead[]; plans?: Plan[] };
 async function readFile(): Promise<FileData> {
   try {
     return JSON.parse(await fs.readFile(FILE, "utf8"));
@@ -78,11 +78,12 @@ async function writeFile(d: FileData) {
 /* ---------- API ---------- */
 export async function getData(): Promise<AppData> {
   if (sanity) {
-    const [settingsDoc, catalogDoc, quotes, leads] = await Promise.all([
+    const [settingsDoc, catalogDoc, quotes, leads, plans] = await Promise.all([
       readDoc(ID.settings),
       readDoc(ID.catalog),
       sanity.fetch<Record<string, unknown>[]>(`*[_type == "nq_quote" && _id in path("noyaq.quote.*")]`, {}, NO_CACHE),
       sanity.fetch<Record<string, unknown>[]>(`*[_type == "nq_lead" && _id in path("noyaq.lead.*")]`, {}, NO_CACHE),
+      sanity.fetch<Record<string, unknown>[]>(`*[_type == "nq_plan" && _id in path("noyaq.plan.*")]`, {}, NO_CACHE),
     ]);
     const s = settingsDoc ? clean<{ settings: Settings; pros: Pro[] }>(settingsDoc) : null;
     return {
@@ -91,6 +92,7 @@ export async function getData(): Promise<AppData> {
       cat: catalogDoc ? clean<{ nodes: CatNode[] }>(catalogDoc).nodes || [] : defaultCatalog(),
       quotes: quotes.map((q) => clean<Quote>(q)),
       leads: leads.map((l) => clean<Lead>(l)),
+      plans: plans.map((p) => clean<Plan>(p)),
     };
   }
   const d = await readFile();
@@ -100,6 +102,7 @@ export async function getData(): Promise<AppData> {
     cat: d.cat || defaultCatalog(),
     quotes: d.quotes,
     leads: d.leads || [],
+    plans: d.plans || [],
   };
 }
 
@@ -109,11 +112,43 @@ export async function getQuote(id: string): Promise<{ quote: Quote; settings: Se
     const [q, s] = await Promise.all([readDoc(ID.quote(id)), readDoc(ID.settings)]);
     if (!q) return null;
     const ss = s ? clean<{ settings: Settings }>(s).settings : undefined;
-    return { quote: clean<Quote>(q), settings: withDefaults(ss) };
+    return { quote: await withPlan(clean<Quote>(q)), settings: withDefaults(ss) };
   }
   const d = await readFile();
   const quote = d.quotes.find((q) => q.id === id);
-  return quote ? { quote, settings: withDefaults(d.settings) } : null;
+  return quote ? { quote: await withPlan(quote), settings: withDefaults(d.settings) } : null;
+}
+
+/** The quote with the drawing of the plan it was made from, for the client's page and the PDF. */
+async function withPlan(q: Quote): Promise<Quote> {
+  if (!q.planId) return q;
+  const p = await getPlan(q.planId).catch(() => null);
+  return p ? { ...q, layout: p.layout } : q;
+}
+
+/* ---------- kitchen plans ---------- */
+export async function getPlan(id: string): Promise<Plan | null> {
+  if (!/^[a-z0-9]{6,32}$/.test(id)) return null;
+  if (sanity) {
+    const doc = await readDoc(ID.plan(id));
+    return doc ? clean<Plan>(doc) : null;
+  }
+  return (await readFile()).plans?.find((p) => p.id === id) || null;
+}
+
+export async function putPlan(p: Plan) {
+  p.updatedAt = new Date().toISOString();
+  if (sanity) return void (await sanity.createOrReplace({ _id: ID.plan(p.id), _type: "nq_plan", ...p }));
+  const d = await readFile();
+  d.plans = [...(d.plans || []).filter((x) => x.id !== p.id), p];
+  await writeFile(d);
+}
+
+export async function deletePlan(id: string) {
+  if (sanity) return void (await sanity.delete(ID.plan(id)));
+  const d = await readFile();
+  d.plans = (d.plans || []).filter((x) => x.id !== id);
+  await writeFile(d);
 }
 
 export async function putQuote(q: Quote) {

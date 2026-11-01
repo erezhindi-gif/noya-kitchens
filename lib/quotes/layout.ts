@@ -5,14 +5,18 @@
 // kitchen, two make an L, three a U. Cabinets on a wall are listed from the wall's left end, as seen
 // standing in the kitchen facing that wall. Where cabinets continue around a corner, the wall after
 // the corner starts with a "corner" unit: that space belongs to the cabinet of the previous wall.
+// Upper cabinets can come in two rows: the usual one, and a top row above it up to the ceiling
+// (by default as deep as the base cabinets). Any upper cabinet may set its own depth, height and
+// bottom, e.g. a 30 cm deep lift-up under a 60 cm deep top row.
 
 export type BaseKind = "doors" | "drawers" | "sink" | "cooktop" | "oven" | "dishwasher" | "fridge" | "tall" | "tall_oven" | "corner" | "gap";
 export type UpperKind = "doors" | "lift" | "open" | "hood" | "corner" | "gap";
 
 /** n = number of doors, drawers, flaps or shelves (each kind has a sensible default) */
 export type BaseUnit = { kind: BaseKind; w: number; n?: number };
-export type UpperUnit = { kind: UpperKind; w: number; n?: number };
-export type LayoutWall = { length: number; base: BaseUnit[]; upper: UpperUnit[] };
+/** d = depth, h = height, y = bottom above the floor; each falls back to its row's default */
+export type UpperUnit = { kind: UpperKind; w: number; n?: number; d?: number; h?: number; y?: number };
+export type LayoutWall = { length: number; base: BaseUnit[]; upper: UpperUnit[]; /** second row, above the uppers up to the ceiling */ top?: UpperUnit[] };
 
 export type LayoutHeights = {
   /** top of the counter */ base: number;
@@ -24,6 +28,7 @@ export type LayoutHeights = {
   ceiling: number;
   depth: number;
   upperDepth: number;
+  /** depth of the top row */ topDepth: number;
 };
 
 export type KitchenLayout = {
@@ -43,8 +48,20 @@ export const UPPER_LABEL: Record<UpperKind, string> = {
 };
 
 export const DEFAULT_HEIGHTS: LayoutHeights = {
-  base: 90, plinth: 10, counter: 4, upperFrom: 145, upper: 70, tall: 220, ceiling: 260, depth: 60, upperDepth: 35,
+  base: 90, plinth: 10, counter: 4, upperFrom: 145, upper: 70, tall: 220, ceiling: 260, depth: 60, upperDepth: 35, topDepth: 60,
 };
+
+export type UpperRow = "upper" | "top";
+/** Where an upper cabinet sits: bottom, height and depth in cm. */
+export function upperBox(u: UpperUnit, h: LayoutHeights, row: UpperRow) {
+  if (row === "upper") return { y0: u.y ?? h.upperFrom, hh: u.h ?? h.upper, d: u.d ?? h.upperDepth };
+  const y0 = u.y ?? h.upperFrom + h.upper;
+  return { y0, hh: u.h ?? Math.max(5, h.ceiling - y0), d: u.d ?? h.topDepth };
+}
+/** The highest point any upper cabinet of a wall reaches */
+export const upperTop = (w: LayoutWall, h: LayoutHeights) =>
+  Math.max(0, ...w.upper.filter((u) => u.kind !== "gap").map((u) => { const b = upperBox(u, h, "upper"); return b.y0 + b.hh; }),
+    ...(w.top || []).filter((u) => u.kind !== "gap").map((u) => { const b = upperBox(u, h, "top"); return b.y0 + b.hh; }));
 
 /** Named colors Erez and Claude can use; any #hex works too. */
 export const FRONT_COLORS: Record<string, { name: string; hex: string }> = {
@@ -102,11 +119,16 @@ export function normalizeLayout(raw: unknown): KitchenLayout | null {
     (Array.isArray(arr) ? arr : [])
       .map((u) => u as Record<string, unknown>)
       .filter((u) => u && kinds.includes(u.kind as K))
-      .map((u) => ({ kind: u.kind as K, w: num(u.w, 5, 400, 60), ...(u.n ? { n: num(u.n, 1, 8, 1) } : {}) }))
+      .map((u) => ({
+        kind: u.kind as K, w: num(u.w, 5, 400, 60), ...(u.n ? { n: num(u.n, 1, 8, 1) } : {}),
+        ...(u.d ? { d: num(u.d, 5, 120, 35) } : {}), ...(u.h ? { h: num(u.h, 5, 300, 70) } : {}),
+        ...(u.y !== undefined && u.y !== null && u.y !== "" ? { y: num(u.y, 0, 400, 145) } : {}),
+      }))
       .slice(0, 30);
   const walls = (Array.isArray(r.walls) ? r.walls : []).slice(0, 3).map((w) => {
     const x = (w || {}) as Record<string, unknown>;
-    return { length: num(x.length, 30, 1500, 300), base: units(x.base, BASE_KINDS), upper: units(x.upper, UPPER_KINDS) };
+    const top = units(x.top, UPPER_KINDS);
+    return { length: num(x.length, 30, 1500, 300), base: units(x.base, BASE_KINDS), upper: units(x.upper, UPPER_KINDS), ...(top.length ? { top } : {}) };
   });
   if (!walls.length) return null;
   const out: KitchenLayout = { walls };
@@ -145,10 +167,12 @@ export function layoutWarnings(l: KitchenLayout) {
     const b = sum(w.base), u = sum(w.upper);
     if (b > w.length + 0.5) out.push(`${wallName(l, i)}: הארונות התחתונים (${b} ס״מ) ארוכים מהקיר (${w.length} ס״מ)`);
     if (u > w.length + 0.5) out.push(`${wallName(l, i)}: הארונות העליונים (${u} ס״מ) ארוכים מהקיר (${w.length} ס״מ)`);
+    const t = sum(w.top || []);
+    if (t > w.length + 0.5) out.push(`${wallName(l, i)}: השורה העליונה (${t} ס״מ) ארוכה מהקיר (${w.length} ס״מ)`);
+    if (upperTop(w, heightsOf(l)) > heightsOf(l).ceiling + 0.5) out.push(`${wallName(l, i)}: הארונות העליונים עוברים את התקרה`);
   });
   if (l.island && sum(l.island.base) > l.island.w + 0.5) out.push(`אי: הארונות (${sum(l.island.base)} ס״מ) ארוכים מהאי (${l.island.w} ס״מ)`);
   const h = heightsOf(l);
-  if (h.upperFrom + h.upper > h.ceiling) out.push("הארונות העליונים גבוהים מהתקרה");
   if (h.tall > h.ceiling) out.push("הארון הגבוה גבוה מהתקרה");
   return out;
 }
@@ -156,11 +180,13 @@ export function layoutWarnings(l: KitchenLayout) {
 /** Plain-text summary for Claude. */
 export function describeLayout(l: KitchenLayout) {
   const h = heightsOf(l);
-  const u = (x: { kind: string; w: number; n?: number }, lab: Record<string, string>) => `${lab[x.kind]} ${x.w}${x.n ? ` (${x.n})` : ""}`;
+  const u = (x: { kind: string; w: number; n?: number; d?: number; h?: number; y?: number }, lab: Record<string, string>) =>
+    `${lab[x.kind]} ${x.w}${x.n ? ` (${x.n})` : ""}${x.d ? ` עומק ${x.d}` : ""}${x.h ? ` גובה ${x.h}` : ""}${x.y !== undefined ? ` מ-${x.y}` : ""}`;
   const lines = l.walls.map((w, i) =>
-    `${wallName(l, i)} ${w.length} ס״מ\n  תחתון: ${w.base.map((x) => u(x, BASE_LABEL)).join(" | ") || "—"}\n  עליון: ${w.upper.map((x) => u(x, UPPER_LABEL)).join(" | ") || "—"}`);
+    `${wallName(l, i)} ${w.length} ס״מ\n  תחתון: ${w.base.map((x) => u(x, BASE_LABEL)).join(" | ") || "—"}\n  עליון: ${w.upper.map((x) => u(x, UPPER_LABEL)).join(" | ") || "—"}${w.top?.length ? `
+  שורה עליונה: ${w.top.map((x) => u(x, UPPER_LABEL)).join(" | ")}` : ""}`);
   if (l.island) lines.push(`אי ${l.island.w}×${l.island.d}, מרחק ${l.island.gap} מהארונות: ${l.island.base.map((x) => u(x, BASE_LABEL)).join(" | ") || "—"}`);
-  lines.push(`גבהים: משטח ${h.base}, עליונים מ-${h.upperFrom} בגובה ${h.upper}, ארון גבוה ${h.tall}, תקרה ${h.ceiling}`);
+  lines.push(`גבהים: משטח ${h.base}, עליונים מ-${h.upperFrom} בגובה ${h.upper} ועומק ${h.upperDepth}, שורה עליונה בעומק ${h.topDepth}, ארון גבוה ${h.tall}, תקרה ${h.ceiling}`);
   const c = l.colors || {};
   const fn = (v?: string) => FRONT_COLORS[v || "white"]?.name || v;
   lines.push(`צבעים: חזיתות ${fn(c.front)}${c.upper ? `, עליונים ${fn(c.upper)}` : ""}, משטח ${COUNTER_COLORS[c.counter || "white_stone"]?.name || c.counter}${c.handles === "none" ? ", בלי ידיות" : ""}`);

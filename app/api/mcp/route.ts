@@ -4,12 +4,12 @@ import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
 import { calc, defaultCommissions, fdate, lineTotal, markSentFields, money, pathOf, qnum, STATUS_LABEL, todayIL, uid, waLink } from "@/lib/quotes/calc";
 import { catalogForPrompt, linesFromDraft } from "@/lib/quotes/agent";
-import { getData, getSecrets, putCatalog, putLead, putQuote } from "@/lib/quotes/store";
+import { getData, getSecrets, putCatalog, putLead, putPlan, putQuote } from "@/lib/quotes/store";
 import { SOURCE_LABEL, STAGE_LABEL, ago, findPhone, leadStage } from "@/lib/quotes/leads";
 import { syncLeads } from "@/lib/quotes/lead-sync";
 import { describeLayout, layoutWarnings, normalizeLayout } from "@/lib/quotes/layout";
 import { passwordStamp, verifyPayload } from "@/lib/quotes/auth";
-import type { CatNode, Lead, Quote } from "@/lib/quotes/types";
+import type { CatNode, Lead, Plan, Quote } from "@/lib/quotes/types";
 import { MAIL_ERRORS, sendQuoteMail, validEmail } from "@/lib/quotes/send-quote";
 
 export const runtime = "nodejs";
@@ -120,6 +120,7 @@ const handler = createMcpHandler(
           remove_commission: z.boolean().default(false).describe("true רק אם ארז ביקש במפורש בלי עמלה. אחרת כל הצעה מקבלת את העמלה הקבועה"),
           client_email: z.string().default(""),
           lead_id: z.string().optional().describe("מזהה הפנייה מ-list_leads, כשההצעה נבנית לפנייה"),
+          plan_id: z.string().optional().describe("מזהה התכנון (שרטוט ותלת-ממד) מ-list_plans, כשההצעה נבנית מתכנון. השרטוט יוצג ללקוח עם ההצעה"),
         }),
       },
       async (args) => {
@@ -143,6 +144,12 @@ const handler = createMcpHandler(
         await putQuote(q);
         const lead = args.lead_id ? data.leads.find((l) => l.id === args.lead_id) : undefined;
         if (lead) await putLead({ ...lead, quoteId: q.id });
+        const plan = args.plan_id ? data.plans.find((p) => p.id === args.plan_id) : undefined;
+        if (plan) {
+          q.planId = plan.id;
+          await putQuote(q);
+          await putPlan({ ...plan, quoteId: q.id });
+        }
         const c = calc(q, data.settings, data.pros);
         return text(
           [
@@ -479,7 +486,9 @@ const handler = createMcpHandler(
         const d = await getData();
         const q = findQuote(d.quotes, number);
         if (!q) return text(`לא נמצאה הצעה ${number}.`);
-        return text(describeQuote(q, d) + (q.layout ? `\n\nתכנון המטבח (שרטוט ותלת-ממד):\n${describeLayout(q.layout)}` : ""));
+        const plan = q.planId ? d.plans.find((p) => p.id === q.planId) : undefined;
+        const layout = plan?.layout || q.layout;
+        return text(describeQuote(q, d) + (layout ? `\n\nתכנון המטבח (${plan ? `תכנון ${plan.id}` : "שמור בהצעה"}):\n${describeLayout(layout)}` : ""));
       }
     );
 
@@ -492,13 +501,45 @@ const handler = createMcpHandler(
       kind: z.enum(["doors", "lift", "open", "hood", "corner", "gap"]),
       w: z.number().describe("רוחב בס״מ"),
       n: z.number().optional().describe("מספר דלתות/קלפות/מדפים"),
+      d: z.number().optional().describe("עומק הארון בס״מ, רק אם שונה מברירת המחדל של השורה (35 בעליונים, 60 בשורה העליונה)"),
+      h: z.number().optional().describe("גובה הארון בס״מ, רק אם שונה מהשורה"),
+      y: z.number().optional().describe("גובה תחתית הארון מהרצפה בס״מ, רק אם שונה מהשורה"),
     });
+    server.registerTool(
+      "list_plans",
+      {
+        title: "תכנונים (שרטוט ותלת-ממד)",
+        description: "התכנונים האחרונים: מזהה, לקוח, שם, צורה ומידות, ואם כבר נבנתה מהם הצעה. עם plan_id — הפירוט המלא של תכנון אחד.",
+        inputSchema: z.object({ plan_id: z.string().optional(), search: z.string().default("") }),
+        annotations: { readOnlyHint: true },
+      },
+      async ({ plan_id, search }) => {
+        const d = await getData();
+        if (plan_id) {
+          const p = d.plans.find((x) => x.id === plan_id);
+          if (!p) return text("לא נמצא תכנון כזה.");
+          const q = d.quotes.find((x) => x.id === p.quoteId || x.planId === p.id);
+          return text(`${p.title} · ${p.client.name || "ללא שם"} ${p.client.phone || ""}\n${describeLayout(p.layout)}${q ? `\nהצעה: ${qnum(q)}` : "\nעוד בלי הצעה"}\n${SITE}/admin?plan=${p.id}`);
+        }
+        const rows = [...d.plans]
+          .filter((p) => !search || `${p.client.name} ${p.client.phone} ${p.title}`.includes(search))
+          .sort((a, b) => (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt))
+          .slice(0, 20)
+          .map((p) => {
+            const q = d.quotes.find((x) => x.id === p.quoteId || x.planId === p.id);
+            return `${p.id} | ${p.client.name || "ללא שם"} | ${p.title} | ${p.layout.walls.map((w) => w.length).join("+")} ס״מ${p.layout.island ? " + אי" : ""} | ${q ? `הצעה ${qnum(q)}` : "בלי הצעה"}`;
+          });
+        return text(rows.length ? rows.join("\n") : "אין תכנונים.");
+      }
+    );
+
     server.registerTool(
       "set_kitchen_layout",
       {
         title: "שרטוט ותלת-ממד למטבח",
         description:
-          "שומר את תכנון המטבח של הצעה, בס״מ. ממנו נבנים שרטוט בקנה מידה עם קווי מידה ותצוגת תלת-ממד, שמופיעים ללקוח בהצעה וב-PDF. " +
+          "שומר תכנון מטבח (בלשונית 'תכנונים' במערכת), בס״מ. ממנו נבנים שרטוט בקנה מידה עם קווי מידה ותצוגת תלת-ממד. תכנון נבנה לפני ההצעה; כשהוא מוכן, בונים ממנו הצעה עם create_quote_draft ו-plan_id, והשרטוט מוצג ללקוח עם ההצעה וב-PDF. " +
+          "תכנון חדש: בלי plan_id, עם client_name (וטלפון אם ידוע). תיקון תכנון קיים: plan_id מ-list_plans — שלח את כל התכנון המעודכן, לא רק את השינוי. אפשר גם number של הצעה: אז נשמר התכנון של ההצעה (או נוצר ומקושר אליה). " +
           "לרוב ארז שולח צילום של סקיצה ידנית: קרא ממנה את אורכי הקירות, את הארונות לפי הסדר ואת הרוחב של כל אחד. " +
           "כל מידה חייבת להגיע מהסקיצה או מארז. אם מידה חסרה או לא קריאה, שאל לפני השמירה (שאלה אחת מרוכזת) — לא מנחשים. " +
           "walls: קיר אחד = מטבח ישר, שניים = ר׳ (הראשי ואז הימני), שלושה = ח׳ (שמאלי, ראשי, ימני). " +
@@ -506,46 +547,71 @@ const handler = createMcpHandler(
           "בפינה שבה הארונות ממשיכים, הקיר שאחרי הפינה מתחיל ב-corner ברוחב עומק הארונות (60 בתחתון, 35 בעליון). " +
           "סוגים בתחתון: doors דלתות, drawers מגירות, sink כיור, cooktop כיריים (עם מגירות), oven תנור מתחת למשטח, dishwasher מדיח, fridge מקרר, tall ארון גבוה, tall_oven ארון גבוה עם תנור ומיקרו, corner, gap. " +
           "בעליון: doors, lift קלפה, open מדפים פתוחים, hood קולט אדים, corner, gap (למשל חלון). " +
+          "שתי שורות עליונים: upper היא השורה הרגילה (מ-145, גובה 70, עומק 35), ו-top היא שורה שנייה מעליה ועד התקרה (עומק 60). לכל ארון עליון אפשר לתת d (עומק), h (גובה) ו-y (תחתית מהרצפה) משלו, למשל קלפה בעומק 30 מתחת לשורה בעומק 60. " +
           "צבעים: front/upper אחד מ-white cream light_grey grey anthracite black oak walnut sage olive navy או #hex; counter אחד מ-white_stone beige_stone grey_stone black_stone wood או #hex. " +
           "גבהים (h) רק אם שונים מהרגיל: משטח 90, תחתית עליונים 145, גובה עליונים 70, ארון גבוה 220, תקרה 260. " +
           "אחרי השמירה הצג לארז את הסיכום ואת האזהרות אם יש, ותן את הקישור לבדיקה.",
         inputSchema: z.object({
-          number: z.string().describe("מספר ההצעה"),
-          walls: z.array(z.object({ length: z.number().describe("אורך הקיר בס״מ"), base: z.array(baseUnit), upper: z.array(upperUnit) })).min(1).max(3),
+          plan_id: z.string().optional().describe("תכנון קיים לעדכון"),
+          number: z.string().optional().describe("מספר הצעה, אם התכנון שייך להצעה"),
+          client_name: z.string().default(""),
+          client_phone: z.string().default(""),
+          title: z.string().default("").describe("שם התכנון, למשל מטבח או ארון קיר"),
+          walls: z.array(z.object({
+            length: z.number().describe("אורך הקיר בס״מ"), base: z.array(baseUnit), upper: z.array(upperUnit),
+            top: z.array(upperUnit).optional().describe("שורה שנייה של ארונות עליונים, מעל העליונים ועד התקרה (ברירת מחדל: עומק 60, באותו מישור של התחתונים)"),
+          })).min(1).max(3),
           island: z.object({ w: z.number(), d: z.number().default(90), gap: z.number().default(110).describe("מעבר בין הארונות לאי"), base: z.array(baseUnit) }).optional(),
           h: z.object({
             base: z.number().optional(), upperFrom: z.number().optional(), upper: z.number().optional(), tall: z.number().optional(),
-            ceiling: z.number().optional(), depth: z.number().optional(), upperDepth: z.number().optional(),
+            ceiling: z.number().optional(), depth: z.number().optional(), upperDepth: z.number().optional(), topDepth: z.number().optional(),
           }).optional(),
           colors: z.object({ front: z.string().optional(), upper: z.string().optional(), counter: z.string().optional(), handles: z.enum(["bar", "none"]).optional() }).optional(),
         }),
       },
-      async ({ number, ...raw }) => {
+      async ({ plan_id, number, client_name, client_phone, title, ...raw }) => {
         const d = await getData();
-        const q = findQuote(d.quotes, number);
-        if (!q) return text(`לא נמצאה הצעה ${number}.`);
         const layout = normalizeLayout(raw);
         if (!layout) return text("לא התקבלו קירות. צריך לפחות קיר אחד עם אורך.");
-        q.layout = layout;
-        q.updatedAt = new Date().toISOString();
-        await putQuote(q);
+        const q = number ? findQuote(d.quotes, number) : undefined;
+        if (number && !q) return text(`לא נמצאה הצעה ${number}.`);
+        let p: Plan | undefined = plan_id ? d.plans.find((x) => x.id === plan_id) : q?.planId ? d.plans.find((x) => x.id === q.planId) : undefined;
+        if (plan_id && !p) return text(`לא נמצא תכנון ${plan_id}. אפשר לראות את התכנונים עם list_plans.`);
+        const now = new Date().toISOString();
+        if (p) {
+          p = { ...p, layout, ...(title ? { title } : {}), ...(client_name ? { client: { ...p.client, name: client_name, ...(client_phone ? { phone: client_phone } : {}) } } : {}) };
+        } else {
+          p = {
+            id: uid(12), createdAt: now, title: title || "מטבח", layout,
+            client: q ? { ...q.client } : { name: client_name, phone: client_phone },
+            ...(q ? { quoteId: q.id } : {}),
+          };
+        }
+        await putPlan(p);
+        if (q && q.planId !== p.id) {
+          q.planId = p.id;
+          delete q.layout;
+          await putQuote(q);
+        }
         const warns = layoutWarnings(layout);
+        const linked = q || d.quotes.find((x) => x.id === p!.quoteId);
         return text(
-          `נשמר תכנון המטבח בהצעה ${qnum(q)}.\n${describeLayout(layout)}` +
+          `נשמר תכנון ${p.title} ל${p.client.name || "לקוח"} (מזהה ${p.id}).\n${describeLayout(layout)}` +
           (warns.length ? `\n\nלתשומת לב:\n- ${warns.join("\n- ")}` : "") +
-          `\n\nלבדיקה ותיקון במערכת: ${SITE}/admin?q=${q.id}\nכך הלקוח רואה (שרטוט ותלת-ממד): ${SITE}/q/${q.id}`
+          `\n\nלבדיקה ותיקון במערכת: ${SITE}/admin?plan=${p.id}` +
+          (linked ? `\nמקושר להצעה ${qnum(linked)}; כך הלקוח רואה: ${SITE}/q/${linked.id}` : `\nעוד אין לו הצעה. כשארז רוצה: create_quote_draft עם plan_id=${p.id}.`)
         );
       }
     );
   },
   {
-    serverInfo: { name: "noya-quotes", version: "1.7.0" },
+    serverInfo: { name: "noya-quotes", version: "1.8.0" },
     instructions:
       "מערכת הצעות המחיר של נויה מטבחים (ארז). תהליך: 1) search_catalog כדי למצוא את הפריטים. " +
       "2) אם חסרה כמות לרכיב כלשהו (למשל ידית לחזיתות), או שיש כמה פריטים אפשריים, שאל את ארז שאלה אחת מרוכזת עם כל החסרים — לפני שבונים. " +
       "3) create_quote_draft רק כשהכול ברור. אל תנחש כמויות ואל תעתיק כמות בין רכיבים. " +
       "כל טיוטה מקבלת אוטומטית את העמלה הקבועה; remove_commission=true רק אם ארז ביקש במפורש בלי עמלה. " +
-      "להוספה להצעה קיימת: add_to_quote. לשינוי כמויות, תיאורים, הסרת שורות או פרטים: get_quote ואז update_quote. לא בונים הצעה חדשה כשארז ביקש לשנות קיימת. אם ארז רוצה לשנות הצעה ולא אמר איזו: list_quotes, הצג לו רשימה ממוספרת קצרה (מספר, לקוח, פרויקט, סכום) ושאל איזו, ורק אחר כך get_quote.  לשליחה ללקוח: whatsapp_link, או email_quote למייל עם PDF (גם כתשובה למייל שבו הלקוח ביקש הצעה) — תמיד אחרי שארז אישר נמען ונוסח. לעריכת הקטלוג (פריטים, תתי-פריטים, מחירים): search_catalog עם full_tree=true ואז edit_catalog, אחרי שארז אישר את השינויים. פניות (בקשות להצעה): כשארז משתף הודעה מלקוח או אומר 'תוסיף פנייה' — add_lead (לא create_quote_draft! פנייה היא לא הצעה; אחרי השמירה תן לארז את הקישור למסך הפניות שהכלי מחזיר). 'מה מחכה?' — list_leads. שרטוט או הדמיה של מטבח (לרוב מצילום של סקיצה ידנית): set_kitchen_layout, רק עם מידות שמופיעות בסקיצה או שארז אמר. כשבונים הצעה לפנייה, העבר lead_id ואת פרטי הלקוח מהפנייה ל-create_quote_draft. דבר עם ארז בעברית.",
+      "להוספה להצעה קיימת: add_to_quote. לשינוי כמויות, תיאורים, הסרת שורות או פרטים: get_quote ואז update_quote. לא בונים הצעה חדשה כשארז ביקש לשנות קיימת. אם ארז רוצה לשנות הצעה ולא אמר איזו: list_quotes, הצג לו רשימה ממוספרת קצרה (מספר, לקוח, פרויקט, סכום) ושאל איזו, ורק אחר כך get_quote.  לשליחה ללקוח: whatsapp_link, או email_quote למייל עם PDF (גם כתשובה למייל שבו הלקוח ביקש הצעה) — תמיד אחרי שארז אישר נמען ונוסח. לעריכת הקטלוג (פריטים, תתי-פריטים, מחירים): search_catalog עם full_tree=true ואז edit_catalog, אחרי שארז אישר את השינויים. פניות (בקשות להצעה): כשארז משתף הודעה מלקוח או אומר 'תוסיף פנייה' — add_lead (לא create_quote_draft! פנייה היא לא הצעה; אחרי השמירה תן לארז את הקישור למסך הפניות שהכלי מחזיר). 'מה מחכה?' — list_leads. שרטוט או הדמיה של מטבח (לרוב מצילום של סקיצה ידנית): set_kitchen_layout — נשמר כתכנון בלשונית 'תכנונים', רק עם מידות שמופיעות בסקיצה או שארז אמר. 'מה התכנונים?' — list_plans. הצעה מתכנון: create_quote_draft עם plan_id. כשבונים הצעה לפנייה, העבר lead_id ואת פרטי הלקוח מהפנייה ל-create_quote_draft. דבר עם ארז בעברית.",
   }
 );
 
