@@ -84,15 +84,21 @@ async function importLeads(opts: { force?: boolean }) {
       for (const f of found) {
         const mail = await simpleParser(f.source);
         // A site form or service sends "on behalf of" the client: the reply address is the client.
-        const who = mail.replyTo?.value?.[0] || mail.from?.value?.[0];
+        let who: { name?: string; address?: string } | undefined = mail.replyTo?.value?.[0] || mail.from?.value?.[0];
+        const raw = mail.text || "";
+        const fromErez = (who?.address || "").toLowerCase() === owner;
+        // Erez forwarded a client's mail to himself: the client is in the forwarded "From:" line.
+        if (fromErez) {
+          const fw = raw.match(/^(?:From|מאת):\s*(?:"?([^"<\n]*?)"?\s*<)?([^\s<>@]+@[^\s<>]+?)>?\s*$/im);
+          who = fw && fw[2].toLowerCase() !== owner ? { name: (fw[1] || "").trim(), address: fw[2] } : { name: "", address: "" };
+        }
         const email = (who?.address || "").toLowerCase();
-        if (!email || email === owner) continue; // stays under "הצעת מחיר", so Erez sees it wasn't taken
-        const text = cleanBody(mail.text || "");
+        const text = fromErez ? raw.replace(/\r/g, "").trim().slice(0, 2000) : cleanBody(raw);
         const lead: Lead = {
           id: leadId(f.msgId),
           createdAt: (mail.date || new Date()).toISOString(),
           source: "email",
-          name: (who?.name || "").replace(/["']/g, "").trim() || email.split("@")[0],
+          name: (who?.name || "").replace(/["']/g, "").trim() || email.split("@")[0] || "",
           phone: findPhone(`${mail.subject || ""}\n${text}`),
           email,
           text,
@@ -105,7 +111,7 @@ async function importLeads(opts: { force?: boolean }) {
 
         const fresh = Date.now() - Date.parse(lead.createdAt) < REPLY_WITHIN_HOURS * 36e5;
         const robot = /no-?reply|mailer-daemon|notifications?@/i.test(email);
-        if (d.settings.leadAutoReply !== false && d.settings.leadReplyText && fresh && !robot && validEmail(email)) {
+        if (d.settings.leadAutoReply !== false && d.settings.leadReplyText && fresh && !robot && !fromErez && validEmail(email)) {
           try {
             const body = fillReply(d.settings.leadReplyText, lead.name);
             await gmailTransport(d.settings.email, secrets.gmailPass).sendMail({
