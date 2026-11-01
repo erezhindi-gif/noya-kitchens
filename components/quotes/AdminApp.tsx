@@ -5,6 +5,7 @@ import {
   autoDesc, commissionsOf, defaultCommissions, followState, markSentFields, tidyLineDesc, composeDesc, label, money, pathPrice, priceOf, normalizeCat, optPrice, pathOf, tidyCat, qnum, reviewLines, todayIL, uid, waLink,
 } from "@/lib/quotes/calc";
 import type { AppData, CatNode, CatOption, Lead, LeadFile, LeadSource, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
+import LayoutEditor from "./LayoutEditor";
 import { FILE_TYPE_OK, MAX_UPLOAD, SOURCE_LABEL, STAGE_LABEL, ago, findPhone, gmailLink, leadStage, waitingLeads, type LeadStage } from "@/lib/quotes/leads";
 import QuoteDoc from "./QuoteDoc";
 import DocFrame from "./DocFrame";
@@ -858,6 +859,9 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash }: {
               );
             })}
           </section>
+
+          <LayoutEditor layout={q.layout} claudeHref={claudeLink(`שרטוט ותלת-ממד למטבח בהצעה ${qnum(q)} במערכת נויה. הנה הסקיצה עם המידות: `)}
+            onChange={(l) => upd((x) => { if (l) x.layout = l; else delete x.layout; })} />
 
           <section className="nq-card">
             <h2 style={{ marginBottom: 12 }}>מעקב (רק לך)</h2>

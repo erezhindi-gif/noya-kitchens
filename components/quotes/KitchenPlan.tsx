@@ -1,0 +1,335 @@
+// The to-scale drawing of a kitchen: a front view of each wall and a view from above, with
+// measurement lines like a carpenter's drawing. Everything is drawn in centimeters (the SVG viewBox
+// is in cm), so proportions are exact at any size. No hooks: renders on the server for the PDF too.
+import "./plan.css";
+import {
+  BASE_LABEL, COUNTER_COLORS, FRONT_COLORS, colorOf, counterSpans, heightsOf, islandBox, partsOf, placed, wallGeometry, wallName,
+  type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperUnit,
+} from "@/lib/quotes/layout";
+
+const INK = "#3a3530";
+const LINE = "#6d655c";
+const DIM = "#8a5a2b";
+const STEEL = "#cfd3d6";
+const GLASS = "#2c2c2c";
+const GAP = 0.5; // gap between fronts, cm
+
+type Ctx = { h: LayoutHeights; top: number; front: string; upper: string; counter: string; handles: boolean; f: number };
+
+/** y in the SVG for a height above the floor */
+const Y = (c: Ctx, cm: number) => c.top - cm;
+
+function Front({ c, x, y0, w, h, fill, handle }: { c: Ctx; x: number; y0: number; w: number; h: number; fill: string; handle?: "top" | "bottom" | "side-l" | "side-r" | "mid" }) {
+  const g = GAP / 2;
+  const rx = x + g, ry = Y(c, y0 + h) + g, rw = Math.max(0.5, w - GAP), rh = Math.max(0.5, h - GAP);
+  const hl = Math.min(16, rw * 0.45);
+  let bar: React.ReactNode = null;
+  if (c.handles && handle) {
+    if (handle === "top" || handle === "bottom" || handle === "mid") {
+      const hy = handle === "top" ? ry + 4 : handle === "bottom" ? ry + rh - 4 : ry + rh / 2;
+      bar = <line x1={rx + rw / 2 - hl / 2} x2={rx + rw / 2 + hl / 2} y1={hy} y2={hy} stroke={INK} strokeWidth={1.1} strokeLinecap="round" />;
+    } else {
+      const hx = handle === "side-l" ? rx + 4 : rx + rw - 4;
+      const vl = Math.min(30, rh * 0.4);
+      bar = <line x1={hx} x2={hx} y1={ry + rh / 2 - vl / 2} y2={ry + rh / 2 + vl / 2} stroke={INK} strokeWidth={1.1} strokeLinecap="round" />;
+    }
+  }
+  return (
+    <g>
+      <rect x={rx} y={ry} width={rw} height={rh} fill={fill} stroke={LINE} strokeWidth={0.35} />
+      {bar}
+    </g>
+  );
+}
+
+const Hatch = ({ c, x, y0, w, h }: { c: Ctx; x: number; y0: number; w: number; h: number }) => (
+  <rect x={x} y={Y(c, y0 + h)} width={w} height={h} fill="url(#nqp-hatch)" stroke={LINE} strokeWidth={0.35} />
+);
+
+const Label = ({ c, x, y, t, light }: { c: Ctx; x: number; y: number; t: string; light?: boolean }) => (
+  <text x={x} y={y} fontSize={c.f * 0.85} textAnchor="middle" fill={light ? "#fff" : INK} direction="rtl" style={{ fontFamily: "inherit" }}>{t}</text>
+);
+
+/** doors side by side; the handle sits on the inner edges */
+function Doors({ c, x, y0, w, h, n, fill, at }: { c: Ctx; x: number; y0: number; w: number; h: number; n: number; fill: string; at: "top" | "bottom" }) {
+  const dw = w / n;
+  return <>{Array.from({ length: n }, (_, i) => <Front key={i} c={c} x={x + i * dw} y0={y0} w={dw} h={h} fill={fill} handle={at} />)}</>;
+}
+function Stack({ c, x, y0, w, h, n, fill, handle = "top" }: { c: Ctx; x: number; y0: number; w: number; h: number; n: number; fill: string; handle?: "top" | "mid" | "bottom" }) {
+  const dh = h / n;
+  return <>{Array.from({ length: n }, (_, i) => <Front key={i} c={c} x={x} y0={y0 + h - (i + 1) * dh} w={w} h={dh} fill={fill} handle={handle} />)}</>;
+}
+
+function BaseShape({ c, u, x }: { c: Ctx; u: BaseUnit; x: number }) {
+  const { h } = c;
+  const f0 = h.plinth, f1 = h.base - h.counter, fh = f1 - f0;
+  const n = partsOf(u.kind, u.w, u.n);
+  const plinth = <rect x={x} y={Y(c, h.plinth)} width={u.w} height={h.plinth} fill="#5b544d" />;
+  const mid = x + u.w / 2;
+  switch (u.kind) {
+    case "gap":
+      return <Label c={c} x={mid} y={Y(c, h.base / 2)} t="פנוי" />;
+    case "corner":
+      return <Hatch c={c} x={x} y0={0} w={u.w} h={h.base - h.counter} />;
+    case "doors":
+    case "sink":
+      return <>{plinth}<Doors c={c} x={x} y0={f0} w={u.w} h={fh} n={n} fill={c.front} at="top" />{u.kind === "sink" && <Label c={c} x={mid} y={Y(c, f0 + fh / 2)} t="כיור" />}</>;
+    case "drawers":
+    case "cooktop":
+      return <>{plinth}<Stack c={c} x={x} y0={f0} w={u.w} h={fh} n={n} fill={c.front} />{u.kind === "cooktop" && <rect x={x + 4} y={Y(c, h.base) - 1.2} width={u.w - 8} height={1.2} fill={GLASS} />}</>;
+    case "dishwasher":
+      return <>{plinth}<Front c={c} x={x} y0={f0} w={u.w} h={fh} fill={c.front} handle="top" /><Label c={c} x={mid} y={Y(c, f0 + fh / 2)} t="מדיח" /></>;
+    case "oven": {
+      const dr = Math.min(18, fh * 0.25);
+      return (
+        <>
+          {plinth}
+          <Front c={c} x={x} y0={f0} w={u.w} h={dr} fill={c.front} handle="top" />
+          <Front c={c} x={x} y0={f0 + dr} w={u.w} h={fh - dr} fill={GLASS} />
+          <line x1={x + 6} x2={x + u.w - 6} y1={Y(c, f1 - 5)} y2={Y(c, f1 - 5)} stroke={STEEL} strokeWidth={1.2} />
+          <Label c={c} x={mid} y={Y(c, f0 + dr + (fh - dr) / 2)} t="תנור" light />
+        </>
+      );
+    }
+    case "fridge": {
+      const freezer = h.tall * 0.36;
+      return (
+        <>
+          <rect x={x + 0.3} y={Y(c, h.tall)} width={u.w - 0.6} height={h.tall} fill={STEEL} stroke={LINE} strokeWidth={0.35} />
+          <line x1={x + 0.3} x2={x + u.w - 0.3} y1={Y(c, freezer)} y2={Y(c, freezer)} stroke={LINE} strokeWidth={0.5} />
+          <line x1={x + 5} x2={x + 5} y1={Y(c, freezer + 45)} y2={Y(c, freezer + 10)} stroke="#8b9094" strokeWidth={1.4} strokeLinecap="round" />
+          <line x1={x + 5} x2={x + 5} y1={Y(c, freezer - 10)} y2={Y(c, freezer - 40)} stroke="#8b9094" strokeWidth={1.4} strokeLinecap="round" />
+          <Label c={c} x={mid} y={Y(c, h.tall * 0.65)} t="מקרר" />
+        </>
+      );
+    }
+    case "tall":
+      return <>{plinth}<Stack c={c} x={x} y0={f0} w={u.w} h={h.tall - f0} n={n} fill={c.front} handle="mid" /></>;
+    case "tall_oven": {
+      const o0 = 80, o1 = 140, m1 = 178;
+      return (
+        <>
+          {plinth}
+          <Front c={c} x={x} y0={f0} w={u.w} h={o0 - f0} fill={c.front} handle="top" />
+          <Front c={c} x={x} y0={o0} w={u.w} h={o1 - o0} fill={GLASS} />
+          <Front c={c} x={x} y0={o1} w={u.w} h={m1 - o1} fill={GLASS} />
+          <Front c={c} x={x} y0={m1} w={u.w} h={h.tall - m1} fill={c.front} handle="bottom" />
+          <Label c={c} x={mid} y={Y(c, (o0 + o1) / 2)} t="תנור" light />
+        </>
+      );
+    }
+  }
+}
+
+function UpperShape({ c, u, x }: { c: Ctx; u: UpperUnit; x: number }) {
+  const { h } = c;
+  const y0 = h.upperFrom, uh = h.upper;
+  const n = partsOf(u.kind, u.w, u.n, true);
+  switch (u.kind) {
+    case "gap":
+      return null;
+    case "corner":
+      return <Hatch c={c} x={x} y0={y0} w={u.w} h={uh} />;
+    case "doors":
+      return <Doors c={c} x={x} y0={y0} w={u.w} h={uh} n={n} fill={c.upper} at="bottom" />;
+    case "lift":
+      return <Stack c={c} x={x} y0={y0} w={u.w} h={uh} n={n} fill={c.upper} handle="bottom" />;
+    case "open":
+      return (
+        <g>
+          <rect x={x + 0.3} y={Y(c, y0 + uh)} width={u.w - 0.6} height={uh} fill="#e9e4da" stroke={LINE} strokeWidth={0.6} />
+          {Array.from({ length: n }, (_, i) => {
+            const yy = Y(c, y0 + (uh * (i + 1)) / (n + 1));
+            return <line key={i} x1={x + 0.3} x2={x + u.w - 0.3} y1={yy} y2={yy} stroke={LINE} strokeWidth={0.8} />;
+          })}
+        </g>
+      );
+    case "hood": {
+      const cw = Math.min(30, u.w * 0.4);
+      const canopy = 14;
+      return (
+        <g>
+          <rect x={x + u.w / 2 - cw / 2} y={Y(c, c.top - 2)} width={cw} height={c.top - 2 - (y0 + canopy)} fill={STEEL} stroke={LINE} strokeWidth={0.35} />
+          <polygon points={`${x + 1},${Y(c, y0)} ${x + u.w - 1},${Y(c, y0)} ${x + u.w / 2 + cw / 2 + 2},${Y(c, y0 + canopy)} ${x + u.w / 2 - cw / 2 - 2},${Y(c, y0 + canopy)}`} fill={STEEL} stroke={LINE} strokeWidth={0.35} />
+        </g>
+      );
+    }
+  }
+}
+
+/* ---------- measurement lines ---------- */
+function HDim({ c, x0, x1, y, t }: { c: Ctx; x0: number; x1: number; y: number; t: string }) {
+  const k = c.f * 0.35;
+  return (
+    <g stroke={DIM} strokeWidth={0.35}>
+      <line x1={x0} x2={x1} y1={y} y2={y} />
+      <line x1={x0 - k} x2={x0 + k} y1={y + k} y2={y - k} />
+      <line x1={x1 - k} x2={x1 + k} y1={y + k} y2={y - k} />
+      {x1 - x0 > c.f * 1.1 && <text x={(x0 + x1) / 2} y={y - c.f * 0.3} fontSize={c.f * 0.8} textAnchor="middle" fill={DIM} stroke="none">{t}</text>}
+    </g>
+  );
+}
+function VDim({ c, x, y0, y1, t }: { c: Ctx; x: number; y0: number; y1: number; t: string }) {
+  const k = c.f * 0.35;
+  const a = Y(c, y0), b = Y(c, y1);
+  return (
+    <g stroke={DIM} strokeWidth={0.35}>
+      <line x1={x} x2={x} y1={a} y2={b} />
+      <line x1={x - k} x2={x + k} y1={a + k} y2={a - k} />
+      <line x1={x - k} x2={x + k} y1={b + k} y2={b - k} />
+      {Math.abs(y1 - y0) > c.f * 1.1 && (
+        <text x={x - c.f * 0.3} y={(a + b) / 2} fontSize={c.f * 0.8} textAnchor="middle" fill={DIM} stroke="none" transform={`rotate(-90 ${x - c.f * 0.3} ${(a + b) / 2})`}>{t}</text>
+      )}
+    </g>
+  );
+}
+const cm = (v: number) => String(Math.round(v * 10) / 10);
+
+function ctxOf(l: KitchenLayout, length: number): Ctx {
+  const h = heightsOf(l);
+  const front = colorOf(l.colors?.front, FRONT_COLORS, FRONT_COLORS.white.hex);
+  return {
+    h,
+    top: 0,
+    front,
+    upper: colorOf(l.colors?.upper || l.colors?.front, FRONT_COLORS, front),
+    counter: colorOf(l.colors?.counter, COUNTER_COLORS, COUNTER_COLORS.white_stone.hex),
+    handles: l.colors?.handles !== "none",
+    f: Math.min(11, Math.max(6, length * 0.024)),
+  };
+}
+
+/** Front view of one run of cabinets (a wall, or the island). */
+export function Elevation({ layout, title, length, base, upper, island = false }: { layout: KitchenLayout; title: string; length: number; base: BaseUnit[]; upper: UpperUnit[]; island?: boolean }) {
+  const c = ctxOf(layout, length);
+  const { h } = c;
+  const hasUpper = upper.some((u) => u.kind !== "gap");
+  const hasTall = base.some((u) => ["fridge", "tall", "tall_oven"].includes(u.kind));
+  const hasHood = upper.some((u) => u.kind === "hood");
+  const shownTop = island ? h.base + 2 : Math.min(h.ceiling, Math.max(h.base + 30, hasUpper ? h.upperFrom + h.upper + (hasHood ? 30 : 10) : 0, hasTall ? h.tall + 10 : 0));
+  c.top = shownTop;
+  const f = c.f;
+  const left = f * (hasTall ? 4.6 : 3.2), right = f * 1.2, topPad = f * (hasUpper ? 3 : 1.6), bottom = f * 4.4;
+  const vb = `${-left} ${-topPad} ${length + left + right} ${shownTop + topPad + bottom}`;
+  const pb = placed(base), pu = placed(upper);
+  const spans = counterSpans(base);
+  const upTop = h.upperFrom + h.upper;
+  return (
+    <figure className="nqp-fig">
+      <figcaption>{title} · {cm(length)} ס״מ</figcaption>
+      <svg viewBox={vb} className="nqp-svg" role="img" aria-label={`${title}, חזית בקנה מידה`} style={{ fontFamily: "inherit" }}>
+        <defs>
+          <pattern id="nqp-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="6" height="6" fill="#efebe4" />
+            <line x1="0" y1="0" x2="0" y2="6" stroke="#c9c0b4" strokeWidth="1.2" />
+          </pattern>
+        </defs>
+        {!island && <rect x={0} y={0} width={length} height={shownTop} fill="#f8f6f2" />}
+        {pu.map((u, i) => <UpperShape key={"u" + i} c={c} u={u} x={u.a} />)}
+        {pb.map((u, i) => <BaseShape key={"b" + i} c={c} u={u} x={u.a} />)}
+        {spans.map((s, i) => <rect key={"c" + i} x={s.a} y={Y(c, h.base)} width={s.w} height={h.counter} fill={c.counter} stroke={LINE} strokeWidth={0.4} />)}
+        <line x1={-left * 0.3} x2={length + right * 0.6} y1={shownTop} y2={shownTop} stroke={INK} strokeWidth={1} />
+        <line x1={0} x2={0} y1={0} y2={shownTop} stroke="#b9b1a6" strokeWidth={0.6} />
+        <line x1={length} x2={length} y1={0} y2={shownTop} stroke="#b9b1a6" strokeWidth={0.6} />
+
+        {/* widths of the base units, then the whole wall */}
+        {pb.map((u, i) => <HDim key={"db" + i} c={c} x0={u.a} x1={u.a + u.w} y={shownTop + f * 1.7} t={cm(u.w)} />)}
+        <HDim c={c} x0={0} x1={length} y={shownTop + f * 3.6} t={cm(length)} />
+        {hasUpper && pu.map((u, i) => <HDim key={"du" + i} c={c} x0={u.a} x1={u.a + u.w} y={Y(c, Math.min(shownTop, upTop)) - f * 1.2} t={cm(u.w)} />)}
+
+        {/* heights */}
+        <VDim c={c} x={-f * 1.3} y0={0} y1={h.base} t={cm(h.base)} />
+        {hasUpper && <VDim c={c} x={-f * 1.3} y0={h.base} y1={h.upperFrom} t={cm(h.upperFrom - h.base)} />}
+        {hasUpper && <VDim c={c} x={-f * 1.3} y0={h.upperFrom} y1={Math.min(shownTop, upTop)} t={cm(h.upper)} />}
+        {hasTall && <VDim c={c} x={-f * 3.2} y0={0} y1={h.tall} t={cm(h.tall)} />}
+      </svg>
+    </figure>
+  );
+}
+
+/** The kitchen from above: walls, cabinet runs, sink and cooktop, island, wall lengths. */
+export function PlanView({ layout: l }: { layout: KitchenLayout }) {
+  const geo = wallGeometry(l);
+  const h = heightsOf(l);
+  const isl = islandBox(l);
+  const pts: [number, number][] = [];
+  geo.forEach((g, i) => {
+    const L = l.walls[i].length;
+    pts.push([g.x, g.z], [g.x + g.dx * L, g.z + g.dz * L], [g.x + g.nx * h.depth, g.z + g.nz * h.depth]);
+  });
+  if (isl) pts.push([isl.cx - isl.w / 2, isl.cz - isl.d / 2], [isl.cx + isl.w / 2, isl.cz + isl.d / 2]);
+  const xs = pts.map((p) => p[0]), zs = pts.map((p) => p[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minZ = Math.min(...zs), maxZ = Math.max(...zs);
+  const span = Math.max(maxX - minX, maxZ - minZ);
+  const f = Math.min(13, Math.max(7, span * 0.026));
+  const pad = f * 7;
+  const front = colorOf(l.colors?.front, FRONT_COLORS, FRONT_COLORS.white.hex);
+  const counter = colorOf(l.colors?.counter, COUNTER_COLORS, COUNTER_COLORS.white_stone.hex);
+  const P = (g: (typeof geo)[number], a: number, d: number) => [g.x + g.dx * a + g.nx * d, g.z + g.dz * a + g.nz * d] as const;
+  const poly = (ps: (readonly [number, number])[]) => ps.map((p) => p.join(",")).join(" ");
+
+  return (
+    <figure className="nqp-fig">
+      <figcaption>מבט מלמעלה</figcaption>
+      <svg viewBox={`${minX - pad} ${minZ - pad} ${maxX - minX + pad * 2} ${maxZ - minZ + pad * 2}`} className="nqp-svg nqp-plan" role="img" aria-label="תוכנית המטבח מלמעלה בקנה מידה">
+        {geo.map((g, i) => {
+          const w = l.walls[i];
+          return (
+            <g key={i}>
+              <polygon points={poly([P(g, 0, 0), P(g, w.length, 0), P(g, w.length, -8), P(g, 0, -8)])} fill="#5b544d" />
+              {placed(w.base).map((u, k) => {
+                if (u.kind === "gap" || u.kind === "corner") return null;
+                const tall = ["fridge", "tall", "tall_oven"].includes(u.kind);
+                const fill = u.kind === "fridge" ? STEEL : tall ? front : counter;
+                const c = P(g, u.a + u.w / 2, h.depth / 2);
+                return (
+                  <g key={k}>
+                    <polygon points={poly([P(g, u.a, 0), P(g, u.a + u.w, 0), P(g, u.a + u.w, h.depth), P(g, u.a, h.depth)])} fill={fill} stroke={LINE} strokeWidth={0.6} />
+                    {u.kind === "sink" && <rect x={c[0] - Math.min(u.w - 14, 50) / 2} y={c[1] - 20} width={Math.min(u.w - 14, 50)} height={40} rx={5} fill="#b8bdc1" stroke={LINE} strokeWidth={0.5} transform={g.dz ? `rotate(90 ${c[0]} ${c[1]})` : undefined} />}
+                    {u.kind === "cooktop" && [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz], j) => (
+                      <circle key={j} cx={c[0] + sx * Math.min(14, u.w / 4.5)} cy={c[1] + sz * 12} r={7} fill="none" stroke={GLASS} strokeWidth={1.4} />
+                    ))}
+                    {tall && <text x={c[0]} y={c[1] + f * 0.3} fontSize={f * 0.75} textAnchor="middle" fill={INK} direction="rtl">{BASE_LABEL[u.kind]}</text>}
+                  </g>
+                );
+              })}
+              {(() => {
+                const a = P(g, 0, -8 - f * 1.8), b = P(g, w.length, -8 - f * 1.8);
+                const m = P(g, w.length / 2, -8 - f * (g.dz ? 5.6 : 2.3));
+                
+                return (
+                  <g stroke={DIM} strokeWidth={0.6}>
+                    <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} />
+                    <text x={m[0]} y={m[1]} fontSize={f * 0.85} textAnchor="middle" fill={DIM} stroke="none" direction="rtl">
+                      {wallName(l, i)} {cm(w.length)}
+                    </text>
+                  </g>
+                );
+              })()}
+            </g>
+          );
+        })}
+        {isl && l.island && (
+          <g>
+            <rect x={isl.cx - isl.w / 2} y={isl.cz - isl.d / 2} width={isl.w} height={isl.d} fill={counter} stroke={LINE} strokeWidth={0.8} />
+            <text x={isl.cx} y={isl.cz + f * 0.3} fontSize={f * 0.85} textAnchor="middle" fill={INK} direction="rtl">אי {cm(isl.w)}×{cm(isl.d)}</text>
+          </g>
+        )}
+      </svg>
+    </figure>
+  );
+}
+
+/** All the drawings of a kitchen: the plan and one front view per wall (and the island). */
+export default function KitchenPlan({ layout }: { layout: KitchenLayout }) {
+  return (
+    <div className="nqp">
+      <PlanView layout={layout} />
+      {layout.walls.map((w, i) => (
+        <Elevation key={i} layout={layout} title={wallName(layout, i)} length={w.length} base={w.base} upper={w.upper} />
+      ))}
+      {layout.island && <Elevation layout={layout} title="אי (הצד הפונה לארונות)" length={layout.island.w} base={layout.island.base} upper={[]} island />}
+      <div className="nqp-note">כל המידות בס״מ. השרטוט בקנה מידה.</div>
+    </div>
+  );
+}

@@ -1,3 +1,4 @@
+import type { KitchenLayout } from "./layout";
 export type Unit = "m" | "u";
 
 /** A catalog tree node. Root nodes have parentId "". Folders hold other nodes; leaves are priced items. */
@@ -78,6 +79,8 @@ export type Quote = {
   followUp?: string;
   /** Notes only Erez sees */
   internalNotes?: string;
+  /** Kitchen plan in cm: the to-scale drawing and the 3D view shown to the client */
+  layout?: KitchenLayout;
   updatedAt?: string;
 };
 

@@ -1,0 +1,36 @@
+/* Kitchen plan: to-scale drawings and the 3D view (admin, client page and PDF) */
+.nqp { display: grid; gap: 14px; }
+.nqp-fig { margin: 0; background: #fff; border: 1px solid #e6e0d6; border-radius: 10px; padding: 10px 10px 4px; }
+.nqp-fig figcaption { font-weight: 700; font-size: 14px; margin-bottom: 4px; color: #3a3530; }
+.nqp-svg { display: block; width: 100%; height: auto; max-height: 520px; }
+.nqp-plan { max-height: 440px; }
+.nqp-note { font-size: 12px; color: #8a7766; }
+.nqp-3d { position: relative; width: 100%; border-radius: 10px; overflow: hidden; background: #f4f1ec; touch-action: none; }
+.nqp-3d canvas { display: block; width: 100% !important; }
+.nqp-3d.still { touch-action: auto; }
+.nqp-3d.still img { display: block; width: 100%; height: auto; }
+.nqp-3d-fail { padding: 18px; border-radius: 10px; background: #f4f1ec; font-size: 14px; color: #6d655c; }
+.nqp-tabs { display: flex; gap: 6px; margin: 10px 0; }
+.nqp-client h2 { margin-bottom: 2px; }
+.nqp-client { margin-top: 16px; }
+
+.nqp-wall { margin-top: 14px; padding-top: 12px; border-top: 1px solid #ece6dc; }
+.nqp-wall-h { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 6px; }
+.nqp-sub { font-size: 13px; color: #8a7766; margin: 8px 0 4px; }
+.nqp-sub .bad { color: #b3261e; font-weight: 700; }
+.nqp-rows { display: grid; gap: 6px; }
+.nqp-row { display: grid; grid-template-columns: 12px minmax(84px, 1fr) 48px 48px auto; align-items: center; gap: 5px; }
+.nqp-row .in { width: 100%; min-width: 0; padding-inline: 6px; }
+.nqp-row-h { font-size: 12px; color: #8a7766; }
+.nqp-i { width: 18px; color: #8a7766; font-size: 13px; }
+.nqp-num { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: #6d655c; }
+.nqp-num .in { width: 76px; }
+.nqp-acts { display: inline-flex; gap: 0; }
+.nqp-acts .nq-btn { padding: 0 3px; min-width: 22px; min-height: 32px; }
+
+/* PDF: the plan on its own page(s) after the quote */
+.nqp-print { break-before: page; width: 794px; box-sizing: border-box; padding: 0 36px; font-family: inherit; }
+.nqp-print h2 { font-size: 20px; margin: 0 0 10px; }
+.nqp-print .nqp-3d { margin-bottom: 12px; }
+.nqp-print .nqp-fig { break-inside: avoid; }
+.nqp-print .nqp-svg { max-height: 430px; }

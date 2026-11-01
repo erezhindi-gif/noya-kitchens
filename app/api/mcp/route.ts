@@ -7,6 +7,7 @@ import { catalogForPrompt, linesFromDraft } from "@/lib/quotes/agent";
 import { getData, getSecrets, putCatalog, putLead, putQuote } from "@/lib/quotes/store";
 import { SOURCE_LABEL, STAGE_LABEL, ago, findPhone, leadStage } from "@/lib/quotes/leads";
 import { syncLeads } from "@/lib/quotes/lead-sync";
+import { describeLayout, layoutWarnings, normalizeLayout } from "@/lib/quotes/layout";
 import { passwordStamp, verifyPayload } from "@/lib/quotes/auth";
 import type { CatNode, Lead, Quote } from "@/lib/quotes/types";
 import { MAIL_ERRORS, sendQuoteMail, validEmail } from "@/lib/quotes/send-quote";
@@ -478,18 +479,73 @@ const handler = createMcpHandler(
         const d = await getData();
         const q = findQuote(d.quotes, number);
         if (!q) return text(`לא נמצאה הצעה ${number}.`);
-        return text(describeQuote(q, d));
+        return text(describeQuote(q, d) + (q.layout ? `\n\nתכנון המטבח (שרטוט ותלת-ממד):\n${describeLayout(q.layout)}` : ""));
+      }
+    );
+
+    const baseUnit = z.object({
+      kind: z.enum(["doors", "drawers", "sink", "cooktop", "oven", "dishwasher", "fridge", "tall", "tall_oven", "corner", "gap"]),
+      w: z.number().describe("רוחב בס״מ"),
+      n: z.number().optional().describe("מספר דלתות/מגירות. ריק = ברירת מחדל"),
+    });
+    const upperUnit = z.object({
+      kind: z.enum(["doors", "lift", "open", "hood", "corner", "gap"]),
+      w: z.number().describe("רוחב בס״מ"),
+      n: z.number().optional().describe("מספר דלתות/קלפות/מדפים"),
+    });
+    server.registerTool(
+      "set_kitchen_layout",
+      {
+        title: "שרטוט ותלת-ממד למטבח",
+        description:
+          "שומר את תכנון המטבח של הצעה, בס״מ. ממנו נבנים שרטוט בקנה מידה עם קווי מידה ותצוגת תלת-ממד, שמופיעים ללקוח בהצעה וב-PDF. " +
+          "לרוב ארז שולח צילום של סקיצה ידנית: קרא ממנה את אורכי הקירות, את הארונות לפי הסדר ואת הרוחב של כל אחד. " +
+          "כל מידה חייבת להגיע מהסקיצה או מארז. אם מידה חסרה או לא קריאה, שאל לפני השמירה (שאלה אחת מרוכזת) — לא מנחשים. " +
+          "walls: קיר אחד = מטבח ישר, שניים = ר׳ (הראשי ואז הימני), שלושה = ח׳ (שמאלי, ראשי, ימני). " +
+          "ארונות בכל קיר מסודרים משמאל לימין כשעומדים מול הקיר. סכום הרוחבות לא יעלה על אורך הקיר (שטח שנשאר פנוי — gap). " +
+          "בפינה שבה הארונות ממשיכים, הקיר שאחרי הפינה מתחיל ב-corner ברוחב עומק הארונות (60 בתחתון, 35 בעליון). " +
+          "סוגים בתחתון: doors דלתות, drawers מגירות, sink כיור, cooktop כיריים (עם מגירות), oven תנור מתחת למשטח, dishwasher מדיח, fridge מקרר, tall ארון גבוה, tall_oven ארון גבוה עם תנור ומיקרו, corner, gap. " +
+          "בעליון: doors, lift קלפה, open מדפים פתוחים, hood קולט אדים, corner, gap (למשל חלון). " +
+          "צבעים: front/upper אחד מ-white cream light_grey grey anthracite black oak walnut sage olive navy או #hex; counter אחד מ-white_stone beige_stone grey_stone black_stone wood או #hex. " +
+          "גבהים (h) רק אם שונים מהרגיל: משטח 90, תחתית עליונים 145, גובה עליונים 70, ארון גבוה 220, תקרה 260. " +
+          "אחרי השמירה הצג לארז את הסיכום ואת האזהרות אם יש, ותן את הקישור לבדיקה.",
+        inputSchema: z.object({
+          number: z.string().describe("מספר ההצעה"),
+          walls: z.array(z.object({ length: z.number().describe("אורך הקיר בס״מ"), base: z.array(baseUnit), upper: z.array(upperUnit) })).min(1).max(3),
+          island: z.object({ w: z.number(), d: z.number().default(90), gap: z.number().default(110).describe("מעבר בין הארונות לאי"), base: z.array(baseUnit) }).optional(),
+          h: z.object({
+            base: z.number().optional(), upperFrom: z.number().optional(), upper: z.number().optional(), tall: z.number().optional(),
+            ceiling: z.number().optional(), depth: z.number().optional(), upperDepth: z.number().optional(),
+          }).optional(),
+          colors: z.object({ front: z.string().optional(), upper: z.string().optional(), counter: z.string().optional(), handles: z.enum(["bar", "none"]).optional() }).optional(),
+        }),
+      },
+      async ({ number, ...raw }) => {
+        const d = await getData();
+        const q = findQuote(d.quotes, number);
+        if (!q) return text(`לא נמצאה הצעה ${number}.`);
+        const layout = normalizeLayout(raw);
+        if (!layout) return text("לא התקבלו קירות. צריך לפחות קיר אחד עם אורך.");
+        q.layout = layout;
+        q.updatedAt = new Date().toISOString();
+        await putQuote(q);
+        const warns = layoutWarnings(layout);
+        return text(
+          `נשמר תכנון המטבח בהצעה ${qnum(q)}.\n${describeLayout(layout)}` +
+          (warns.length ? `\n\nלתשומת לב:\n- ${warns.join("\n- ")}` : "") +
+          `\n\nלבדיקה ותיקון במערכת: ${SITE}/admin?q=${q.id}\nכך הלקוח רואה (שרטוט ותלת-ממד): ${SITE}/q/${q.id}`
+        );
       }
     );
   },
   {
-    serverInfo: { name: "noya-quotes", version: "1.6.0" },
+    serverInfo: { name: "noya-quotes", version: "1.7.0" },
     instructions:
       "מערכת הצעות המחיר של נויה מטבחים (ארז). תהליך: 1) search_catalog כדי למצוא את הפריטים. " +
       "2) אם חסרה כמות לרכיב כלשהו (למשל ידית לחזיתות), או שיש כמה פריטים אפשריים, שאל את ארז שאלה אחת מרוכזת עם כל החסרים — לפני שבונים. " +
       "3) create_quote_draft רק כשהכול ברור. אל תנחש כמויות ואל תעתיק כמות בין רכיבים. " +
       "כל טיוטה מקבלת אוטומטית את העמלה הקבועה; remove_commission=true רק אם ארז ביקש במפורש בלי עמלה. " +
-      "להוספה להצעה קיימת: add_to_quote. לשינוי כמויות, תיאורים, הסרת שורות או פרטים: get_quote ואז update_quote. לא בונים הצעה חדשה כשארז ביקש לשנות קיימת. אם ארז רוצה לשנות הצעה ולא אמר איזו: list_quotes, הצג לו רשימה ממוספרת קצרה (מספר, לקוח, פרויקט, סכום) ושאל איזו, ורק אחר כך get_quote.  לשליחה ללקוח: whatsapp_link, או email_quote למייל עם PDF (גם כתשובה למייל שבו הלקוח ביקש הצעה) — תמיד אחרי שארז אישר נמען ונוסח. לעריכת הקטלוג (פריטים, תתי-פריטים, מחירים): search_catalog עם full_tree=true ואז edit_catalog, אחרי שארז אישר את השינויים. פניות (בקשות להצעה): כשארז משתף הודעה מלקוח או אומר 'תוסיף פנייה' — add_lead (לא create_quote_draft! פנייה היא לא הצעה; אחרי השמירה תן לארז את הקישור למסך הפניות שהכלי מחזיר). 'מה מחכה?' — list_leads. כשבונים הצעה לפנייה, העבר lead_id ואת פרטי הלקוח מהפנייה ל-create_quote_draft. דבר עם ארז בעברית.",
+      "להוספה להצעה קיימת: add_to_quote. לשינוי כמויות, תיאורים, הסרת שורות או פרטים: get_quote ואז update_quote. לא בונים הצעה חדשה כשארז ביקש לשנות קיימת. אם ארז רוצה לשנות הצעה ולא אמר איזו: list_quotes, הצג לו רשימה ממוספרת קצרה (מספר, לקוח, פרויקט, סכום) ושאל איזו, ורק אחר כך get_quote.  לשליחה ללקוח: whatsapp_link, או email_quote למייל עם PDF (גם כתשובה למייל שבו הלקוח ביקש הצעה) — תמיד אחרי שארז אישר נמען ונוסח. לעריכת הקטלוג (פריטים, תתי-פריטים, מחירים): search_catalog עם full_tree=true ואז edit_catalog, אחרי שארז אישר את השינויים. פניות (בקשות להצעה): כשארז משתף הודעה מלקוח או אומר 'תוסיף פנייה' — add_lead (לא create_quote_draft! פנייה היא לא הצעה; אחרי השמירה תן לארז את הקישור למסך הפניות שהכלי מחזיר). 'מה מחכה?' — list_leads. שרטוט או הדמיה של מטבח (לרוב מצילום של סקיצה ידנית): set_kitchen_layout, רק עם מידות שמופיעות בסקיצה או שארז אמר. כשבונים הצעה לפנייה, העבר lead_id ואת פרטי הלקוח מהפנייה ל-create_quote_draft. דבר עם ארז בעברית.",
   }
 );
 
