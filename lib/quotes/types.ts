@@ -123,7 +123,12 @@ export type Lead = {
   /** Erez marked it as not a real request */
   closed?: boolean;
   autoReplied?: boolean;
+  /** Pictures and documents the client sent (mail attachments, or uploaded by Erez) */
+  files?: LeadFile[];
 };
+
+/** A file kept with a request. The content is stored apart, by id, and opened only through the admin. */
+export type LeadFile = { id: string; name: string; type: string; size: number };
 
 export type AppData = { settings: Settings; pros: Pro[]; cat: CatNode[]; quotes: Quote[]; leads: Lead[] };
 

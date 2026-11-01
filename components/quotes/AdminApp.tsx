@@ -4,8 +4,8 @@ import {
   STATUS_LABEL, UNIT_LABEL, ancestors, calc, descendantIds, fdate, kids, leafCount, lineFrom, lineTotal,
   autoDesc, commissionsOf, defaultCommissions, followState, markSentFields, tidyLineDesc, composeDesc, label, money, pathPrice, priceOf, normalizeCat, optPrice, pathOf, tidyCat, qnum, todayIL, uid, waLink,
 } from "@/lib/quotes/calc";
-import type { AppData, CatNode, CatOption, Lead, LeadSource, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
-import { SOURCE_LABEL, STAGE_LABEL, ago, findPhone, gmailLink, leadStage, waitingLeads, type LeadStage } from "@/lib/quotes/leads";
+import type { AppData, CatNode, CatOption, Lead, LeadFile, LeadSource, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
+import { FILE_TYPE_OK, MAX_UPLOAD, SOURCE_LABEL, STAGE_LABEL, ago, findPhone, gmailLink, leadStage, waitingLeads, type LeadStage } from "@/lib/quotes/leads";
 import QuoteDoc from "./QuoteDoc";
 import DocFrame from "./DocFrame";
 import { downloadBlob, pdfName, quotePdf, sharePdf } from "./pdf";
@@ -296,6 +296,35 @@ export default function AdminApp() {
     setData((d) => (d ? { ...d, leads: d.leads.filter((x) => x.id !== id) } : d));
     await api(`/api/admin/leads/${id}`, "DELETE").catch(() => flash("המחיקה נכשלה. נסה שוב"));
   };
+  // A file's upload or removal answers with the request as the server now has it.
+  const setLeadFromServer = (r: { lead?: Lead } | null) => {
+    if (!r?.lead) return;
+    const l = r.lead;
+    setData((d) => {
+      const next = d ? { ...d, leads: d.leads.map((x) => (x.id === l.id ? l : x)) } : d;
+      dataRef.current = next;
+      return next;
+    });
+  };
+  const uploadLeadFiles = async (l: Lead, files: File[]) => {
+    for (const raw of files) {
+      if (!FILE_TYPE_OK(raw.type)) { flash(`${raw.name}: אפשר לצרף תמונה, PDF או מסמך Word/Excel`); continue; }
+      const file = await shrinkImage(raw);
+      if (file.size > MAX_UPLOAD) { flash(`${raw.name} גדול מדי (עד 4MB)`); continue; }
+      flash(`מעלה את ${raw.name}…`);
+      const body = new FormData();
+      body.append("file", file, file.name);
+      const r = await fetch(`/api/admin/leads/${l.id}/files`, { method: "POST", body }).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+      if (!r) { flash(`ההעלאה של ${raw.name} נכשלה. נסה שוב`); continue; }
+      setLeadFromServer(r);
+      flash("הקובץ נשמר בפנייה ✓");
+    }
+  };
+  const removeLeadFile = async (l: Lead, f: LeadFile) => {
+    const r = await fetch(`/api/admin/lead-files/${f.id}?lead=${l.id}`, { method: "DELETE" }).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+    if (!r) return flash("המחיקה נכשלה. נסה שוב");
+    setLeadFromServer(r);
+  };
   const quoteFromLead = (l: Lead) => {
     const id = newQuote(undefined, "נפתחה הצעה לפנייה:", { name: l.name, phone: l.phone, email: l.email });
     if (id) saveLead({ ...l, quoteId: id });
@@ -368,7 +397,7 @@ export default function AdminApp() {
 
       <main className="nq-wrap">
         {(view === "leads" || view === "list") && syncWarn && <div className="nq-back nq-warn" role="alert"><span>⚠️ {syncWarn}</span></div>}
-        {view === "leads" && <LeadsView data={data} onSave={saveLead} onDelete={removeLead} onQuote={quoteFromLead} onOpenQuote={(id) => go("edit", id)} />}
+        {view === "leads" && <LeadsView data={data} onSave={saveLead} onDelete={removeLead} onQuote={quoteFromLead} onOpenQuote={(id) => go("edit", id)} onUpload={uploadLeadFiles} onRemoveFile={removeLeadFile} />}
         {view === "list" && waiting > 0 && (
           <button className="nq-back nq-leads-alert" onClick={() => go("leads")}>
             <span><b className="num">{waiting}</b> {waiting === 1 ? "פנייה מחכה" : "פניות מחכות"} להצעת מחיר</span><span className="nq-btn sm pri">לפניות ›</span>
@@ -410,11 +439,32 @@ export default function AdminApp() {
 const STAGE_CLASS: Record<LeadStage, string> = {
   waiting: "nq-st-wait", draft: "nq-st-draft", sent: "nq-st-sent", approved: "nq-st-approved", rejected: "nq-st-rejected", closed: "nq-st-draft",
 };
+/** Phone photos are several MB; one 2000px JPEG is plenty to see a kitchen or a sketch, and fits the upload limit. */
+async function shrinkImage(file: File): Promise<File> {
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size < 1_500_000) return file;
+  try {
+    const img = await createImageBitmap(file);
+    const k = Math.min(1, 2000 / Math.max(img.width, img.height));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.width * k);
+    c.height = Math.round(img.height * k);
+    c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+    const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/jpeg", 0.85));
+    return blob ? new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" }) : file;
+  } catch {
+    return file;
+  }
+}
+const fileUrl = (f: LeadFile) => `/api/admin/lead-files/${f.id}`;
+const showsInline = (f: LeadFile) => /^image\/(jpeg|png|webp|gif)$/.test(f.type);
+
 const waPhone = (p: string) => { const d = p.replace(/\D/g, ""); return d.startsWith("0") ? "972" + d.slice(1) : d; };
 
-function LeadsView({ data, onSave, onDelete, onQuote, onOpenQuote }: {
+function LeadsView({ data, onSave, onDelete, onQuote, onOpenQuote, onUpload, onRemoveFile }: {
   data: AppData; onSave: (l: Lead, isNew?: boolean) => void; onDelete: (id: string) => void; onQuote: (l: Lead) => void; onOpenQuote: (id: string) => void;
+  onUpload: (l: Lead, files: File[]) => void; onRemoveFile: (l: Lead, f: LeadFile) => void;
 }) {
+  const [confirmFile, setConfirmFile] = useState<string | null>(null);
   const [filter, setFilter] = useState<"waiting" | "open" | "all">("waiting");
   const [form, setForm] = useState<Lead | null>(null);
   const [isNew, setIsNew] = useState(false);
@@ -462,6 +512,20 @@ function LeadsView({ data, onSave, onDelete, onQuote, onOpenQuote }: {
                 {l.subject ? <b>{l.subject}<br /></b> : null}{l.text}
               </div>
             )}
+            {!!l.files?.length && (
+              <div className="nq-lead-files">
+                {l.files.map((f) => (
+                  <div key={f.id} className="nq-lead-file">
+                    <a href={fileUrl(f)} target="_blank" rel="noopener" title={f.name}>
+                      {showsInline(f) ? <img src={fileUrl(f)} alt={f.name} loading="lazy" /> : <span className="doc">{f.type === "application/pdf" ? "📄" : "📎"} {f.name}</span>}
+                    </a>
+                    {confirmFile === f.id
+                      ? <span className="del-ask"><button className="nq-btn sm danger" onClick={() => { onRemoveFile(l, f); setConfirmFile(null); }}>למחוק?</button><button className="nq-btn sm" onClick={() => setConfirmFile(null)}>לא</button></span>
+                      : <button className="x" aria-label={`מחק את ${f.name}`} onClick={() => setConfirmFile(f.id)}>×</button>}
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="nq-lead-contact">
               {l.phone && <a className="nq-btn sm" href={`tel:${l.phone}`}>📞 <span className="ltr num">{l.phone}</span></a>}
               {l.phone && <a className="nq-btn sm wa" href={`https://wa.me/${waPhone(l.phone)}`} target="_blank" rel="noopener">{l.source === "whatsapp" ? "לשיחה בוואטסאפ" : "וואטסאפ"}</a>}
@@ -475,6 +539,10 @@ function LeadsView({ data, onSave, onDelete, onQuote, onOpenQuote }: {
               {!s.quote && s.stage !== "closed" && (
                 <a className="nq-btn sm" href={claudeLink(`תבנה הצעה לפנייה של ${l.name}${l.phone ? ` (${l.phone})` : ""} במערכת נויה: `)} target="_blank" rel="noopener">✨ בקלוד</a>
               )}
+              <label className="nq-btn sm">📎 קובץ
+                <input type="file" hidden multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx"
+                  onChange={(e) => { const fs = Array.from(e.target.files || []); e.target.value = ""; if (fs.length) onUpload(l, fs); }} />
+              </label>
               <button className="nq-btn sm" onClick={() => { setIsNew(false); setForm({ ...l }); }}>ערוך</button>
               {s.stage === "closed"
                 ? <button className="nq-btn sm" onClick={() => onSave({ ...l, closed: false })}>החזר לפתוחות</button>

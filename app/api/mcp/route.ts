@@ -384,7 +384,7 @@ const handler = createMcpHandler(
           .sort((a, b) => b.l.createdAt.localeCompare(a.l.createdAt))
           .slice(0, 30)
           .map(({ l, s }) =>
-            `${l.id} | ${l.name || "ללא שם"} | ${[l.phone, l.email].filter(Boolean).join(" ")} | ${SOURCE_LABEL[l.source]} ${ago(l.createdAt)} | ${s.overdue ? "מחכה מעל יומיים" : STAGE_LABEL[s.stage]}${s.quote ? ` (${qnum(s.quote)})` : ""}\n   ${(l.subject ? l.subject + ": " : "") + l.text.replace(/\s+/g, " ").slice(0, 300)}`
+            `${l.id} | ${l.name || "ללא שם"} | ${[l.phone, l.email].filter(Boolean).join(" ")} | ${SOURCE_LABEL[l.source]} ${ago(l.createdAt)} | ${s.overdue ? "מחכה מעל יומיים" : STAGE_LABEL[s.stage]}${s.quote ? ` (${qnum(s.quote)})` : ""}${l.files?.length ? ` | 📎 ${l.files.length} קבצים` : ""}\n   ${(l.subject ? l.subject + ": " : "") + l.text.replace(/\s+/g, " ").slice(0, 300)}`
           );
         return text(rows.length ? rows.join("\n") : show === "waiting" ? "אין פניות שמחכות להצעה." : "אין פניות.");
       }
@@ -404,6 +404,7 @@ const handler = createMcpHandler(
           source: z.enum(["whatsapp", "email", "phone", "site", "other"]).default("whatsapp"),
           request: z.string().describe("מה הלקוח ביקש, במילים שלו ככל האפשר"),
           received: z.string().optional().describe("מתי הגיעה הפנייה, ISO, אם ידוע. ריק = עכשיו"),
+          has_files: z.boolean().default(false).describe("true אם ארז שיתף תמונה או קובץ של הלקוח. תאר ב-request מה רואים בהם (מידות, סקיצה, סגנון)"),
         }),
       },
       async (a) => {
@@ -418,7 +419,7 @@ const handler = createMcpHandler(
         };
         await putLead(lead);
         return text(`נשמרה פנייה מ${lead.name || "לקוח"} (${SOURCE_LABEL[lead.source]}). מזהה: ${lead.id}. היא מופיעה ב"פניות" עד שתיבנה לה הצעה.
-לפתיחת מסך הפניות: ${SITE}/admin?view=leads`);
+לפתיחת מסך הפניות: ${SITE}/admin?view=leads${a.has_files ? "\nאת התמונות והקבצים עצמם מצרפים לפנייה שם, בכפתור 📎 קובץ." : ""}`);
       }
     );
 

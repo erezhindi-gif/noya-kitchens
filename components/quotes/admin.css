@@ -63,6 +63,12 @@
 .nq-lead-text { white-space: pre-wrap; font-size: 14px; color: var(--ink); background: var(--surface-2); border-radius: 10px; padding: 10px 12px; max-height: 4.8em; overflow: hidden; cursor: pointer; position: relative; }
 .nq-lead-text.open { max-height: none; }
 .nq-lead-contact, .nq-lead-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.nq-lead-files { display: flex; flex-wrap: wrap; gap: 8px; }
+.nq-lead-file { position: relative; }
+.nq-lead-file img { display: block; width: 84px; height: 84px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line, #ddd); }
+.nq-lead-file .doc { display: inline-flex; align-items: center; gap: 4px; max-width: 200px; height: 34px; padding: 0 10px; border: 1px solid var(--line, #ddd); border-radius: 8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; }
+.nq-lead-file .x { position: absolute; top: -8px; left: -8px; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line, #ddd); background: #fff; font-size: 15px; line-height: 1; cursor: pointer; }
+.nq-lead-file .del-ask { display: flex; gap: 4px; margin-top: 4px; }
 .nq-warn { background: var(--bad-bg); color: var(--bad); font-weight: 500; }
 .nq-leads-alert { width: 100%; border: 0; cursor: pointer; text-align: start; font: inherit; }
 .nq-check { flex-direction: row !important; align-items: center; gap: 8px; }

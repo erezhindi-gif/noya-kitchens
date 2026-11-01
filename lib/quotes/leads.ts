@@ -62,3 +62,12 @@ export const fillReply = (tpl: string, name: string) => tpl.replace(/\{שם\}/g,
 
 /** Opens this exact mail in Gmail (web or app), by its Message-ID. */
 export const gmailLink = (msgId: string) => `https://mail.google.com/mail/u/0/#search/rfc822msgid%3A${encodeURIComponent(msgId)}`;
+
+/** Files a request can keep: pictures, PDFs and office documents. */
+export const FILE_TYPE_OK = (t: string) =>
+  /^image\/(jpeg|png|webp|gif|heic|heif)$/.test(t) || t === "application/pdf" ||
+  /^application\/(msword|vnd\.openxmlformats-officedocument\.[a-z.]+|vnd\.ms-excel)$/.test(t);
+/** Upload from the app passes through Vercel, which takes up to ~4.5MB per request. */
+export const MAX_UPLOAD = 4_200_000;
+/** A mail attachment is read on the server, so it may be bigger. */
+export const MAX_MAIL_FILE = 8_000_000;

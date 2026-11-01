@@ -6,7 +6,7 @@ import { createClient } from "@sanity/client";
 import { promises as fs } from "fs";
 import path from "path";
 import { DEFAULT_SETTINGS, defaultCatalog } from "./defaults";
-import type { AppData, CatNode, Lead, Pro, Quote, Settings } from "./types";
+import type { AppData, CatNode, Lead, LeadFile, Pro, Quote, Settings } from "./types";
 
 // Saved settings over the defaults. The earlier default payment wording is replaced by the current one.
 const OLD_PAYMENT = "50% בחתימת הזמנה, 50% לפני התקנה.";
@@ -39,7 +39,7 @@ const NO_CACHE = { cache: "no-store" as const };
 const readDoc = (id: string) =>
   sanity!.fetch<Record<string, unknown> | null>(`*[_id == $id][0]`, { id }, NO_CACHE);
 
-const ID = { settings: "noyaq.settings", catalog: "noyaq.catalog", quote: (id: string) => `noyaq.quote.${id}`, lead: (id: string) => `noyaq.lead.${id}` };
+const ID = { settings: "noyaq.settings", catalog: "noyaq.catalog", quote: (id: string) => `noyaq.quote.${id}`, lead: (id: string) => `noyaq.lead.${id}`, file: (id: string) => `noyaq.lfile.${id}` };
 
 /* Sanity wants a _key on every object inside an array; strip Sanity's own fields on the way out. */
 const withKeys = <T extends { id: string }>(arr: T[]) => arr.map((x) => ({ ...x, _key: x.id }));
@@ -140,8 +140,18 @@ export async function deleteQuote(id: string) {
 }
 
 /* ---------- leads (requests for a quote) ---------- */
+const leadDoc = (l: Lead) => ({ _id: ID.lead(l.id), _type: "nq_lead", ...l, ...(l.files ? { files: withKeys(l.files) } : {}) });
+
+export async function getLead(id: string): Promise<Lead | null> {
+  if (sanity) {
+    const doc = await readDoc(ID.lead(id));
+    return doc ? clean<Lead>(doc) : null;
+  }
+  return (await readFile()).leads?.find((l) => l.id === id) || null;
+}
+
 export async function putLead(l: Lead) {
-  if (sanity) return void (await sanity.createOrReplace({ _id: ID.lead(l.id), _type: "nq_lead", ...l }));
+  if (sanity) return void (await sanity.createOrReplace(leadDoc(l)));
   const d = await readFile();
   d.leads = [...(d.leads || []).filter((x) => x.id !== l.id), l];
   await writeFile(d);
@@ -152,7 +162,7 @@ export async function putLead(l: Lead) {
 export async function insertLead(l: Lead): Promise<boolean> {
   if (sanity) {
     try {
-      await sanity.create({ _id: ID.lead(l.id), _type: "nq_lead", ...l });
+      await sanity.create(leadDoc(l));
       return true;
     } catch {
       return false;
@@ -165,7 +175,37 @@ export async function insertLead(l: Lead): Promise<boolean> {
   return true;
 }
 
+/* Files of a request: the content sits in its own private document (dotted id), as base64. */
+const FILES_DIR = path.join(process.cwd(), ".data", "lead-files");
+const fileIdOk = (id: string) => /^[a-z0-9]{6,40}$/.test(id);
+
+export async function putLeadFile(f: LeadFile, data: Buffer) {
+  if (!fileIdOk(f.id)) throw new Error("bad file id");
+  if (sanity) return void (await sanity.createOrReplace({ _id: ID.file(f.id), _type: "nq_lfile", ...f, data: data.toString("base64") }));
+  await fs.mkdir(FILES_DIR, { recursive: true });
+  await fs.writeFile(path.join(FILES_DIR, f.id + ".json"), JSON.stringify({ ...f, data: data.toString("base64") }));
+}
+
+export async function getLeadFile(id: string): Promise<(LeadFile & { data: Buffer }) | null> {
+  if (!fileIdOk(id)) return null;
+  let doc: Record<string, unknown> | null = null;
+  if (sanity) doc = await readDoc(ID.file(id));
+  else doc = await fs.readFile(path.join(FILES_DIR, id + ".json"), "utf8").then(JSON.parse).catch(() => null);
+  if (!doc) return null;
+  const { id: fid, name, type, size, data } = doc as LeadFile & { data: string };
+  return { id: fid, name, type, size, data: Buffer.from(data, "base64") };
+}
+
+export async function deleteLeadFiles(ids: string[]) {
+  for (const id of ids.filter(fileIdOk)) {
+    if (sanity) await sanity.delete(ID.file(id)).catch(() => {});
+    else await fs.unlink(path.join(FILES_DIR, id + ".json")).catch(() => {});
+  }
+}
+
 export async function deleteLead(id: string) {
+  const lead = await getLead(id);
+  if (lead?.files?.length) await deleteLeadFiles(lead.files.map((f) => f.id));
   if (sanity) return void (await sanity.delete(ID.lead(id)));
   const d = await readFile();
   d.leads = (d.leads || []).filter((x) => x.id !== id);

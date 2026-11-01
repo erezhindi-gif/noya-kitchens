@@ -5,10 +5,10 @@
 import { createHash } from "crypto";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
-import { fillReply, findPhone } from "./leads";
+import { FILE_TYPE_OK, MAX_MAIL_FILE, fillReply, findPhone } from "./leads";
 import { gmailTransport, validEmail } from "./send-quote";
-import { getData, getSecrets, insertLead, patchSecrets, putLead } from "./store";
-import type { Lead } from "./types";
+import { getData, getSecrets, insertLead, patchSecrets, putLead, putLeadFile } from "./store";
+import type { Lead, LeadFile } from "./types";
 
 export const LEAD_LABEL = "הצעת מחיר";
 export const DONE_LABEL = "נקלט במערכת";
@@ -105,6 +105,18 @@ async function importLeads(opts: { force?: boolean }) {
           subject: mail.subject || "",
           msgId: f.msgId,
         };
+        // The client's pictures and documents go with the request. Pictures inside the mail body
+        // (signature logos and the like) and tiny images are left out.
+        const files: LeadFile[] = [];
+        for (const a of mail.attachments || []) {
+          if (files.length >= 8) break;
+          if (a.related || !FILE_TYPE_OK(a.contentType) || a.size > MAX_MAIL_FILE) continue;
+          if (a.contentType.startsWith("image/") && a.size < 20_000) continue;
+          const file = { id: `${lead.id}f${files.length}`, name: (a.filename || "קובץ").slice(0, 120), type: a.contentType, size: a.size };
+          // A file that fails to save doesn't hold up the request; it's still in the original mail.
+          await putLeadFile(file, a.content).then(() => files.push(file), (e) => console.error("lead file save failed", e));
+        }
+        if (files.length) lead.files = files;
         taken.push(f.uid);
         if (!(await insertLead(lead))) continue;
         added.push(lead);
