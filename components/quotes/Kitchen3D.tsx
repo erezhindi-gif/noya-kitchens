@@ -78,13 +78,7 @@ function buildKitchen(three: Three, l: KitchenLayout) {
           box(p, mats.plinth, c.w, f0, depth - 6, x + c.a + c.w / 2, f0 / 2, (depth - 6) / 2);
           box(p, mats.carcass, c.w, f1 - f0, z, x + c.a + c.w / 2, f0 + (f1 - f0) / 2, z / 2);
         }
-        if (c.filler.w > 0.01) {
-          frontPanel(p, mats.front, x + c.filler.a, f0, c.filler.w + 0.4, fh, z);
-          // the strips of both runs meet in the corner with no gap; a joint line shows only where the
-          // strip meets the next cabinet of its own run
-          const sx = x + (c.filler.a > 0 ? c.filler.a + c.filler.w : c.filler.a);
-          box(p, mats.handle, 0.5, fh, 0.3, sx, f0 + fh / 2, z + 1.9);
-        }
+        if (c.filler.w > 0.01) frontPanel(p, mats.front, x + c.filler.a, f0, c.filler.w + 0.4, fh, z);
         continue;
       }
       if (u.kind === "fridge") {
