@@ -26,8 +26,16 @@ async function toJpeg(src: string) {
 
 export default function SiteImages({ flash }: { flash: (m: string) => void }) {
   const [items, setItems] = useState<Item[] | null>(null);
-  const [open, setOpen] = useState<Item | null>(null);
-  const load = () => fetch("/api/admin/site-images", { cache: "no-store" }).then((r) => r.json()).then((j) => setItems(j.items)).catch(() => setItems([]));
+  const [open, setOpenState] = useState<Item | null>(null);
+  const setOpen = (it: Item | null) => { setOpenState(it); try { if (it) sessionStorage.setItem("nq-si-open", it.id); else sessionStorage.removeItem("nq-si-open"); } catch {} };
+  const load = () => fetch("/api/admin/site-images", { cache: "no-store" }).then((r) => r.json()).then((j: { items: Item[] }) => {
+    setItems(j.items);
+    // after a reload, back to the photo that was open
+    let last = "";
+    try { last = sessionStorage.getItem("nq-si-open") || ""; } catch {}
+    const it = last && j.items.find((x) => x.id === last);
+    if (it) setOpenState(it);
+  }).catch(() => setItems([]));
   useEffect(() => { load(); }, []);
 
   if (!items) return <div className="nq-empty">טוען תמונות…</div>;
@@ -109,7 +117,7 @@ function Editor({ item, flash, onBack, onNext }: { item: Item; flash: (m: string
     flash("התמונה המקורית חזרה לאתר");
   };
 
-  useHoldUpdates(shots.length > 0);
+  useHoldUpdates(shots.length > 0 || !!busy);
   const shown = pick >= 0 ? shots[pick]?.url : item.original;
   return (
     <div className="nq-stack">

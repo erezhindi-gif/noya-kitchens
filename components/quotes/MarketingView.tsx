@@ -21,7 +21,9 @@ export default function MarketingView({ data, onTagLead, onTagQuote, flash }: {
 }) {
   const [m, setM] = useState<M | null>(null);
   const [err, setErr] = useState(false);
-  const [section, setSection] = useState<Section>("report");
+  // remembered, so a reload (new site version) comes back to the same screen
+  const [section, setSectionState] = useState<Section>(() => { try { return (localStorage.getItem("nq-mk-section") as Section) || "report"; } catch { return "report"; } });
+  const setSection = (s: Section) => { setSectionState(s); try { localStorage.setItem("nq-mk-section", s); } catch {} };
   const thisMonth = todayIL().slice(0, 7);
   const [period, setPeriod] = useState<string>(thisMonth); // "2026-11" or "last3"
 

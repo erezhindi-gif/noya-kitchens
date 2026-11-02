@@ -34,7 +34,7 @@ export default function PhotoStudio({ hasKey, onKeySaved, flash }: { hasKey: boo
   const [show, setShow] = useState<"after" | "before">("after");
   const [error, setError] = useState("");
 
-  useHoldUpdates(!!out);
+  useHoldUpdates(!!out || busy);
   if (!hasKey) return <KeyCard onSaved={onKeySaved} flash={flash} />;
 
   const pick = async (f?: File) => {
