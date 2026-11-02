@@ -17,15 +17,15 @@ export async function POST(req: NextRequest) {
   const b = (await req.json().catch(() => null)) as { image?: string; w?: number; h?: number; opts?: PhotoOpts; refs?: { data: string; kind: "finished" | "original" }[] } | null;
   if (!b?.image || !b.opts || b.image.length > 4_000_000) return NextResponse.json({ error: "failed" }, { status: 400 });
 
-  // Other photos of the same kitchen: finished shots set the styling, originals show the rest of the room.
-  const refs = (b.refs || []).filter((r) => r?.data && r.data.length < 900_000).slice(0, 4);
+  // Finished shots of the same kitchen set the styling. Original photos are not used as references:
+  // with them the model kept copying the old photo and changed almost nothing.
+  const refs = (b.refs || []).filter((r) => r?.data && r.data.length < 900_000 && r.kind === "finished").slice(0, 3);
   const refParts = refs.flatMap((r, i) => [
     { text: `Reference ${i + 1}: ${r.kind === "finished" ? "an already finished professional shot of this same kitchen (copy its accessories, styling, decor and light mood)" : "an original photo of this same kitchen from another angle (for the carpentry and the room only)"}.` },
     { inlineData: { mimeType: "image/jpeg", data: r.data } },
   ]);
   const consistency = refs.length
-    ? "\n\nThe FIRST image is the photo to recreate. The reference images show the SAME kitchen. The result must look like part of the same professional photo shoot: same carpentry, same accessories in the same places, same styling, decor, flowers and light mood as the finished shots. Do not invent different accessories."
-      + (refs.some((r) => r.kind === "finished") ? " The finished shots override the accessories list above." : "")
+    ? "\n\nThe FIRST image is the photo to recreate; recreate THAT view. The reference images are finished professional shots of the SAME kitchen from this shoot: use them only for the accessories, styling, decor, colors and light mood, so the new shot matches them (they override the accessories list above). Do not copy their camera angle, and do not return the first image unchanged."
     : "";
 
   const body = JSON.stringify({

@@ -142,11 +142,8 @@ function Editor({ item, items, flash, reload, onSaved, onRestored, onBack, onNex
     if (!r.ok || !j.image) throw new Error(ERR[j.error] || "יצירת התמונה נכשלה. נסה שוב.");
     return j.image as string;
   };
-  /** The rest of the kitchen: approved new shots first (they carry the styling), then originals. */
-  const mateRefs = () => [
-    ...mates.filter((m) => m.replaced).map((m) => ({ url: m.current, kind: "finished" as const })),
-    ...mates.filter((m) => !m.replaced).map((m) => ({ url: m.current, kind: "original" as const })),
-  ];
+  /** Only already re-shot photos of the kitchen go along: originals as references made the model copy the old photo. */
+  const mateRefs = () => mates.filter((m) => m.replaced).map((m) => ({ url: m.current, kind: "finished" as const }));
 
   const make = async () => {
     setBusy("make"); setErr("");
@@ -166,11 +163,10 @@ function Editor({ item, items, flash, reload, onSaved, onRestored, onBack, onNex
     setBatch(rows); setBatchRun("make"); setErr("");
     const done: string[] = [];
     for (let i = 0; i < list.length; i++) {
-      // the first and the latest new shots lead; approved photos of the kitchen and the originals fill in
+      // the first photo is shot freely; then the first and latest new shots lead the style, with photos already approved
       const fresh = [done[0], done[done.length - 1]].filter((u, k, a) => u && a.indexOf(u) === k).map((u) => ({ url: u!, kind: "finished" as const }));
-      const others = list.filter((x) => x.id !== list[i].id).map((x) => ({ url: x.current, kind: (x.replaced ? "finished" : "original") as "finished" | "original" }));
       try {
-        const url = await shoot(list[i].original, [...fresh, ...others.filter((o) => o.kind === "finished"), ...others.filter((o) => o.kind === "original")]);
+        const url = await shoot(list[i].original, [...fresh, ...list.filter((x) => x.id !== list[i].id && x.replaced).map((x) => ({ url: x.current, kind: "finished" as const }))]);
         done.push(url);
         rows[i] = { ...rows[i], after: url };
       } catch (e) {

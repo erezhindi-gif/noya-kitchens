@@ -39,6 +39,7 @@ const RESHOOT_PROMPT = [
   "Recreate this photo as a brand-new professional photograph of the exact same room, as if it was shot today (2026) by a top architectural interior photographer with a high-end full-frame camera and a tilt-shift lens, then finished in a professional studio.",
   "THE CARPENTRY IS SACRED: every cabinet, door, drawer, panel, shelf, handle, countertop, built-in appliance, material, color, finish and proportion must stay identical. Same number of units, same widths and heights, same order. The room architecture (walls, windows, ceiling, floor) stays identical.",
   "You may: choose a better, more professional camera position and angle (eye level about 1.3 m, straight verticals, a balanced composition that shows the kitchen at its best); improve the light (soft natural daylight with a gentle warm glow under the wall cabinets), exposure, color and sharpness; remove clutter; add a few subtle, tasteful accessories without covering the carpentry.",
+  "The result must be a clearly NEW and better professional photograph, not the input photo with small changes: a new professional camera position and framing, new professional light, a clean finished look.",
   "Photorealistic, architecture-magazine quality. No text, no watermark.",
 ].join("\n");
 
