@@ -81,14 +81,16 @@ function BaseShape({ c, u, x, units, index }: { c: Ctx; u: BaseUnit; x: number; 
     case "gap":
       return <Label c={c} x={mid} y={Y(c, h.base / 2)} t="פנוי" />;
     case "corner": {
-      // the corner cabinet: the square behind the other run is hatched, the filler strip shows without a handle
+      // the corner cabinet: the dead square behind the other run is hatched and crossed, at the height of the
+      // fronts; the filler strip shows without a handle
       const p = cornerPart(units, index, h.depth);
       const hatchA = index === 0 && units.length > 1 ? 0 : p.filler.w;
       return (
         <>
-          <Hatch c={c} x={x + hatchA} y0={0} w={u.w - p.filler.w} h={h.base - h.counter} />
-          {p.filler.w > 0.01 && <><rect x={x + p.filler.a} y={Y(c, h.plinth)} width={p.filler.w} height={h.plinth} fill="#5b544d" /><Front c={c} x={x + p.filler.a} y0={f0} w={p.filler.w} h={fh} fill={c.front} /></>}
-          <Cross c={c} x={x} y0={0} w={u.w} h={h.base - h.counter} />
+          {plinth}
+          <Hatch c={c} x={x + hatchA} y0={f0} w={u.w - p.filler.w} h={fh} />
+          <Cross c={c} x={x + hatchA} y0={f0} w={u.w - p.filler.w} h={fh} />
+          {p.filler.w > 0.01 && <Front c={c} x={x + p.filler.a} y0={f0} w={p.filler.w} h={fh} fill={c.front} />}
         </>
       );
     }
