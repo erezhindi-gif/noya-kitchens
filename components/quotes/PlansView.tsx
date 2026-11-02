@@ -105,6 +105,7 @@ export function PlanScreen({ plan: p, data, upd, saveNow, onBack, onQuote, onOpe
         <div className="nq-head-acts">
           <button className="nq-btn" disabled={pdfBusy} onClick={onPdf}>{pdfBusy ? "מכין PDF…" : "📄 PDF ללקוח"}</button>
           {pdfError && <span className="hint">יצירת ה-PDF נכשלה. נסה שוב</span>}
+          {!q && <a className="nq-btn" href={claudeLink(`הצעת מחיר במערכת נויה מהתכנון של ${who} (תכנון ${p.id}), לפי המחירון והקטלוג: `)} target="_blank" rel="noopener">✨ הצעה בקלוד</a>}
           {q
             ? <button className="nq-btn pri" onClick={() => onOpenQuote(q.id)}>פתח הצעה {qnum(q)} ›</button>
             : <button className="nq-btn pri" onClick={() => onQuote(p)}>הצעת מחיר מהתכנון ›</button>}
