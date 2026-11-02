@@ -52,6 +52,11 @@ const Hatch = ({ c, x, y0, w, h }: { c: Ctx; x: number; y0: number; w: number; h
   <rect x={x} y={Y(c, y0 + h)} width={w} height={h} fill="url(#nqp-hatch)" stroke={LINE} strokeWidth={0.35} />
 );
 
+/** the carpenter's mark for a corner: a big X over its whole width */
+const Cross = ({ c, x, y0, w, h }: { c: Ctx; x: number; y0: number; w: number; h: number }) => (
+  <path d={`M${x} ${Y(c, y0 + h)}L${x + w} ${Y(c, y0)}M${x} ${Y(c, y0)}L${x + w} ${Y(c, y0 + h)}`} stroke={INK} strokeWidth={0.6} fill="none" />
+);
+
 const Label = ({ c, x, y, t, light }: { c: Ctx; x: number; y: number; t: string; light?: boolean }) => (
   <text x={x} y={y} fontSize={c.f * 0.85} textAnchor="middle" fill={light ? "#fff" : INK} direction="rtl" style={{ fontFamily: "inherit" }}>{t}</text>
 );
@@ -83,6 +88,7 @@ function BaseShape({ c, u, x, units, index }: { c: Ctx; u: BaseUnit; x: number; 
         <>
           <Hatch c={c} x={x + hatchA} y0={0} w={u.w - p.filler.w} h={h.base - h.counter} />
           {p.filler.w > 0.01 && <><rect x={x + p.filler.a} y={Y(c, h.plinth)} width={p.filler.w} height={h.plinth} fill="#5b544d" /><Front c={c} x={x + p.filler.a} y0={f0} w={p.filler.w} h={fh} fill={c.front} /></>}
+          <Cross c={c} x={x} y0={0} w={u.w} h={h.base - h.counter} />
         </>
       );
     }
@@ -157,7 +163,7 @@ function upperFront(c: Ctx, u: UpperUnit, x: number, y0: number, uh: number, n: 
     case "gap":
       return null;
     case "corner":
-      return <Hatch c={c} x={x} y0={y0} w={u.w} h={uh} />;
+      return <><Hatch c={c} x={x} y0={y0} w={u.w} h={uh} /><Cross c={c} x={x} y0={y0} w={u.w} h={uh} /></>;
     case "doors":
       return <Doors c={c} x={x} y0={y0} w={u.w} h={uh} n={n} fill={c.upper} at="bottom" />;
     case "lift":
