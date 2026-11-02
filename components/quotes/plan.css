@@ -19,8 +19,11 @@
 .nqp-sub { font-size: 13px; color: #8a7766; margin: 8px 0 4px; }
 .nqp-sub .bad { color: #b3261e; font-weight: 700; }
 .nqp-rows { display: grid; gap: 6px; }
-.nqp-row { display: grid; grid-template-columns: 12px minmax(84px, 1fr) 48px 48px auto; align-items: center; gap: 5px; }
+/* width and count fields wide enough for "319" / "100" with room to spare */
+.nqp-row { display: grid; grid-template-columns: 14px minmax(84px, 1fr) 72px 60px auto; align-items: center; gap: 5px; }
 .nqp-row .in { width: 100%; min-width: 0; padding-inline: 6px; }
+.nqp-row .in.num { text-align: center; -moz-appearance: textfield; }
+.nqp-row .in.num::-webkit-outer-spin-button, .nqp-row .in.num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .nqp-row-h { font-size: 12px; color: #8a7766; }
 .nqp-i { width: 18px; color: #8a7766; font-size: 13px; }
 .nqp-num { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: #6d655c; }
