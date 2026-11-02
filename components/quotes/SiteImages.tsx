@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 
 type Item = { id: string; group: string; original: string; current: string; replaced: boolean; set?: string };
 type Shot = { url: string; notes: string };
+/** One photo in a whole-kitchen re-shoot: its original, the new shot, and whether to put it on the site. */
+type Batch = { id: string; before: string; after?: string; err?: string; keep: boolean };
 
 const ERR: Record<string, string> = {
   billing: "נגמר הקרדיט בגוגל. צריך לטעון עוד בעמוד החיוב של Google AI Studio.",
@@ -114,24 +116,75 @@ function Editor({ item, items, flash, reload, onSaved, onRestored, onBack, onNex
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [choosing, setChoosing] = useState(false);
   const mates = item.set ? items.filter((x) => x.set === item.set && x.id !== item.id) : [];
+  // the whole kitchen gets the same "random" styling
+  const seed = item.set || item.id;
+  const [batch, setBatch] = useState<Batch[] | null>(null);
+  const [batchRun, setBatchRun] = useState<"" | "make" | "save">("");
+
+  /** One new shot of `source`, with the given reference photos of the same kitchen. */
+  const shoot = async (source: string, refList: { url: string; kind: "finished" | "original" }[]) => {
+    const src = await toJpeg(source);
+    const refs = await Promise.all(refList.slice(0, 4).map(async (x) => ({ data: (await toJpeg(x.url, 1024, 0.8)).data, kind: x.kind })));
+    const r = await fetch("/api/admin/photo", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: src.data, w: src.w, h: src.h, refs, opts: { mode: "reshoot", seed, counter: "keep", appliances: [], light: "studio", clean: true, styling: true, notes: fullNotes } }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.image) throw new Error(ERR[j.error] || "יצירת התמונה נכשלה. נסה שוב.");
+    return j.image as string;
+  };
+  /** The rest of the kitchen: approved new shots first (they carry the styling), then originals. */
+  const mateRefs = () => [
+    ...mates.filter((m) => m.replaced).map((m) => ({ url: m.current, kind: "finished" as const })),
+    ...mates.filter((m) => !m.replaced).map((m) => ({ url: m.current, kind: "original" as const })),
+  ];
 
   const make = async () => {
     setBusy("make"); setErr("");
     try {
       // a new version builds on the one on screen, so notes can add things step by step
-      const src = await toJpeg(pick >= 0 ? shots[pick].url : item.original);
-      // the rest of the kitchen: approved new shots first (they carry the styling), then originals
-      const ordered = [...mates.filter((m) => m.replaced), ...mates.filter((m) => !m.replaced)].slice(0, 4);
-      const refs = await Promise.all(ordered.map(async (m) => ({ data: (await toJpeg(m.current, 1024, 0.8)).data, kind: m.replaced ? "finished" : "original" })));
-      const r = await fetch("/api/admin/photo", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: src.data, w: src.w, h: src.h, refs, opts: { mode: "reshoot", counter: "keep", appliances: [], light: "studio", clean: true, styling: true, notes: fullNotes } }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok || !j.image) setErr(ERR[j.error] || "יצירת התמונה נכשלה. נסה שוב.");
-      else { setShots((s) => [...s, { url: j.image, notes: fullNotes }]); setPick(shots.length); }
-    } catch { setErr("לא הצלחתי לקרוא את התמונה המקורית."); }
+      const url = await shoot(pick >= 0 ? shots[pick].url : item.original, mateRefs());
+      setShots((s) => [...s, { url, notes: fullNotes }]);
+      setPick(shots.length);
+    } catch (e) { setErr(e instanceof Error && e.message !== "read failed" ? e.message : "לא הצלחתי לקרוא את התמונה המקורית."); }
     setBusy("");
+  };
+
+  /** Every photo of the kitchen, one after another; the first new shot sets the style for the rest. */
+  const makeAll = async () => {
+    const list = [item, ...mates];
+    const rows: Batch[] = list.map((x) => ({ id: x.id, before: x.original, keep: true }));
+    setBatch(rows); setBatchRun("make"); setErr("");
+    const done: string[] = [];
+    for (let i = 0; i < list.length; i++) {
+      // the first and the latest new shots lead; approved photos of the kitchen and the originals fill in
+      const fresh = [done[0], done[done.length - 1]].filter((u, k, a) => u && a.indexOf(u) === k).map((u) => ({ url: u!, kind: "finished" as const }));
+      const others = list.filter((x) => x.id !== list[i].id).map((x) => ({ url: x.current, kind: (x.replaced ? "finished" : "original") as "finished" | "original" }));
+      try {
+        const url = await shoot(list[i].original, [...fresh, ...others.filter((o) => o.kind === "finished"), ...others.filter((o) => o.kind === "original")]);
+        done.push(url);
+        rows[i] = { ...rows[i], after: url };
+      } catch (e) {
+        rows[i] = { ...rows[i], keep: false, err: e instanceof Error ? e.message : "נכשל" };
+        if (rows[i].err === ERR.billing) { setBatch([...rows]); break; }
+      }
+      setBatch([...rows]);
+    }
+    setBatchRun("");
+  };
+  const saveBatch = async () => {
+    if (!batch) return;
+    setBatchRun("save");
+    let ok = 0;
+    for (const row of batch.filter((r) => r.keep && r.after)) {
+      const r = await fetch("/api/admin/site-images", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: row.id, image: row.after }) })
+        .then((x) => x.ok).catch(() => false);
+      if (r) ok++;
+    }
+    setBatchRun("");
+    setBatch(null);
+    reload();
+    flash(`${ok} תמונות הוחלפו באתר ✓ (מופיעות תוך דקה)`);
   };
   const save = async () => {
     const s = shots[pick];
@@ -162,8 +215,43 @@ function Editor({ item, items, flash, reload, onSaved, onRestored, onBack, onNex
     flash(ids.length ? "נשמר: התמונות מסומנות כאותו מטבח ✓" : "התמונה כבר לא מסומנת עם תמונות אחרות");
   };
 
-  useHoldUpdates(shots.length > 0 || busy === "make" || busy === "save");
+  useHoldUpdates(shots.length > 0 || busy === "make" || busy === "save" || !!batch);
   const shown = pick >= 0 ? shots[pick]?.url : item.original;
+  if (batch) {
+    const made = batch.filter((r) => r.after).length;
+    const keep = batch.filter((r) => r.keep && r.after).length;
+    return (
+      <div className="nq-stack">
+        <section className="nq-card">
+          <div className="nq-card-h">
+            <h2>כל המטבח: לפני ואחרי</h2>
+            <span className="hint num">{batchRun === "make" ? `מצלם ${Math.min(made + 1, batch.length)} מתוך ${batch.length}… (כחצי דקה לתמונה)` : `${made} מתוך ${batch.length} מוכנות`}</span>
+          </div>
+          <div className="hint" style={{ marginBottom: 10 }}>מסמנים את מה שמחליפים באתר. מה שלא מסומן נשאר כמו שהוא.</div>
+          <div className="nq-si-batch">
+            {batch.map((r, i) => (
+              <div key={r.id} className="row">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={thumb(r.before)} alt="לפני" />
+                {r.after
+                  // eslint-disable-next-line @next/next/no-img-element
+                  ? <a href={r.after} target="_blank" rel="noopener"><img src={r.after} alt="אחרי" /></a>
+                  : <div className="wait">{r.err || (batchRun === "make" ? "ממתין…" : "—")}</div>}
+                <label className="nq-chip" aria-pressed={r.keep && !!r.after}>
+                  <input type="checkbox" disabled={!r.after || !!batchRun} checked={r.keep && !!r.after}
+                    onChange={(e) => setBatch(batch.map((x, k) => (k === i ? { ...x, keep: e.target.checked } : x)))} /> להחליף
+                </label>
+              </div>
+            ))}
+          </div>
+          <div className="nq-head-acts" style={{ marginTop: 12, justifyContent: "flex-end" }}>
+            <button className="nq-btn" disabled={!!batchRun} onClick={() => setBatch(null)}>סגור בלי להחליף</button>
+            <button className="nq-btn pri" disabled={!!batchRun || !keep} onClick={saveBatch}>{batchRun === "save" ? "מחליף…" : `✓ החלף באתר ${keep} תמונות`}</button>
+          </div>
+        </section>
+      </div>
+    );
+  }
   return (
     <div className="nq-stack">
       <div className="nq-head-acts" style={{ justifyContent: "space-between", alignItems: "center" }}>
@@ -185,7 +273,10 @@ function Editor({ item, items, flash, reload, onSaved, onRestored, onBack, onNex
       <section className="nq-card">
         <div className="nq-card-h">
           <h2>תמונות נוספות של אותו מטבח</h2>
-          <button className="nq-btn sm" disabled={!!busy} onClick={() => setChoosing(!choosing)}>{choosing ? "סגור" : mates.length ? "שנה" : "בחר תמונות"}</button>
+          <span className="nq-head-acts">
+            {mates.length > 0 && !choosing && <button className="nq-btn sm pri" disabled={!!busy} onClick={makeAll}>📸 צלם מחדש את כל המטבח ({mates.length + 1})</button>}
+            <button className="nq-btn sm" disabled={!!busy} onClick={() => setChoosing(!choosing)}>{choosing ? "סגור" : mates.length ? "שנה" : "בחר תמונות"}</button>
+          </span>
         </div>
         {!choosing && (mates.length
           ? <>

@@ -1,6 +1,6 @@
 // What the catalog-photo tool asks the image model for. Shared by the screen (choices) and the server (prompt).
 
-export type PhotoOpts = { counter: string; appliances: string[]; light: string; clean: boolean; styling: boolean; notes: string; /** "pro": retouch a finished photo only, add nothing */ mode?: "catalog" | "pro" | "reshoot" };
+export type PhotoOpts = { counter: string; appliances: string[]; light: string; clean: boolean; styling: boolean; notes: string; /** "pro": retouch a finished photo only, add nothing */ mode?: "catalog" | "pro" | "reshoot"; /** same seed = same styling (all photos of one kitchen) */ seed?: string };
 
 /** A finished project photographed on a phone, made to look shot and finished by a top architectural photographer. */
 const PRO_PROMPT = [
@@ -52,25 +52,34 @@ const STYLING = [
   "small potted herbs (basil and rosemary) in terracotta pots", "a bottle of wine with two glasses", "a low arrangement of white hydrangeas",
   "a ceramic pitcher with lavender", "a glass cake stand with a lemon cake",
 ];
-export function pickStyling(n = 3) {
+/** Random numbers from a text: the same kitchen always gets the same "random" styling. */
+function rng(seed?: string) {
+  if (!seed) return Math.random;
+  let h = 2166136261;
+  for (const ch of seed) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return () => { h = Math.imul(h ^ (h >>> 15), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); return ((h ^= h >>> 16) >>> 0) / 4294967296; };
+}
+
+export function pickStyling(n = 3, rand: () => number = Math.random) {
   const pool = [...STYLING];
   const out: string[] = [];
-  while (out.length < n && pool.length) out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  while (out.length < n && pool.length) out.push(pool.splice(Math.floor(rand() * pool.length), 1)[0]);
   return out.join(", ");
 }
 
 /** Not every real shoot dresses the counters: about a third stay bare, most get one thing, a few get two. */
-function reshootStyling() {
-  const r = Math.random();
+function reshootStyling(seed?: string) {
+  const rand = rng(seed);
+  const r = rand();
   if (r < 0.35) return "Accessories for this shot: none. Keep the countertops clean and almost empty, as delivered; do not add decor (removing clutter is fine).";
-  return `Accessories for this shot: only ${pickStyling(r < 0.75 ? 1 : 2)}, placed casually. Nothing else. Do not add a wooden cutting board.`;
+  return `Accessories for this shot: only ${pickStyling(r < 0.75 ? 1 : 2, rand)}, placed casually. Nothing else. Do not add a wooden cutting board.`;
 }
 
 /** So the photo reads as a real shoot and not as an AI edit. */
 const NATURAL = "It must look like a real photograph, not a render or an AI image: real camera optics, natural light falloff and soft real shadows, believable reflections, subtle real-world imperfections, nothing too perfect, too symmetrical, too glossy or over-styled.";
 
 export function photoPrompt(o: PhotoOpts) {
-  if (o.mode === "reshoot") return RESHOOT_PROMPT + `\n${reshootStyling()}\n${NATURAL}` + (o.notes?.trim() ? `\nInstructions from the kitchen maker for this photo (Hebrew, follow them exactly, they override the above except the carpentry rule): ${o.notes.trim()}` : "");
+  if (o.mode === "reshoot") return RESHOOT_PROMPT + `\n${reshootStyling(o.seed)}\n${NATURAL}` + (o.notes?.trim() ? `\nInstructions from the kitchen maker for this photo (Hebrew, follow them exactly, they override the above except the carpentry rule): ${o.notes.trim()}` : "");
   if (o.mode === "pro") return PRO_PROMPT + (o.notes?.trim() ? `\nNotes from the kitchen maker (Hebrew, follow them): ${o.notes.trim()}` : "");
   const counter = COUNTERS[o.counter] || COUNTERS.calacatta;
   const add = [
