@@ -194,7 +194,9 @@ export const autoDesc = (cat: CatNode[], n: CatNode) =>
 export const tidyCat = (cat: CatNode[]) =>
   cat.map((c) => (c.desc && /[,\s]+$/.test(c.desc) ? { ...c, desc: c.desc.replace(/[,\s]+$/, "") } : c));
 
-export const showQtyOf = (cat: CatNode[], n: CatNode) => [n, ...ancestors(cat, n)].some((x) => x.showQty);
+/** Hardware (the top folder "פרזול") always shows its quantities to the client, whatever the catalog says. */
+export const isHardware = (x: CatNode) => !x.parentId && x.name.trim() === "פרזול";
+export const showQtyOf = (cat: CatNode[], n: CatNode) => [n, ...ancestors(cat, n)].some((x) => x.showQty || isHardware(x));
 
 export const leafCount = (cat: CatNode[], id: string): number =>
   kids(cat, id).reduce((s, c) => s + (c.folder ? leafCount(cat, c.id) : 1), 0);

@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  STATUS_LABEL, UNIT_LABEL, ancestors, calc, descendantIds, fdate, kids, leafCount, lineFrom, lineTotal,
+  STATUS_LABEL, UNIT_LABEL, ancestors, calc, descendantIds, fdate, isHardware, kids, leafCount, lineFrom, lineTotal,
   commissionsOf, defaultCommissions, followState, markSentFields, tidyLineDesc, composeDesc, label, money, pathPrice, priceOf, normalizeCat, tidyCat, qnum, reviewAskLinks, reviewAskText, reviewLines, todayIL, uid, waLink, waText,
 } from "@/lib/quotes/calc";
 import type { AppData, CatNode, Lead, LeadFile, LeadSource, Plan, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
@@ -1238,7 +1238,8 @@ function CatalogView({ cat, upd }: { cat: CatNode[]; upd: (fn: (cat: CatNode[]) 
   const [confirm, setConfirm] = useState<string | null>(null);
   const cur = cat.find((c) => c.id === at);
   const trail = cur ? [...ancestors(cat, cur), cur] : [];
-  const inherited = cur ? ancestors(cat, cur).some((a) => a.showQty) : false;
+  const fixedHw = cur ? [cur, ...ancestors(cat, cur)].some(isHardware) : false;
+  const inherited = cur ? fixedHw || ancestors(cat, cur).some((a) => a.showQty) : false;
   const list = kids(cat, at);
 
   const openNew = (parentId: string) => setForm({ mode: "new", parentId, name: "", desc: "", unit: "u", price: "" });
@@ -1292,7 +1293,7 @@ function CatalogView({ cat, upd }: { cat: CatNode[]; upd: (fn: (cat: CatNode[]) 
           {cur && (
             <label className="nq-chk">
               <input type="checkbox" checked={!!cur.showQty || inherited} disabled={inherited} onChange={(e) => upd((all) => all.map((c) => (c.id === cur.id ? { ...c, showQty: e.target.checked } : c)))} />
-              להציג ללקוח כמות לכל מה שמתחת ל&quot;{label(cur)}&quot;{inherited ? " (נקבע ברמה מעל)" : ""}
+              להציג ללקוח כמות לכל מה שמתחת ל&quot;{label(cur)}&quot;{fixedHw ? " (בפרזול תמיד)" : inherited ? " (נקבע ברמה מעל)" : ""}
             </label>
           )}
         </section>
