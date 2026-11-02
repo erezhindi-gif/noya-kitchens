@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { nearestRatio, photoPrompt, type PhotoOpts } from "@/lib/marketing/photo-prompt";
 import { getSecrets } from "@/lib/quotes/store";
+import { createClient } from "@sanity/client";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -51,9 +52,39 @@ export async function POST(req: NextRequest) {
     if (j.promptFeedback?.blockReason) return NextResponse.json({ error: "blocked" }, { status: 422 });
     const img = j.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)?.inlineData;
     if (!img) { last = j.candidates?.[0]?.finishReason && j.candidates[0].finishReason !== "STOP" ? "blocked" : "no-image"; continue; }
-    return NextResponse.json({ image: await asJpeg(img.data, img.mimeType), model });
+    const image = await asJpeg(img.data, img.mimeType);
+    // Every made photo is kept at once: it was paid for, and a reload or a closed screen must not lose it.
+    const kept = await keepDraft(image, b.opts).catch((e) => { console.error("keep draft failed", e); return null; });
+    return NextResponse.json({ image, model, kept });
   }
   return NextResponse.json({ error: last }, { status: 502 });
+}
+
+/** The photos made lately, newest first. */
+export async function GET() {
+  const doc = await sanity.fetch<{ items?: Draft[] } | null>(`*[_id == $id][0]{ items }`, { id: DRAFTS_ID }, { cache: "no-store" });
+  return NextResponse.json({ items: (doc?.items || []).slice().reverse() });
+}
+
+const sanity = createClient({
+  projectId: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID!,
+  dataset: process.env.NEXT_PUBLIC_SANITY_DATASET || "production",
+  apiVersion: "2024-01-01",
+  token: process.env.SANITY_API_TOKEN,
+  useCdn: false,
+});
+/** Private (dotted id) list of every photo the tool made. */
+const DRAFTS_ID = "noyaq.photodrafts";
+type Draft = { _key: string; url: string; at: string; mode: string; notes: string };
+
+async function keepDraft(image: string, opts: PhotoOpts) {
+  const m = image.match(/^data:(image\/[a-z]+);base64,(.+)$/);
+  if (!m) return null;
+  const asset = await sanity.assets.upload("image", Buffer.from(m[2], "base64"), { filename: `noya-photo-${Date.now()}.jpg`, contentType: m[1] });
+  const d: Draft = { _key: asset._id.replace(/[^a-zA-Z0-9]/g, "").slice(-24), url: asset.url, at: new Date().toISOString(), mode: opts.mode || "catalog", notes: (opts.notes || "").slice(0, 300) };
+  await sanity.createIfNotExists({ _id: DRAFTS_ID, _type: "nq_photodrafts" });
+  await sanity.patch(DRAFTS_ID).setIfMissing({ items: [] }).append("items", [d]).commit();
+  return d.url;
 }
 
 /** The model answers with a large PNG; a JPEG keeps the reply under Vercel's 4.5MB limit. */

@@ -66,6 +66,7 @@ export default function SiteImages({ flash }: { flash: (m: string) => void }) {
   return (
     <div className="nq-stack">
       <div className="hint">בוחרים תמונה, כותבים מה לשנות, ומאשרים רק את מה שאהבת. אפשר תמיד להחזיר את המקור. החלפה מופיעה באתר תוך דקה.</div>
+      <Drafts />
       {groups.map((g) => {
         const list = items.filter((i) => i.group === g);
         return (
@@ -346,6 +347,27 @@ function MatePicker({ item, items, initial, busy, onSave }: { item: Item; items:
         <button className="nq-btn pri" disabled={busy} onClick={() => onSave(sel)}>{busy ? "שומר…" : "שמור"}</button>
       </div>
     </div>
+  );
+}
+
+/** Every photo the tool made, kept by the server the moment it was made (so a reload never loses a paid version). */
+function Drafts() {
+  const [list, setList] = useState<{ url: string; at: string; notes: string }[] | null>(null);
+  useEffect(() => { fetch("/api/admin/photo", { cache: "no-store" }).then((r) => r.json()).then((j) => setList(j.items || [])).catch(() => setList([])); }, []);
+  if (!list?.length) return null;
+  return (
+    <section className="nq-card">
+      <div className="nq-card-h"><h2>כל הגרסאות שנוצרו</h2><span className="hint">נשמרות אוטומטית. לחיצה פותחת בגודל מלא</span></div>
+      <div className="nq-si-grid">
+        {list.slice(0, 24).map((d) => (
+          <a key={d.url} className="nq-si-thumb" href={d.url} target="_blank" rel="noopener" title={d.notes}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={`${d.url}?w=400&q=70`} alt="" loading="lazy" />
+            <span className="nq-si-set">{new Date(d.at).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+          </a>
+        ))}
+      </div>
+    </section>
   );
 }
 
