@@ -13,9 +13,16 @@ type Part = { text?: string; inlineData?: { mimeType: string; data: string } };
 type GenResponse = { candidates?: { content?: { parts?: Part[] }; finishReason?: string }[]; promptFeedback?: { blockReason?: string }; error?: { status?: string; message?: string } };
 
 export async function POST(req: NextRequest) {
+  const raw = (await req.json().catch(() => null)) as { keep?: string } | null;
+  // a finished photo touched up by hand in the browser: just keep it with the others
+  if (raw?.keep) {
+    if (raw.keep.length > 4_000_000) return NextResponse.json({ error: "too-big" }, { status: 400 });
+    const kept = await keepDraft(raw.keep, { mode: "retouch", notes: "תיקון ידני" } as unknown as PhotoOpts).catch(() => null);
+    return kept ? NextResponse.json({ kept }) : NextResponse.json({ error: "failed" }, { status: 500 });
+  }
   const { geminiKey } = await getSecrets();
   if (!geminiKey) return NextResponse.json({ error: "no-key" }, { status: 503 });
-  const b = (await req.json().catch(() => null)) as { image?: string; w?: number; h?: number; opts?: PhotoOpts; refs?: { data: string; kind: "finished" | "original" | "product"; label?: string }[]; quality?: "pro" } | null;
+  const b = raw as { image?: string; w?: number; h?: number; opts?: PhotoOpts; refs?: { data: string; kind: "finished" | "original" | "product"; label?: string }[]; quality?: "pro" } | null;
   if (!b?.image || !b.opts || b.image.length > 4_000_000) return NextResponse.json({ error: "failed" }, { status: 400 });
 
   // Finished shots of the same kitchen set the styling. Original photos are not used as references:
