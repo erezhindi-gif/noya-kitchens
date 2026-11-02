@@ -1,6 +1,14 @@
 // What the catalog-photo tool asks the image model for. Shared by the screen (choices) and the server (prompt).
 
-export type PhotoOpts = { counter: string; appliances: string[]; light: string; clean: boolean; styling: boolean; notes: string };
+export type PhotoOpts = { counter: string; appliances: string[]; light: string; clean: boolean; styling: boolean; notes: string; /** "pro": retouch a finished photo only, add nothing */ mode?: "catalog" | "pro" };
+
+/** A finished project photographed on a phone, made to look shot and finished by a top architectural photographer. */
+const PRO_PROMPT = [
+  "Retouch this real photo of a finished interior so it looks as if it was shot by a top architectural and interior photographer with a professional camera and then finished in a professional studio.",
+  "ABSOLUTE RULE: keep everything real. Same cabinetry, furniture, doors, drawers, handles, countertops, appliances, materials, colors, finishes, proportions and room architecture. Same camera position and framing. Do not add, remove, move, resize or restyle anything, except removing small clutter such as cables, tools, bags, stickers and protective film.",
+  "Improve only the photography: balanced exposure with detail in the windows and in the shadows, neutral true-to-life white balance, straight vertical lines (two-point perspective), crisp sharp detail, no noise or phone-camera artifacts, soft natural light with gentle shadows, clean reflections.",
+  "Photorealistic, high-end architecture magazine quality. No text, no watermark.",
+].join("\n");
 
 export const COUNTERS: Record<string, { he: string; en: string }> = {
   calacatta: { he: "קוורץ לבן עם עורקים (קלקטה)", en: "a white Calacatta-look quartz countertop with soft grey veining, 2 cm thick" },
@@ -27,6 +35,7 @@ export const LIGHTS: Record<string, { he: string; en: string }> = {
 };
 
 export function photoPrompt(o: PhotoOpts) {
+  if (o.mode === "pro") return PRO_PROMPT + (o.notes?.trim() ? `\nNotes from the kitchen maker (Hebrew, follow them): ${o.notes.trim()}` : "");
   const counter = COUNTERS[o.counter] || COUNTERS.calacatta;
   const add = [
     counter.en && `Add ${counter.en} on top of every base cabinet, following the exact outline of the cabinets with a small front overhang, plus a matching backsplash only if the wall behind is bare plaster.`,
