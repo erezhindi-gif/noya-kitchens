@@ -1,6 +1,6 @@
 // What the catalog-photo tool asks the image model for. Shared by the screen (choices) and the server (prompt).
 
-export type PhotoOpts = { counter: string; appliances: string[]; light: string; clean: boolean; styling: boolean; notes: string; /** "pro": retouch a finished photo only, add nothing */ mode?: "catalog" | "pro" | "reshoot"; /** same seed = same styling (all photos of one kitchen) */ seed?: string };
+export type PhotoOpts = { counter: string; appliances: string[]; light: string; clean: boolean; styling: boolean; notes: string; /** "pro": retouch a finished photo only, add nothing */ mode?: "catalog" | "pro" | "reshoot" | "edit"; /** same seed = same styling (all photos of one kitchen) */ seed?: string };
 
 /** A finished project photographed on a phone, made to look shot and finished by a top architectural photographer. */
 const PRO_PROMPT = [
@@ -46,6 +46,13 @@ const RESHOOT_PROMPT = [
   "Photorealistic, architecture-magazine quality. No text, no watermark.",
 ].join("\n");
 
+/** A fix to a photo that is already good: change only what is asked, keep the rest pixel-faithful. */
+const EDIT_PROMPT = [
+  "Edit this photo. Make ONLY the changes listed below and keep everything else exactly as it is: the same camera position, angle and framing, the same carpentry, materials, colors, light, styling and objects.",
+  "The carpentry is sacred: cabinets, doors, drawers, handles and their colors stay identical unless a change below says otherwise.",
+  "It must remain a real, natural photograph, not a render. No text, no watermark.",
+].join("\n");
+
 /** Styling ideas; each shot gets a different few, so the site's kitchens don't all show the same props. */
 const STYLING = [
   "white tulips in a tall clear glass vase", "a single olive branch in a slim ceramic vase", "a eucalyptus bunch in a stoneware jug",
@@ -83,6 +90,7 @@ function reshootStyling(seed?: string) {
 const NATURAL = "It must look like a real photograph, not a render or an AI image: real camera optics, natural light falloff and soft real shadows, believable reflections, subtle real-world imperfections, nothing too perfect, too symmetrical, too glossy or over-styled.";
 
 export function photoPrompt(o: PhotoOpts) {
+  if (o.mode === "edit") return EDIT_PROMPT + (o.notes?.trim() ? `\nThe changes to make: ${o.notes.trim()}` : "");
   if (o.mode === "reshoot") return RESHOOT_PROMPT + `\n${reshootStyling(o.seed)}\n${NATURAL}` + (o.notes?.trim() ? `\nInstructions from the kitchen maker for this photo (Hebrew, follow them exactly, they override the above, except the carpentry rule and the professional architectural composition, which always apply: straight verticals, a proper camera height and a balanced, magazine-quality framing): ${o.notes.trim()}` : "");
   if (o.mode === "pro") return PRO_PROMPT + (o.notes?.trim() ? `\nNotes from the kitchen maker (Hebrew, follow them): ${o.notes.trim()}` : "");
   const counter = COUNTERS[o.counter] || COUNTERS.calacatta;

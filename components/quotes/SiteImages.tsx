@@ -136,7 +136,7 @@ function Editor({ item, items, flash, reload, onSaved, onRestored, onBack, onNex
     const refs = await Promise.all(refList.slice(0, 4).map(async (x) => ({ data: (await toJpeg(x.url, 1024, 0.8)).data, kind: x.kind })));
     const r = await fetch("/api/admin/photo", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image: src.data, w: src.w, h: src.h, refs, opts: { mode: "reshoot", seed, counter: "keep", appliances: [], light: "studio", clean: true, styling: true, notes: fullNotes } }),
+      body: JSON.stringify({ image: src.data, w: src.w, h: src.h, refs, opts: { mode: source.startsWith("data:") ? "edit" : "reshoot", seed, counter: "keep", appliances: [], light: "studio", clean: true, styling: true, notes: fullNotes } }),
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.image) throw new Error(ERR[j.error] || "יצירת התמונה נכשלה. נסה שוב.");

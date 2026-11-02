@@ -19,12 +19,12 @@ export async function POST(req: NextRequest) {
 
   // Finished shots of the same kitchen set the styling. Original photos are not used as references:
   // with them the model kept copying the old photo and changed almost nothing.
-  const refs = (b.refs || []).filter((r) => r?.data && r.data.length < 900_000 && r.kind === "finished").slice(0, 3);
+  const refs = (b.refs || []).filter((r) => r?.data && r.data.length < 900_000 && (r.kind === "finished" || b.opts?.mode === "edit")).slice(0, 3);
   const refParts = refs.flatMap((r, i) => [
-    { text: `Reference ${i + 1}: ${r.kind === "finished" ? "an already finished professional shot of this same kitchen (copy its accessories, styling, decor and light mood)" : "an original photo of this same kitchen from another angle (for the carpentry and the room only)"}.` },
+    { text: `Reference ${i + 1}: ${b.opts?.mode === "edit" && r.kind === "original" ? "the original photo of this kitchen: use it ONLY for the true colors and carpentry details (for example the exact oak tone of the fronts and the cabinet doors under the counters); do not copy its unfinished state or its camera" : r.kind === "finished" ? "an already finished professional shot of this same kitchen (copy its accessories, styling, decor and light mood)" : "an original photo of this same kitchen from another angle (for the carpentry and the room only)"}.` },
     { inlineData: { mimeType: "image/jpeg", data: r.data } },
   ]);
-  const consistency = refs.length
+  const consistency = refs.length && b.opts?.mode !== "edit"
     ? "\n\nThe FIRST image is the photo to recreate; recreate THAT view. The reference images are finished professional shots of the SAME kitchen from this shoot: use them only for the accessories, styling, decor, colors and light mood, so the new shot matches them (they override the accessories list above). Do not copy their camera angle, and do not return the first image unchanged."
     : "";
 
