@@ -78,6 +78,8 @@ export type Quote = {
   /** When the quote was sent, and when to call the client back if there's no answer */
   sentAt?: string;
   followUp?: string;
+  /** When Erez last sent the follow-up message */
+  followedAt?: string;
   /** Notes only Erez sees */
   internalNotes?: string;
   /** The kitchen plan this quote was made from; its drawing and 3D view show with the quote */
@@ -115,6 +117,8 @@ export type Settings = {
   /** Where a client whose kitchen is done writes a review; sent only by Erez, only after the job */
   reviewAskGoogle?: string;
   reviewAskB144?: string;
+  /** The WhatsApp message for calling back a client who hasn't answered a quote; edited before each send */
+  followUpText?: string;
 };
 
 export type LeadSource = "email" | "whatsapp" | "phone" | "site" | "other";

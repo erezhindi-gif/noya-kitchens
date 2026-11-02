@@ -281,6 +281,17 @@ export function reviewAskText(q: Quote, s: Settings) {
   ].join("\n");
 }
 
+/** The follow-up message from the settings, filled in for this quote. */
+export function followUpText(q: Quote, s: Settings, origin: string) {
+  const name = (q.client.name || "").trim().split(/\s+/)[0];
+  return (s.followUpText || "")
+    .replace(/\{שם\}/g, name)
+    .replace(/\{פרויקט\}/g, q.project.trim() ? ` ל${q.project.trim()}` : "")
+    .replace(/\{מספר\}/g, qnum(q))
+    .replace(/\{קישור\}/g, `${origin}/q/${q.id}`)
+    .replace(/\{בעלים\}/g, s.owner || "ארז");
+}
+
 /** A WhatsApp chat with this phone, with the text typed in. */
 export function waText(phone: string, text: string) {
   let ph = (phone || "").replace(/\D/g, "");

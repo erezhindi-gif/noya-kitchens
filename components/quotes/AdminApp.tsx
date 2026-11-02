@@ -1,8 +1,8 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  STATUS_LABEL, UNIT_LABEL, ancestors, calc, descendantIds, fdate, isHardware, kids, leafCount, lineFrom, lineTotal,
-  commissionsOf, defaultCommissions, followState, markSentFields, tidyLineDesc, composeDesc, label, money, pathPrice, priceOf, normalizeCat, tidyCat, qnum, reviewAskLinks, reviewAskText, reviewLines, todayIL, uid, waLink, waText,
+  STATUS_LABEL, UNIT_LABEL, addDays, ancestors, calc, descendantIds, fdate, isHardware, kids, leafCount, lineFrom, lineTotal,
+  commissionsOf, defaultCommissions, followState, markSentFields, tidyLineDesc, composeDesc, label, money, pathPrice, priceOf, normalizeCat, tidyCat, qnum, followUpText, reviewAskLinks, reviewAskText, reviewLines, todayIL, uid, waLink, waText,
 } from "@/lib/quotes/calc";
 import type { AppData, CatNode, Lead, LeadFile, LeadSource, Plan, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
 import { STARTER_LAYOUT } from "./LayoutEditor";
@@ -505,6 +505,7 @@ export default function AdminApp() {
           </button>
         )}
         {view === "list" && <ListView data={data} onOpen={(id) => go("edit", id)} onNew={() => newQuote()} onDup={(q) => newQuote(q)} onDelete={removeQuote}
+          onFollowed={(id) => updQuote(id, (x) => { x.followedAt = todayIL(); x.followUp = addDays(todayIL(), 5); })}
           onAgent={(d) => newQuote({ ...d, pros: [], commissions: defaultCommissions(data.settings), round: false } as unknown as Quote, "טיוטה מהסוכן נפתחה:")} />}
         {view === "plans" && <PlansView data={data} onOpen={(id) => go("plan", id)} onNew={() => go("plan", newPlan().id)} onQuote={quoteFromPlan} onOpenQuote={(id) => go("edit", id)} />}
         {view === "plan" && plan && (
@@ -713,7 +714,8 @@ function LeadForm({ lead, isNew, onClose, onSave }: { lead: Lead; isNew: boolean
 const claudeLink = (start: string) => `https://claude.ai/new?q=${encodeURIComponent(start)}`;
 
 /* =================== list =================== */
-function ListView({ data, onOpen, onNew, onDup, onDelete, onAgent }: { data: AppData; onOpen: (id: string) => void; onNew: () => void; onDup: (q: Quote) => void; onDelete: (id: string) => void; onAgent: (d: AgentDraft) => void }) {
+function ListView({ data, onOpen, onNew, onDup, onDelete, onAgent, onFollowed }: { data: AppData; onOpen: (id: string) => void; onNew: () => void; onDup: (q: Quote) => void; onDelete: (id: string) => void; onAgent: (d: AgentDraft) => void; onFollowed: (id: string) => void }) {
+  const [follow, setFollow] = useState<Quote | null>(null);
   const [agentOpen, setAgentOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const [filter, setFilter] = useState<Status | "all" | "follow">("all");
@@ -767,7 +769,7 @@ function ListView({ data, onOpen, onNew, onDup, onDelete, onAgent }: { data: App
             <span className="t num">{money(c.price)}<div className="sub" style={{ fontWeight: 400 }}>לפני מע״מ</div></span>
             <span className="nq-pills">
               <span className={`nq-pill nq-st-${q.status}`}>{STATUS_LABEL[q.status]}</span>
-              {fs(q).due && <span className="nq-pill nq-due">לחזור ללקוח</span>}
+              {fs(q).due && <button type="button" className="nq-pill nq-due" title="הודעת מעקב בוואטסאפ" onClick={(e) => { e.stopPropagation(); setFollow(q); }}>לחזור ללקוח 💬</button>}
               {fs(q).expired && <span className="nq-pill nq-exp">פג תוקף</span>}
             </span>
             <span className="acts" onClick={(e) => e.stopPropagation()}>
@@ -786,11 +788,32 @@ function ListView({ data, onOpen, onNew, onDup, onDelete, onAgent }: { data: App
             </span>
           </div>
         ))}
+        {follow && <FollowUpModal q={follow} settings={data.settings} onClose={() => setFollow(null)} onSent={() => { onFollowed(follow.id); setFollow(null); }} />}
         {!shown.length && (
           <div className="nq-empty">{data.quotes.length ? "אין הצעות שמתאימות לסינון" : "עוד אין הצעות. לחץ על \"הצעה חדשה\" כדי להתחיל"}</div>
         )}
       </div>
     </>
+  );
+}
+
+/** Calling back a client who hasn't answered: the message from the settings, editable before it goes out from Erez's WhatsApp. */
+function FollowUpModal({ q, settings, onClose, onSent }: { q: Quote; settings: Settings; onClose: () => void; onSent: () => void }) {
+  const [text, setText] = useState(() => followUpText(q, settings, typeof window !== "undefined" ? window.location.origin : "https://www.noya-k.co.il"));
+  return (
+    <div className="nq-scrim" onClick={(e) => { e.stopPropagation(); if (e.target === e.currentTarget) onClose(); }}>
+      <div className="nq-sheet nq-modal" role="dialog" aria-label="חזרה ללקוח">
+        <h2>חזרה ל{q.client.name || "לקוח"}</h2>
+        <div className="hint">ההודעה נפתחת בוואטסאפ שלך ואפשר לשנות אותה כאן לפני השליחה. הנוסח הקבוע נמצא בהגדרות.</div>
+        <label className="f">הודעה<textarea className="in" rows={8} value={text} onChange={(e) => setText(e.target.value)} autoFocus /></label>
+        <div className="nq-head-acts" style={{ justifyContent: "flex-end" }}>
+          <button className="nq-btn" onClick={onClose}>ביטול</button>
+          {q.client.phone
+            ? <a className="nq-btn wa" href={waText(q.client.phone, text)} target="_blank" rel="noopener" onClick={onSent}>שליחה בוואטסאפ</a>
+            : <span className="hint">חסר טלפון ללקוח</span>}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1380,6 +1403,9 @@ function SettingsView({ data, upd }: { data: AppData; upd: (fn: (s: Settings, pr
             {field("reviewsMidrag", "קישור לחוות דעת במידרג (נשלח עם כל הצעה)", { full: true })}
             {field("reviewAskGoogle", "קישור לכתיבת ביקורת בגוגל (נשלח רק ללקוח שעבודתו הסתיימה)", { full: true })}
             {field("reviewAskB144", "קישור לכתיבת ביקורת בבזק B144 (נשלח רק ללקוח שעבודתו הסתיימה)", { full: true })}
+            <label className="f full">הודעת חזרה ללקוח שלא ענה על הצעה ({"{שם}"} שם הלקוח, {"{פרויקט}"}, {"{מספר}"} מספר ההצעה, {"{קישור}"} הקישור להצעה, {"{בעלים}"} השם שלך)
+              <textarea className="in" rows={6} value={st.followUpText || ""} onChange={(e) => upd((s) => { s.followUpText = e.target.value; })} />
+            </label>
           </div>
         </section>
         <section className="nq-card">

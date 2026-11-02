@@ -24,6 +24,8 @@ export const DEFAULT_SETTINGS: Settings = {
   reviewAskGoogle: "https://share.google/DlkIEwVynx7sEg1Su",
   reviewAskB144: "https://www.b144.co.il/b144_sip/401D0D1A4370655D411D051B40/#opinionsDiv",
   leadAutoReply: true,
+  followUpText:
+    "שלום {שם},\nרציתי לבדוק אם יצא לך לעבור על הצעת המחיר ששלחתי{פרויקט}.\nאשמח לענות על כל שאלה, ואם צריך לשנות משהו בהצעה נעדכן אותה בשמחה.\nלצפייה בהצעה: {קישור}\n\n{בעלים}, נויה מטבחים",
   leadReplyText:
     "שלום {שם},\n\nתודה על פנייתך לנויה מטבחים. קיבלנו את הבקשה, ונחזור אליך עם הצעת מחיר תוך 2 ימי עסקים.\n\nבברכה,\nארז\nנויה מטבחים\n050-2808180",
 };
