@@ -3,6 +3,7 @@ import { Heebo, Playfair_Display } from "next/font/google";
 import Script from "next/script";
 import AccessibilityWidget from "@/components/AccessibilityWidget";
 import SiteTracker from "@/components/SiteTracker";
+import { GADS_ID } from "@/lib/marketing/gads";
 import "./globals.css";
 
 const heebo = Heebo({
@@ -91,6 +92,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SiteTracker />
         <div id="page-content">{children}</div>
         <Script src="https://elfsightcdn.com/platform.js" strategy="lazyOnload" />
+        {GADS_ID && (
+          <>
+            <Script src={`https://www.googletagmanager.com/gtag/js?id=${GADS_ID}`} strategy="afterInteractive" />
+            <Script id="gads" strategy="afterInteractive">
+              {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date());gtag("config","${GADS_ID}");`}
+            </Script>
+          </>
+        )}
       </body>
     </html>
   );

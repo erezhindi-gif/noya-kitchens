@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 
-const ALTS = ["מטבח מעוצב", "ריהוט בהתאמה אישית", "עיצוב פנים"];
+const ALTS = ["מטבח אלון עם אי ושיש טאג׳ מהל", "מטבח מעוצב", "ריהוט בהתאמה אישית", "עיצוב פנים"];
 
 /** srcs: the hero photos as the site shows them now (a professionally re-shot version replaces the file). */
 export default function HeroSlider({ srcs }: { srcs: string[] }) {

@@ -2,6 +2,7 @@
 // "Leave details and Erez calls back": the request goes into the admin's "פניות" with the channel that brought the visitor.
 import { useRef, useState } from "react";
 import { currentTouch } from "./SiteTracker";
+import { adsLead } from "@/lib/marketing/gads";
 
 const TIMING = ["בחודש הקרוב", "בעוד 1-3 חודשים", "בעוד 3-6 חודשים", "עוד לא יודע/ת"];
 
@@ -19,7 +20,7 @@ export default function ContactForm({ compact = false }: { compact?: boolean }) 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...Object.fromEntries(f), ch: t.ch, landing: t.landing, ms: Date.now() - started.current }),
     }).catch(() => null);
-    if (res?.ok) return setState("done");
+    if (res?.ok) { adsLead(); return setState("done"); }
     setState(res?.status === 400 ? "phone" : "error");
   };
 

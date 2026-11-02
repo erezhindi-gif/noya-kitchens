@@ -3,6 +3,7 @@
 // so the marketing screen can show which channel brings clients. No cookies, no personal data.
 import { useEffect } from "react";
 import { channelOf, type Channel, type SiteEvent } from "@/lib/marketing/channels";
+import { adsLead } from "@/lib/marketing/gads";
 
 const KEY = "noya-ch";
 const KEEP_DAYS = 60;
@@ -46,8 +47,8 @@ export default function SiteTracker() {
     const onClick = (ev: MouseEvent) => {
       const a = (ev.target as Element | null)?.closest?.("a");
       const href = a?.getAttribute("href") || "";
-      if (href.startsWith("tel:")) track("call");
-      else if (/wa\.me|whatsapp\.com/.test(href)) track("wa");
+      if (href.startsWith("tel:")) { track("call"); adsLead(); }
+      else if (/wa\.me|whatsapp\.com/.test(href)) { track("wa"); adsLead(); }
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);

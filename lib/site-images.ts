@@ -4,7 +4,7 @@
 import { client } from "./sanity";
 
 /** The home page's opening slides. */
-export const HERO = ["/images/hero-1.jpg", "/images/hero-2.jpg", "/images/hero-3.jpg"];
+export const HERO = ["/images/hero-0.jpg", "/images/hero-1.jpg", "/images/hero-2.jpg", "/images/hero-3.jpg"];
 
 /** Kitchen photos shipped with the site (hero slides and the kitchen set). */
 export const STATIC_KITCHENS = [
