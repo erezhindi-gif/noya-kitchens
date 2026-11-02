@@ -148,7 +148,7 @@ function KeyCard({ onSaved, flash }: { onSaved: () => void; flash: (m: string) =
       </ol>
       <p className="hint" style={{ margin: "0 0 10px" }}>כל תמונה עולה בערך 15-50 אגורות, בחיוב של גוגל.</p>
       <div className="nq-head-acts">
-        <input className="in ltr" style={{ flex: 1, minWidth: 220, textAlign: "left" }} value={key} onChange={(e) => setKey(e.target.value)} placeholder="AIza…" aria-label="מפתח Gemini" autoComplete="off" />
+        <input className="in ltr" style={{ flex: 1, minWidth: 220, textAlign: "left" }} value={key} onChange={(e) => setKey(e.target.value)} placeholder="מדביקים כאן את המפתח" aria-label="מפתח Gemini" autoComplete="off" />
         <button className="nq-btn pri" disabled={busy || key.trim().length < 30} onClick={save}>{busy ? "בודק…" : "שמור"}</button>
       </div>
     </section>
