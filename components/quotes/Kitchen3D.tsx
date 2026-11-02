@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import type * as T from "three";
 import {
-  COUNTER_COLORS, FRONT_COLORS, colorOf, counterSpans, heightsOf, islandBox, mainWallIndex, partsOf, placed, upperBox, wallGeometry,
+  COUNTER_COLORS, FRONT_COLORS, colorOf, cornerPart, counterSpans, heightsOf, islandBox, mainWallIndex, partsOf, placed, tallOvenParts, upperBox, wallGeometry,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 
@@ -66,11 +66,24 @@ function buildKitchen(three: Three, l: KitchenLayout) {
   const baseRun = (p: T.Object3D, units: BaseUnit[], depth: number, hs: LayoutHeights, withCounter = true) => {
     const f0 = hs.plinth, f1 = hs.base - hs.counter, fh = f1 - f0;
     const z = depth - 2;
-    for (const u of placed(units)) {
+    const pl = placed(units);
+    for (let idx = 0; idx < pl.length; idx++) {
+      const u = pl[idx];
       const x = u.a, w = u.w, n = partsOf(u.kind, u.w, u.n);
-      if (u.kind === "gap" || u.kind === "corner") continue;
+      if (u.kind === "gap") continue;
+      if (u.kind === "corner") {
+        // a closed corner cabinet: only its filler strip shows, without a handle
+        const c = cornerPart(units, idx, depth);
+        if (c.w > 0.01) {
+          box(p, mats.plinth, c.w, f0, depth - 6, x + c.a + c.w / 2, f0 / 2, (depth - 6) / 2);
+          box(p, mats.carcass, c.w, f1 - f0, z, x + c.a + c.w / 2, f0 + (f1 - f0) / 2, z / 2);
+        }
+        if (c.filler.w > 0.01) frontPanel(p, mats.front, x + c.filler.a, f0, c.filler.w + 0.4, fh, z);
+        continue;
+      }
       if (u.kind === "fridge") {
-        box(p, mats.steel, w - 0.6, hs.tall, depth, x + w / 2, hs.tall / 2, depth / 2);
+        const body = u.color ? std(colorOf(u.color, FRONT_COLORS, "#d4d7da"), 0.3, 0.2) : mats.steel;
+        box(p, body, w - 0.6, hs.tall, depth, x + w / 2, hs.tall / 2, depth / 2);
         const fz = hs.tall * 0.36;
         box(p, mats.plinth, w - 0.4, 0.6, 0.4, x + w / 2, fz, depth + 0.1);
         if (handles) {
@@ -105,12 +118,16 @@ function buildKitchen(three: Three, l: KitchenLayout) {
         case "tall":
           for (let i = 0; i < n; i++) frontPanel(p, mats.front, x, f0 + (i * (top - f0)) / n, w, (top - f0) / n, z, "mid");
           break;
-        case "tall_oven":
-          frontPanel(p, mats.front, x, f0, w, 80 - f0, z, "top");
-          frontPanel(p, mats.glass, x, 80, w, 60, z);
-          frontPanel(p, mats.glass, x, 140, w, 38, z);
-          frontPanel(p, mats.front, x, 178, w, top - 178, z, "bottom");
+        case "tall_oven": {
+          const t = tallOvenParts(u, hs);
+          const dh = (t.d1 - t.d0) / t.drawers;
+          for (let i = 0; i < t.drawers; i++) frontPanel(p, mats.front, x, t.d0 + i * dh, w, dh, z, "top");
+          frontPanel(p, mats.glass, x, t.d1, w, t.o1 - t.d1, z);
+          box(p, mats.handle, w - 12, 1.2, 1.6, x + w / 2, t.o1 - 5, z + 2.6);
+          if (t.m1 > t.o1 + 2) frontPanel(p, mats.front, x, t.o1, w, t.m1 - t.o1, z, "bottom");
+          if (t.rest) frontPanel(p, mats.front, x, t.m1, w, top - t.m1, z, "bottom");
           break;
+        }
       }
       if (u.kind === "sink") {
         const sw = Math.min(w - 14, 55);
@@ -123,7 +140,7 @@ function buildKitchen(three: Three, l: KitchenLayout) {
       }
       if (u.kind === "cooktop") box(p, mats.glass, Math.min(w - 8, 60), 0.6, 51, x + w / 2, hs.base + 0.3, depth / 2 + 1);
     }
-    if (withCounter) for (const s of counterSpans(units)) box(p, mats.counter, s.w, hs.counter, depth + 2, s.a + s.w / 2, hs.base - hs.counter / 2, (depth + 2) / 2);
+    if (withCounter) for (const s of counterSpans(units, depth)) box(p, mats.counter, s.w, hs.counter, depth + 2, s.a + s.w / 2, hs.base - hs.counter / 2, (depth + 2) / 2);
   };
 
   /** a row of upper cabinets; each cabinet may have its own depth, height and bottom */

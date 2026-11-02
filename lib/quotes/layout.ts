@@ -12,8 +12,9 @@
 export type BaseKind = "doors" | "drawers" | "sink" | "cooktop" | "oven" | "dishwasher" | "fridge" | "tall" | "tall_oven" | "corner" | "gap";
 export type UpperKind = "doors" | "lift" | "open" | "hood" | "corner" | "gap";
 
-/** n = number of doors, drawers, flaps or shelves (each kind has a sensible default) */
-export type BaseUnit = { kind: BaseKind; w: number; n?: number };
+/** n = number of doors, drawers, flaps or shelves (each kind has a sensible default);
+ *  color = the unit's own color (e.g. a black fridge), any FRONT_COLORS name or #hex */
+export type BaseUnit = { kind: BaseKind; w: number; n?: number; color?: string };
 /** d = depth, h = height, y = bottom above the floor; each falls back to its row's default */
 export type UpperUnit = { kind: UpperKind; w: number; n?: number; d?: number; h?: number; y?: number };
 export type LayoutWall = { length: number; base: BaseUnit[]; upper: UpperUnit[]; /** second row, above the uppers up to the ceiling */ top?: UpperUnit[] };
@@ -98,6 +99,7 @@ export const heightsOf = (l: KitchenLayout): LayoutHeights => ({ ...DEFAULT_HEIG
 export function partsOf(kind: BaseKind | UpperKind, w: number, n?: number, upper = false) {
   if (n && n > 0) return Math.min(8, Math.round(n));
   if (kind === "drawers" || kind === "cooktop") return 3;
+  if (kind === "tall_oven") return 2;
   if (kind === "lift") return 1;
   if (kind === "open") return 2;
   if (kind === "tall" || kind === "fridge") return 2;
@@ -121,6 +123,7 @@ export function normalizeLayout(raw: unknown): KitchenLayout | null {
       .filter((u) => u && kinds.includes(u.kind as K))
       .map((u) => ({
         kind: u.kind as K, w: num(u.w, 5, 400, 60), ...(u.n ? { n: num(u.n, 1, 8, 1) } : {}),
+        ...(typeof u.color === "string" && u.color.trim() ? { color: u.color.trim().slice(0, 30) } : {}),
         ...(u.d ? { d: num(u.d, 5, 120, 35) } : {}), ...(u.h ? { h: num(u.h, 5, 300, 70) } : {}),
         ...(u.y !== undefined && u.y !== null && u.y !== "" ? { y: num(u.y, 0, 400, 145) } : {}),
       }))
@@ -235,15 +238,42 @@ export const placed = <U extends { w: number }>(us: U[]) => {
   });
 };
 
-/** Pieces of the counter: runs of units that carry a counter (not tall units, gaps or the corner). */
-export function counterSpans(us: BaseUnit[]) {
+/**
+ * The corner cabinet where two runs meet. It is a closed cabinet under the counter; from the front
+ * only a filler strip shows (w minus the cabinet depth, e.g. 67 − 60 = 7), never with a handle.
+ * At the start of a run the corner square itself belongs to the previous wall, so only the strip
+ * part is built there; at the end of a run (the wall before the corner) the whole cabinet is.
+ */
+export function cornerPart(units: BaseUnit[], index: number, depth: number) {
+  const u = units[index];
+  const strip = Math.max(0, u.w - depth);
+  if (index === 0 && units.length > 1) return { a: depth, w: strip, filler: { a: depth, w: strip } };
+  return { a: 0, w: u.w, filler: { a: 0, w: strip } };
+}
+
+/** Pieces of the counter: runs of units that carry a counter (not tall units or gaps). */
+export function counterSpans(us: BaseUnit[], depth = DEFAULT_HEIGHTS.depth) {
   const spans: { a: number; w: number }[] = [];
-  for (const u of placed(us)) {
-    const has = !["fridge", "tall", "tall_oven", "gap", "corner"].includes(u.kind);
+  placed(us).forEach((u, i) => {
+    if (["fridge", "tall", "tall_oven", "gap"].includes(u.kind)) return;
+    let a = u.a, w = u.w;
+    if (u.kind === "corner") {
+      const c = cornerPart(us, i, depth);
+      a = u.a + c.a;
+      w = c.w;
+      if (w <= 0.01) return;
+    }
     const last = spans[spans.length - 1];
-    if (!has) continue;
-    if (last && Math.abs(last.a + last.w - u.a) < 0.01) last.w += u.w;
-    else spans.push({ a: u.a, w: u.w });
-  }
+    if (last && Math.abs(last.a + last.w - a) < 0.01) last.w += w;
+    else spans.push({ a, w });
+  });
   return spans;
+}
+
+/** Fronts of the tall oven unit, bottom up: drawers (30 each), the oven (60), a lift-up door for
+ *  the microwave (60, handle at its bottom), and whatever is left up to the top as one more door. */
+export function tallOvenParts(u: BaseUnit, h: LayoutHeights) {
+  const drawers = partsOf("tall_oven", u.w, u.n);
+  const d1 = h.plinth + drawers * 30, o1 = d1 + 60, m1 = Math.min(h.tall, o1 + 60);
+  return { drawers, d0: h.plinth, d1, o1, m1, rest: h.tall - m1 > 2 };
 }

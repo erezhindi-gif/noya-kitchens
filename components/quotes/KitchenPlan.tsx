@@ -3,7 +3,7 @@
 // is in cm), so proportions are exact at any size. No hooks: renders on the server for the PDF too.
 import "./plan.css";
 import {
-  BASE_LABEL, COUNTER_COLORS, FRONT_COLORS, colorOf, counterSpans, heightsOf, islandBox, partsOf, placed, upperBox, wallGeometry, wallName,
+  BASE_LABEL, COUNTER_COLORS, FRONT_COLORS, colorOf, cornerPart, counterSpans, heightsOf, islandBox, partsOf, placed, tallOvenParts, upperBox, wallGeometry, wallName,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 
@@ -66,7 +66,7 @@ function Stack({ c, x, y0, w, h, n, fill, handle = "top" }: { c: Ctx; x: number;
   return <>{Array.from({ length: n }, (_, i) => <Front key={i} c={c} x={x} y0={y0 + h - (i + 1) * dh} w={w} h={dh} fill={fill} handle={handle} />)}</>;
 }
 
-function BaseShape({ c, u, x }: { c: Ctx; u: BaseUnit; x: number }) {
+function BaseShape({ c, u, x, units, index }: { c: Ctx; u: BaseUnit; x: number; units: BaseUnit[]; index: number }) {
   const { h } = c;
   const f0 = h.plinth, f1 = h.base - h.counter, fh = f1 - f0;
   const n = partsOf(u.kind, u.w, u.n);
@@ -75,8 +75,17 @@ function BaseShape({ c, u, x }: { c: Ctx; u: BaseUnit; x: number }) {
   switch (u.kind) {
     case "gap":
       return <Label c={c} x={mid} y={Y(c, h.base / 2)} t="פנוי" />;
-    case "corner":
-      return <Hatch c={c} x={x} y0={0} w={u.w} h={h.base - h.counter} />;
+    case "corner": {
+      // the corner cabinet: the square behind the other run is hatched, the filler strip shows without a handle
+      const p = cornerPart(units, index, h.depth);
+      const hatchA = index === 0 && units.length > 1 ? 0 : p.filler.w;
+      return (
+        <>
+          <Hatch c={c} x={x + hatchA} y0={0} w={u.w - p.filler.w} h={h.base - h.counter} />
+          {p.filler.w > 0.01 && <><rect x={x + p.filler.a} y={Y(c, h.plinth)} width={p.filler.w} height={h.plinth} fill="#5b544d" /><Front c={c} x={x + p.filler.a} y0={f0} w={p.filler.w} h={fh} fill={c.front} /></>}
+        </>
+      );
+    }
     case "doors":
     case "sink":
       return <>{plinth}<Doors c={c} x={x} y0={f0} w={u.w} h={fh} n={n} fill={c.front} at="top" />{u.kind === "sink" && <Label c={c} x={mid} y={Y(c, f0 + fh / 2)} t="כיור" light={isDark(c.front)} />}</>;
@@ -99,28 +108,30 @@ function BaseShape({ c, u, x }: { c: Ctx; u: BaseUnit; x: number }) {
     }
     case "fridge": {
       const freezer = h.tall * 0.36;
+      const body = u.color ? colorOf(u.color, FRONT_COLORS, STEEL) : STEEL;
       return (
         <>
-          <rect x={x + 0.3} y={Y(c, h.tall)} width={u.w - 0.6} height={h.tall} fill={STEEL} stroke={LINE} strokeWidth={0.35} />
+          <rect x={x + 0.3} y={Y(c, h.tall)} width={u.w - 0.6} height={h.tall} fill={body} stroke={LINE} strokeWidth={0.35} />
           <line x1={x + 0.3} x2={x + u.w - 0.3} y1={Y(c, freezer)} y2={Y(c, freezer)} stroke={LINE} strokeWidth={0.5} />
           <line x1={x + 5} x2={x + 5} y1={Y(c, freezer + 45)} y2={Y(c, freezer + 10)} stroke="#8b9094" strokeWidth={1.4} strokeLinecap="round" />
           <line x1={x + 5} x2={x + 5} y1={Y(c, freezer - 10)} y2={Y(c, freezer - 40)} stroke="#8b9094" strokeWidth={1.4} strokeLinecap="round" />
-          <Label c={c} x={mid} y={Y(c, h.tall * 0.65)} t="מקרר" />
+          <Label c={c} x={mid} y={Y(c, h.tall * 0.65)} t="מקרר" light={isDark(body)} />
         </>
       );
     }
     case "tall":
       return <>{plinth}<Stack c={c} x={x} y0={f0} w={u.w} h={h.tall - f0} n={n} fill={c.front} handle="mid" /></>;
     case "tall_oven": {
-      const o0 = 80, o1 = 140, m1 = 178;
+      const t = tallOvenParts(u, h);
       return (
         <>
           {plinth}
-          <Front c={c} x={x} y0={f0} w={u.w} h={o0 - f0} fill={c.front} handle="top" />
-          <Front c={c} x={x} y0={o0} w={u.w} h={o1 - o0} fill={GLASS} />
-          <Front c={c} x={x} y0={o1} w={u.w} h={m1 - o1} fill={GLASS} />
-          <Front c={c} x={x} y0={m1} w={u.w} h={h.tall - m1} fill={c.front} handle="bottom" />
-          <Label c={c} x={mid} y={Y(c, (o0 + o1) / 2)} t="תנור" light />
+          <Stack c={c} x={x} y0={t.d0} w={u.w} h={t.d1 - t.d0} n={t.drawers} fill={c.front} />
+          <Front c={c} x={x} y0={t.d1} w={u.w} h={t.o1 - t.d1} fill={GLASS} />
+          <Label c={c} x={mid} y={Y(c, (t.d1 + t.o1) / 2)} t="תנור" light />
+          {t.m1 > t.o1 + 2 && <Front c={c} x={x} y0={t.o1} w={u.w} h={t.m1 - t.o1} fill={c.front} handle="bottom" />}
+          {t.m1 > t.o1 + 2 && <Label c={c} x={mid} y={Y(c, (t.o1 + t.m1) / 2)} t="מיקרו" light={isDark(c.front)} />}
+          {t.rest && <Front c={c} x={x} y0={t.m1} w={u.w} h={h.tall - t.m1} fill={c.front} handle="bottom" />}
         </>
       );
     }
@@ -233,7 +244,7 @@ export function Elevation({ layout, title, length, base, upper, top = [], island
   const left = f * (hasTall ? 4.6 : 3.2), right = f * 1.2, topPad = f * (hasTop ? 3 : 1.6), bottom = f * 4.4;
   const vb = `${-left} ${-topPad} ${length + left + right} ${shownTop + topPad + bottom}`;
   const pb = placed(base), pu = placed(upper), pt = placed(top);
-  const spans = counterSpans(base);
+  const spans = counterSpans(base, h.depth);
   return (
     <figure className="nqp-fig">
       <figcaption>{title} · {cm(length)} ס״מ</figcaption>
@@ -247,7 +258,7 @@ export function Elevation({ layout, title, length, base, upper, top = [], island
         {!island && <rect x={0} y={0} width={length} height={shownTop} fill="#f8f6f2" />}
         {pu.map((u, i) => <UpperShape key={"u" + i} c={c} u={u} x={u.a} row="upper" depthTag={depthTag} />)}
         {pt.map((u, i) => <UpperShape key={"t" + i} c={c} u={u} x={u.a} row="top" depthTag={depthTag} />)}
-        {pb.map((u, i) => <BaseShape key={"b" + i} c={c} u={u} x={u.a} />)}
+        {pb.map((u, i) => <BaseShape key={"b" + i} c={c} u={u} x={u.a} units={base} index={i} />)}
         {spans.map((s, i) => <rect key={"c" + i} x={s.a} y={Y(c, h.base)} width={s.w} height={h.counter} fill={c.counter} stroke={LINE} strokeWidth={0.4} />)}
         <line x1={-left * 0.3} x2={length + right * 0.6} y1={shownTop} y2={shownTop} stroke={INK} strokeWidth={1} />
         <line x1={0} x2={0} y1={0} y2={shownTop} stroke="#b9b1a6" strokeWidth={0.6} />
@@ -302,9 +313,14 @@ export function PlanView({ layout: l }: { layout: KitchenLayout }) {
             <g key={i}>
               <polygon points={poly([P(g, 0, 0), P(g, w.length, 0), P(g, w.length, -8), P(g, 0, -8)])} fill="#5b544d" />
               {placed(w.base).map((u, k) => {
-                if (u.kind === "gap" || u.kind === "corner") return null;
+                if (u.kind === "gap") return null;
+                if (u.kind === "corner") {
+                  const p = cornerPart(w.base, k, h.depth);
+                  if (p.w <= 0.01) return null;
+                  return <polygon key={k} points={poly([P(g, u.a + p.a, 0), P(g, u.a + p.a + p.w, 0), P(g, u.a + p.a + p.w, h.depth), P(g, u.a + p.a, h.depth)])} fill={counter} stroke={LINE} strokeWidth={0.6} />;
+                }
                 const tall = ["fridge", "tall", "tall_oven"].includes(u.kind);
-                const fill = u.kind === "fridge" ? STEEL : tall ? front : counter;
+                const fill = u.kind === "fridge" ? (u.color ? colorOf(u.color, FRONT_COLORS, STEEL) : STEEL) : tall ? front : counter;
                 const c = P(g, u.a + u.w / 2, h.depth / 2);
                 return (
                   <g key={k}>
