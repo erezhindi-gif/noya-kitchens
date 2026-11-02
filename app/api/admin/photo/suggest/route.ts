@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const maxDuration = 30;
 
 // A small, cheap vision model looks at the photo and picks the shot types that would suit its re-shoot best.
-const MODELS = ["gemini-3-flash", "gemini-2.5-flash", "gemini-2.0-flash"];
+const MODELS = ["gemini-flash-latest", "gemini-3-flash", "gemini-2.5-flash", "gemini-2.0-flash"];
 
 export async function POST(req: NextRequest) {
   const { geminiKey } = await getSecrets();
@@ -33,10 +33,15 @@ export async function POST(req: NextRequest) {
         generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
       }),
     }).catch(() => null);
-    if (!res || res.status === 404) continue;
-    if (!res.ok) return NextResponse.json({ error: res.status === 429 ? "quota" : "failed" }, { status: 502 });
+    if (!res) continue;
+    if (!res.ok) {
+      // a model this key can't use answers 400/404; try the next one
+      console.error("suggest", model, res.status, (await res.text().catch(() => "")).slice(0, 300));
+      if (res.status === 429) return NextResponse.json({ error: "quota" }, { status: 502 });
+      continue;
+    }
     const j = (await res.json().catch(() => ({}))) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-    const raw = j.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
+    const raw = (j.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "").replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
     try {
       const out = JSON.parse(raw) as { presets?: string[]; why?: string };
       const labels = new Set(SHOT_PRESETS.map((p) => p.label as string));
@@ -50,7 +55,8 @@ export async function POST(req: NextRequest) {
       });
       return NextResponse.json({ presets, why: String(out.why || "").slice(0, 200) });
     } catch {
-      return NextResponse.json({ error: "failed" }, { status: 502 });
+      console.error("suggest parse", model, raw.slice(0, 300));
+      continue;
     }
   }
   return NextResponse.json({ error: "failed" }, { status: 502 });
