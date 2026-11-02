@@ -15,14 +15,14 @@ type GenResponse = { candidates?: { content?: { parts?: Part[] }; finishReason?:
 export async function POST(req: NextRequest) {
   const { geminiKey } = await getSecrets();
   if (!geminiKey) return NextResponse.json({ error: "no-key" }, { status: 503 });
-  const b = (await req.json().catch(() => null)) as { image?: string; w?: number; h?: number; opts?: PhotoOpts; refs?: { data: string; kind: "finished" | "original" }[] } | null;
+  const b = (await req.json().catch(() => null)) as { image?: string; w?: number; h?: number; opts?: PhotoOpts; refs?: { data: string; kind: "finished" | "original" | "product"; label?: string }[]; quality?: "pro" } | null;
   if (!b?.image || !b.opts || b.image.length > 4_000_000) return NextResponse.json({ error: "failed" }, { status: 400 });
 
   // Finished shots of the same kitchen set the styling. Original photos are not used as references:
   // with them the model kept copying the old photo and changed almost nothing.
-  const refs = (b.refs || []).filter((r) => r?.data && r.data.length < 900_000 && (r.kind === "finished" || b.opts?.mode === "edit")).slice(0, 3);
+  const refs = (b.refs || []).filter((r) => r?.data && r.data.length < 900_000 && (r.kind === "finished" || r.kind === "product" || b.opts?.mode === "edit")).slice(0, 4);
   const refParts = refs.flatMap((r, i) => [
-    { text: `Reference ${i + 1}: ${b.opts?.mode === "edit" && r.kind === "original" ? "the original photo of this kitchen: use it ONLY for the true colors and carpentry details (for example the exact oak tone of the fronts and the cabinet doors under the counters); do not copy its unfinished state or its camera" : r.kind === "finished" ? "an already finished professional shot of this same kitchen (copy its accessories, styling, decor and light mood)" : "an original photo of this same kitchen from another angle (for the carpentry and the room only)"}.` },
+    { text: `Reference ${i + 1}: ${r.kind === "product" ? `a product photo from the kitchen maker: ${String(r.label || "").slice(0, 300)}. Make it look exactly like this, matching the shape, size proportion, finish and details` : b.opts?.mode === "edit" && r.kind === "original" ? "the original photo of this kitchen: use it ONLY for the true colors and carpentry details (for example the exact oak tone of the fronts and the cabinet doors under the counters); do not copy its unfinished state or its camera" : r.kind === "finished" ? "an already finished professional shot of this same kitchen (copy its accessories, styling, decor and light mood)" : "an original photo of this same kitchen from another angle (for the carpentry and the room only)"}.` },
     { inlineData: { mimeType: "image/jpeg", data: r.data } },
   ]);
   const consistency = refs.length && b.opts?.mode !== "edit"
@@ -35,7 +35,9 @@ export async function POST(req: NextRequest) {
   });
 
   let last = "failed";
-  for (const model of MODELS) {
+  // "pro": the stronger model first, for precise fixes (costs more per photo)
+  const models = b.quality === "pro" ? ["gemini-3-pro-image", ...MODELS.filter((m) => m !== "gemini-3-pro-image")] : MODELS;
+  for (const model of models) {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
