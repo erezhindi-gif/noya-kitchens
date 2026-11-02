@@ -2,9 +2,9 @@
 // Going through Gmail means the mail comes from his real address, lands in his "Sent" folder,
 // and the client's reply comes straight back to him.
 import nodemailer from "nodemailer";
-import { qnum, reviewLines } from "./calc";
+import { planMessage, planSubject, qnum, reviewLines } from "./calc";
 import { getSecrets } from "./store";
-import type { Quote, Settings } from "./types";
+import type { Plan, Quote, Settings } from "./types";
 
 export type QuoteMail = { to: string; subject?: string; message?: string; inReplyTo?: string };
 
@@ -35,21 +35,32 @@ export function gmailTransport(user: string, pass: string) {
 }
 
 export async function sendQuoteMail(q: Quote, s: Settings, mail: QuoteMail, origin: string) {
+  const filename = `הצעת מחיר ${qnum(q)}${q.client.name ? ` - ${q.client.name}` : ""} - נויה מטבחים.pdf`;
+  return mailWithPdf(s, mail, `${origin}/api/q/${q.id}/pdf`, filename, defaultSubject(q), defaultMessage(q, s, origin));
+}
+
+/** A kitchen plan to the client: the drawings and 3D as a PDF, no prices. */
+export async function sendPlanMail(p: Plan, s: Settings, mail: QuoteMail, origin: string) {
+  const filename = `תכנון ${p.title || "מטבח"}${p.client.name ? ` - ${p.client.name}` : ""} - נויה מטבחים.pdf`;
+  return mailWithPdf(s, mail, `${origin}/api/p/${p.id}/pdf`, filename, planSubject(p), planMessage(p, s));
+}
+
+async function mailWithPdf(s: Settings, mail: QuoteMail, pdfUrl: string, name: string, subject: string, message: string) {
   const { gmailPass } = await getSecrets();
   if (!gmailPass) return { ok: false as const, error: "no-gmail" };
   if (!validEmail(mail.to)) return { ok: false as const, error: "bad-email" };
 
-  const res = await fetch(`${origin}/api/q/${q.id}/pdf`, { cache: "no-store" }).catch(() => null);
+  const res = await fetch(pdfUrl, { cache: "no-store" }).catch(() => null);
   if (!res?.ok) return { ok: false as const, error: "pdf-failed" };
   const pdf = Buffer.from(await res.arrayBuffer());
 
-  const text = mail.message?.trim() || defaultMessage(q, s, origin);
-  const filename = `הצעת מחיר ${qnum(q)}${q.client.name ? ` - ${q.client.name}` : ""} - נויה מטבחים.pdf`.replace(/[\\/:*?"<>|]/g, "");
+  const text = mail.message?.trim() || message;
+  const filename = name.replace(/[\\/:*?"<>|]/g, "");
   try {
     await gmailTransport(s.email, gmailPass).sendMail({
       from: { name: "נויה מטבחים", address: s.email },
       to: mail.to.trim(),
-      subject: mail.subject?.trim() || defaultSubject(q),
+      subject: mail.subject?.trim() || subject,
       text,
       html: `<div dir="rtl" style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6">${linkify(esc(text)).replace(/\n/g, "<br>")}</div>`,
       attachments: [{ filename, content: pdf, contentType: "application/pdf" }],
@@ -57,7 +68,7 @@ export async function sendQuoteMail(q: Quote, s: Settings, mail: QuoteMail, orig
     });
     return { ok: true as const };
   } catch (e) {
-    console.error("quote mail failed", e);
+    console.error("mail with pdf failed", e);
     return { ok: false as const, error: /auth|535|534/i.test(String(e)) ? "gmail-auth" : "send-failed" };
   }
 }

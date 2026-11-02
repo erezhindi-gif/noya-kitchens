@@ -1,8 +1,8 @@
 "use client";
 // Kitchen plans ("תכנונים"): a drawing and 3D view made on their own, before there's a quote.
 // When a plan is ready, a quote is opened from it; the quote then shows the plan to the client.
-import { useState } from "react";
-import { fdate, qnum } from "@/lib/quotes/calc";
+import { useEffect, useState } from "react";
+import { fdate, planMessage, planSubject, planWaText, qnum, waText } from "@/lib/quotes/calc";
 import type { AppData, Lead, Plan, Quote } from "@/lib/quotes/types";
 import LayoutEditor from "./LayoutEditor";
 import { downloadBlob, sharePdf } from "./pdf";
@@ -69,6 +69,8 @@ export function PlanScreen({ plan: p, data, upd, saveNow, onBack, onQuote, onOpe
   const [confirmDel, setConfirmDel] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfError, setPdfError] = useState(false);
+  const [mailOpen, setMailOpen] = useState(false);
+  const [sentNote, setSentNote] = useState("");
   const q = quoteOf(p, data.quotes);
   const who = p.client.name || "הלקוח";
   // the client's request ("פניות") with the same name: its phone and email fill the plan
@@ -95,8 +97,20 @@ export function PlanScreen({ plan: p, data, upd, saveNow, onBack, onQuote, onOpe
     }
     setPdfBusy(false);
   };
+  // WhatsApp from Erez's phone: a message with the link to the plan's PDF
+  const onWhatsApp = async () => {
+    if (!p.client.phone) return setSentNote("חסר טלפון של הלקוח");
+    const w = window.open("about:blank", "_blank");
+    await saveNow();
+    const href = waText(p.client.phone, planWaText(p, data.settings, window.location.origin));
+    if (w) w.location.href = href; else window.location.href = href;
+  };
   return (
     <>
+      {mailOpen && (
+        <PlanMailModal p={p} data={data} saveNow={saveNow} onClose={() => setMailOpen(false)}
+          onSent={(to) => { setMailOpen(false); if (!p.client.email) upd((x) => { x.client.email = to; }); setSentNote(`התכנון נשלח במייל ל-${to} ✓`); }} />
+      )}
       <div className="nq-head">
         <div>
           <button className="nq-btn sm ghost" style={{ paddingInline: 0 }} onClick={onBack}>→ כל התכנונים</button>
@@ -104,7 +118,10 @@ export function PlanScreen({ plan: p, data, upd, saveNow, onBack, onQuote, onOpe
         </div>
         <div className="nq-head-acts">
           <button className="nq-btn" disabled={pdfBusy} onClick={onPdf}>{pdfBusy ? "מכין PDF…" : "📄 PDF ללקוח"}</button>
+          <button className="nq-btn" onClick={() => setMailOpen(true)}>שליחה במייל</button>
+          <button className="nq-btn wa" onClick={onWhatsApp}>שליחה בוואטסאפ</button>
           {pdfError && <span className="hint">יצירת ה-PDF נכשלה. נסה שוב</span>}
+          {sentNote && <span className="hint">{sentNote}</span>}
           {!q && <a className="nq-btn" href={claudeLink(`הצעת מחיר במערכת נויה מהתכנון של ${who} (תכנון ${p.id}), לפי המחירון והקטלוג: `)} target="_blank" rel="noopener">✨ הצעה בקלוד</a>}
           {q
             ? <button className="nq-btn pri" onClick={() => onOpenQuote(q.id)}>פתח הצעה {qnum(q)} ›</button>
@@ -146,6 +163,50 @@ export function PlanScreen({ plan: p, data, upd, saveNow, onBack, onQuote, onOpe
         </section>
       </div>
     </>
+  );
+}
+
+/** The plan to the client from Erez's Gmail, with the PDF attached (as with a quote). */
+function PlanMailModal({ p, data, saveNow, onClose, onSent }: {
+  p: Plan; data: AppData; saveNow: () => Promise<unknown>; onClose: () => void; onSent: (to: string) => void;
+}) {
+  const [to, setTo] = useState(p.client.email || "");
+  const [subject, setSubject] = useState(planSubject(p));
+  const [message, setMessage] = useState(planMessage(p, data.settings));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !busy && onClose();
+    addEventListener("keydown", onKey);
+    return () => removeEventListener("keydown", onKey);
+  }, [onClose, busy]);
+  const send = async () => {
+    setBusy(true);
+    setErr("");
+    await saveNow();
+    const res = await fetch(`/api/admin/plans/${p.id}/email`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: to.trim(), subject, message }),
+    }).catch(() => null);
+    setBusy(false);
+    if (res?.ok) return onSent(to.trim());
+    const j = await res?.json().catch(() => null);
+    setErr(j?.message || "השליחה נכשלה. נסה שוב");
+  };
+  return (
+    <div className="nq-scrim" onClick={(e) => e.target === e.currentTarget && !busy && onClose()}>
+      <div className="nq-sheet nq-modal" role="dialog" aria-label="שליחת התכנון במייל">
+        <h2>שליחת התכנון במייל</h2>
+        <div className="hint">נשלח מה-Gmail שלך (<span className="ltr">{data.settings.email}</span>) עם קובץ ה-PDF של התכנון מצורף, בלי מחירים.</div>
+        <label className="f">אל<input className="in ltr" type="email" style={{ textAlign: "left" }} value={to} onChange={(e) => setTo(e.target.value)} autoFocus placeholder="client@example.com" /></label>
+        <label className="f">נושא<input className="in" value={subject} onChange={(e) => setSubject(e.target.value)} /></label>
+        <label className="f">הודעה<textarea className="in" rows={8} value={message} onChange={(e) => setMessage(e.target.value)} /></label>
+        {err && <div className="nq-err" role="alert">{err}</div>}
+        <div className="nq-head-acts" style={{ justifyContent: "flex-end" }}>
+          <button className="nq-btn" disabled={busy} onClick={onClose}>ביטול</button>
+          <button className="nq-btn pri" disabled={busy || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to.trim())} onClick={send}>{busy ? "שולח…" : "שלח עם PDF"}</button>
+        </div>
+      </div>
+    </div>
   );
 }
 

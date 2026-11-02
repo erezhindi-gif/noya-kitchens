@@ -1,4 +1,4 @@
-import type { CatNode, CatOption, Commission, Line, LinePart, Pro, Quote, Settings } from "./types";
+import type { CatNode, CatOption, Commission, Line, LinePart, Plan, Pro, Quote, Settings } from "./types";
 
 export const STATUS_LABEL: Record<Quote["status"], string> = {
   draft: "טיוטה",
@@ -290,6 +290,36 @@ export function followUpText(q: Quote, s: Settings, origin: string) {
     .replace(/\{מספר\}/g, qnum(q))
     .replace(/\{קישור\}/g, `${origin}/q/${q.id}`)
     .replace(/\{בעלים\}/g, s.owner || "ארז");
+}
+
+/** The plan email (subject and message), sent with the plan's PDF attached. */
+export const planSubject = (p: Plan) => `תכנון ${p.title || "מטבח"} - נויה מטבחים`;
+
+export function planMessage(p: Plan, s: Settings) {
+  return [
+    `שלום ${p.client.name || ""},`.replace(" ,", ","),
+    "",
+    `מצורף התכנון של ${p.title || "המטבח"}: שרטוט עם מידות ותמונת תלת-ממד.`,
+    "אשמח לשמוע מה דעתך ואם יש מה לשנות.",
+    "",
+    "בברכה,",
+    s.owner,
+    "נויה מטבחים",
+    s.phone,
+  ].join("\n");
+}
+
+/** WhatsApp text with the link to the plan's PDF (drawings and 3D, no prices). */
+export function planWaText(p: Plan, s: Settings, origin: string) {
+  const name = (p.client.name || "").trim().split(/\s+/)[0];
+  return [
+    `שלום${name ? ` ${name}` : ""},`,
+    `מצורף התכנון של ${p.title || "המטבח"}, שרטוט עם מידות ותמונת תלת-ממד:`,
+    `${origin}/api/p/${p.id}/pdf`,
+    "אשמח לשמוע מה דעתך ואם יש מה לשנות.",
+    "",
+    `${s.owner || "ארז"}, נויה מטבחים`,
+  ].join("\n");
 }
 
 /** A WhatsApp chat with this phone, with the text typed in. */
