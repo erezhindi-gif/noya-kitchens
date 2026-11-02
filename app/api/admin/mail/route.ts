@@ -11,7 +11,18 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
-  const { resendKey, anthropicKey, gmailPass } = await req.json().catch(() => ({}));
+  const { resendKey, anthropicKey, gmailPass, geminiKey } = await req.json().catch(() => ({}));
+  if (geminiKey !== undefined) {
+    const k = String(geminiKey || "").trim();
+    if (k && !/^[A-Za-z0-9_.-]{30,200}$/.test(k)) return NextResponse.json({ error: "bad-key" }, { status: 400 });
+    // Ask Google whether the key works before saving it (listing models costs nothing).
+    if (k) {
+      const ok = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1", { headers: { "x-goog-api-key": k } }).then((r) => r.ok).catch(() => false);
+      if (!ok) return NextResponse.json({ error: "bad-key" }, { status: 400 });
+    }
+    await patchSecrets({ geminiKey: k });
+    return NextResponse.json({ ok: true });
+  }
   if (gmailPass !== undefined) {
     const p = String(gmailPass || "").replace(/\s/g, "");
     if (p && !/^[a-z]{16}$/i.test(p)) return NextResponse.json({ error: "bad-key" }, { status: 400 });

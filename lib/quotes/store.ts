@@ -6,7 +6,7 @@ import { createClient } from "@sanity/client";
 import { promises as fs } from "fs";
 import path from "path";
 import { DEFAULT_SETTINGS, defaultCatalog } from "./defaults";
-import type { AppData, CatNode, Lead, LeadFile, Plan, Pro, Quote, Settings } from "./types";
+import type { AppData, CatNode, Lead, LeadFile, Marketing, MonthStats, Plan, Pro, Quote, Settings, Spend } from "./types";
 
 // Saved settings over the defaults. The earlier default payment wording is replaced by the current one.
 const OLD_PAYMENT = "50% בחתימת הזמנה, 50% לפני התקנה.";
@@ -262,7 +262,7 @@ export async function putSettings(settings: Settings, pros: Pro[]) {
 
 /* ---------- secrets: password hash and mail key ----------
    Kept in their own private document so they never travel with settings to the browser. */
-export type Secrets = { passHash?: string; passSalt?: string; resendKey?: string; lastResetAt?: number; lastFollowupMail?: string; anthropicKey?: string; gmailPass?: string; lastLeadSync?: number; leadSyncOkAt?: number; leadSyncError?: string; leadCronAt?: number };
+export type Secrets = { passHash?: string; passSalt?: string; resendKey?: string; lastResetAt?: number; lastFollowupMail?: string; anthropicKey?: string; geminiKey?: string; gmailPass?: string; lastLeadSync?: number; leadSyncOkAt?: number; leadSyncError?: string; leadCronAt?: number };
 const SECRETS_ID = "noyaq.secrets";
 
 export async function getSecrets(): Promise<Secrets> {
@@ -306,4 +306,79 @@ export async function approveQuote(id: string, name: string): Promise<Quote | nu
     await writeFile(d);
   }
   return { ...q, status: "approved", approvedBy: name, approvedAt, updatedAt };
+}
+
+/* ---------- marketing: ad spend, monthly goal, site counters ----------
+   Spend and goal sit in one private document; each month's counters in their own ("noyaq.stats.202611"),
+   raised with Sanity's atomic inc so visits at the same moment never overwrite each other. */
+const MKT_ID = "noyaq.marketing";
+const DEFAULT_GOAL = 4;
+type FileMkt = FileData & { spends?: Spend[]; goal?: number; stats?: Record<string, MonthStats> };
+const statsId = (month: string) => `noyaq.stats.${month.replace("-", "")}`;
+
+export async function getMarketing(): Promise<Marketing> {
+  if (sanity) {
+    const [doc, stats] = await Promise.all([
+      readDoc(MKT_ID),
+      sanity.fetch<Record<string, unknown>[]>(`*[_type == "nq_stats" && _id in path("noyaq.stats.*")]`, {}, NO_CACHE),
+    ]);
+    const m = doc ? clean<{ spends?: Spend[]; goal?: number }>(doc) : {};
+    const byMonth: Record<string, MonthStats> = {};
+    for (const s of stats) {
+      const id = String(s._id).slice("noyaq.stats.".length);
+      const counts: MonthStats = {};
+      for (const [k, v] of Object.entries(s)) if (/^d\d\d_/.test(k) && typeof v === "number") counts[k] = v;
+      byMonth[`${id.slice(0, 4)}-${id.slice(4)}`] = counts;
+    }
+    return { spends: m.spends || [], goal: m.goal || DEFAULT_GOAL, stats: byMonth };
+  }
+  const d = (await readFile()) as FileMkt;
+  return { spends: d.spends || [], goal: d.goal || DEFAULT_GOAL, stats: d.stats || {} };
+}
+
+export async function countSiteEvent(month: string, key: string) {
+  if (!/^\d{4}-\d\d$/.test(month) || !/^d\d\d_[a-z]+_[a-z]+$/.test(key)) return;
+  if (sanity) {
+    const id = statsId(month);
+    await sanity.createIfNotExists({ _id: id, _type: "nq_stats" });
+    await sanity.patch(id).setIfMissing({ [key]: 0 }).inc({ [key]: 1 }).commit();
+    return;
+  }
+  const d = (await readFile()) as FileMkt;
+  d.stats = d.stats || {};
+  const m = (d.stats[month] = d.stats[month] || {});
+  m[key] = (m[key] || 0) + 1;
+  await writeFile(d);
+}
+
+export async function addSpend(s: Spend) {
+  if (sanity) {
+    await sanity.createIfNotExists({ _id: MKT_ID, _type: "nq_marketing" });
+    await sanity.patch(MKT_ID).setIfMissing({ spends: [] }).append("spends", [{ ...s, _key: s.id }]).commit();
+    return;
+  }
+  const d = (await readFile()) as FileMkt;
+  d.spends = [...(d.spends || []).filter((x) => x.id !== s.id), s];
+  await writeFile(d);
+}
+
+export async function deleteSpend(id: string) {
+  if (sanity) {
+    await sanity.patch(MKT_ID).unset([`spends[_key=="${id.replace(/[^a-z0-9]/g, "")}"]`]).commit().catch(() => {});
+    return;
+  }
+  const d = (await readFile()) as FileMkt;
+  d.spends = (d.spends || []).filter((x) => x.id !== id);
+  await writeFile(d);
+}
+
+export async function setGoal(goal: number) {
+  if (sanity) {
+    await sanity.createIfNotExists({ _id: MKT_ID, _type: "nq_marketing" });
+    await sanity.patch(MKT_ID).set({ goal }).commit();
+    return;
+  }
+  const d = (await readFile()) as FileMkt;
+  d.goal = goal;
+  await writeFile(d);
 }

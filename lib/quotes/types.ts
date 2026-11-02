@@ -1,4 +1,5 @@
 import type { KitchenLayout } from "./layout";
+import type { Channel } from "../marketing/channels";
 export type Unit = "m" | "u";
 
 /** A catalog tree node. Root nodes have parentId "". Folders hold other nodes; leaves are priced items. */
@@ -81,6 +82,8 @@ export type Quote = {
   internalNotes?: string;
   /** The kitchen plan this quote was made from; its drawing and 3D view show with the quote */
   planId?: string;
+  /** What brought this client, for a quote that has no request (פנייה) behind it */
+  channel?: Channel;
   updatedAt?: string;
 };
 
@@ -131,6 +134,13 @@ export type Lead = {
   autoReplied?: boolean;
   /** Pictures and documents the client sent (mail attachments, or uploaded by Erez) */
   files?: LeadFile[];
+  /** What brought the client (Google ad, Google profile, a friend…); empty until known */
+  channel?: Channel;
+  /** From the site's form: the client's town and when they plan the kitchen */
+  city?: string;
+  timing?: string;
+  /** The page the client first landed on, for requests from the site */
+  landing?: string;
 };
 
 /** A file kept with a request. The content is stored apart, by id, and opened only through the admin. */
@@ -150,6 +160,15 @@ export type Plan = {
 };
 
 export type AppData = { settings: Settings; pros: Pro[]; cat: CatNode[]; quotes: Quote[]; leads: Lead[]; plans: Plan[] };
+
+/** Money spent on advertising, entered by Erez (or Claude) as it's paid. */
+export type Spend = { id: string; date: string; channel: Channel; amount: number; note?: string };
+
+/** Site counters for one month: key "d07_gads_call" → count. */
+export type MonthStats = Record<string, number>;
+
+/** The marketing screen's own data: spend, the monthly goal (kitchens), and site counters by month ("2026-11"). */
+export type Marketing = { spends: Spend[]; goal: number; stats: Record<string, MonthStats> };
 
 /** What the public quote page needs — never includes commissions or line prices */
 export type PublicQuote = { quote: Quote; settings: Settings };

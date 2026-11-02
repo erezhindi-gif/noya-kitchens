@@ -9,11 +9,13 @@ import { STARTER_LAYOUT } from "./LayoutEditor";
 import { PlanScreen, PlansView, QuotePlanLink } from "./PlansView";
 import { FILE_TYPE_OK, MAX_UPLOAD, SOURCE_LABEL, STAGE_LABEL, ago, findPhone, gmailLink, leadStage, waitingLeads, type LeadStage } from "@/lib/quotes/leads";
 import QuoteDoc from "./QuoteDoc";
+import MarketingView from "./MarketingView";
+import { CHANNELS, CHANNEL_LABEL, type Channel } from "@/lib/marketing/channels";
 import DocFrame from "./DocFrame";
 import { downloadBlob, pdfName, quotePdf, sharePdf } from "./pdf";
 import "./admin.css";
 
-type View = "list" | "edit" | "preview" | "catalog" | "settings" | "leads" | "plans" | "plan";
+type View = "list" | "edit" | "preview" | "catalog" | "settings" | "leads" | "plans" | "plan" | "marketing";
 type SaveState = "idle" | "saving" | "saved" | "error";
 
 const LINE_TAG: Record<Exclude<LineType, "cat">, string> = {
@@ -109,7 +111,7 @@ export default function AdminApp() {
         if (window.location.search) history.replaceState(history.state, "", window.location.pathname);
         const known = !!last && d.quotes.some((q) => q.id === last);
         // A refresh reopens the quote only if Erez was inside it; otherwise it stays on the screen he was on.
-        if (lastView === "catalog" || lastView === "settings" || lastView === "leads" || lastView === "plans") {
+        if (lastView === "catalog" || lastView === "settings" || lastView === "leads" || lastView === "plans" || lastView === "marketing") {
           setView(lastView);
           history.replaceState({ view: lastView, curId: null }, "");
         }
@@ -468,7 +470,7 @@ export default function AdminApp() {
   if (!data) return <div className="nq"><div className="nq-wrap"><div className="nq-empty">טוען…</div></div></div>;
 
   const q = curId ? data.quotes.find((x) => x.id === curId) : undefined;
-  const tab = view === "catalog" || view === "settings" || view === "leads" ? view : view === "plans" || view === "plan" ? "plans" : "list";
+  const tab = view === "catalog" || view === "settings" || view === "leads" || view === "marketing" ? view : view === "plans" || view === "plan" ? "plans" : "list";
   const plan = view === "plan" && curId ? data.plans.find((x) => x.id === curId) : undefined;
   const waiting = waitingLeads(data.leads, data.quotes).length;
 
@@ -482,6 +484,7 @@ export default function AdminApp() {
             <button aria-current={tab === "leads"} onClick={() => go("leads")}>פניות{waiting ? <span className="nq-badge num">{waiting}</span> : null}</button>
             <button aria-current={tab === "plans"} onClick={() => go("plans")}>תכנונים</button>
             <button aria-current={tab === "list"} onClick={() => go("list")}>הצעות</button>
+            <button aria-current={tab === "marketing"} onClick={() => go("marketing")}>שיווק</button>
             <button aria-current={tab === "catalog"} onClick={() => go("catalog")}>קטלוג</button>
             <button aria-current={tab === "settings"} onClick={() => go("settings")}>הגדרות</button>
           </nav>
@@ -528,6 +531,7 @@ export default function AdminApp() {
             </div>
           );
         })()}
+        {view === "marketing" && <MarketingView data={data} flash={flash} onTagLead={(l, ch) => saveLead({ ...l, channel: ch })} onTagQuote={(x, ch) => updQuote(x.id, (y) => { y.channel = ch; }, 0)} />}
         {view === "catalog" && <CatalogView cat={data.cat} upd={updCat} />}
         {view === "settings" && <SettingsView data={data} upd={updSettings} />}
         {(view === "edit" || view === "preview") && !q && <div className="nq-empty">ההצעה לא נמצאה</div>}
@@ -605,7 +609,7 @@ function LeadsView({ data, onSave, onDelete, onQuote, onOpenQuote, onUpload, onR
             <div className="nq-lead-top">
               <div>
                 <b className="nq-lead-name">{l.name || "ללא שם"}</b>
-                <div className="hint">{SOURCE_LABEL[l.source]} · {ago(l.createdAt)} · {fdate(l.createdAt.slice(0, 10))}{l.autoReplied ? " · נשלח מענה אוטומטי" : ""}</div>
+                <div className="hint">{SOURCE_LABEL[l.source]}{l.channel ? ` · ${CHANNEL_LABEL[l.channel]}` : ""} · {ago(l.createdAt)} · {fdate(l.createdAt.slice(0, 10))}{l.autoReplied ? " · נשלח מענה אוטומטי" : ""}</div>
               </div>
               <span className={`nq-pill ${s.overdue ? "nq-st-rejected" : STAGE_CLASS[s.stage]}`}>{s.overdue ? "מחכה מעל יומיים" : STAGE_LABEL[s.stage]}</span>
             </div>
@@ -682,9 +686,15 @@ function LeadForm({ lead, isNew, onClose, onSave }: { lead: Lead; isNew: boolean
           <label className="f">שם<input className="in" value={l.name} onChange={(e) => set({ name: e.target.value })} /></label>
           <label className="f">טלפון<input className="in num" type="tel" value={l.phone} onChange={(e) => set({ phone: e.target.value })} /></label>
           <label className="f">אימייל<input className="in ltr" type="email" style={{ textAlign: "left" }} value={l.email} onChange={(e) => set({ email: e.target.value })} /></label>
-          <label className="f">מקור
+          <label className="f">איך פנה
             <select className="in" value={l.source} onChange={(e) => set({ source: e.target.value as LeadSource })}>
               {(Object.keys(SOURCE_LABEL) as LeadSource[]).map((k) => <option key={k} value={k}>{SOURCE_LABEL[k]}</option>)}
+            </select>
+          </label>
+          <label className="f full">מאיפה שמע עלינו
+            <select className="in" value={l.channel || ""} onChange={(e) => set({ channel: (e.target.value || undefined) as Channel | undefined })}>
+              <option value="">לא ידוע</option>
+              {CHANNELS.map((k) => <option key={k} value={k}>{CHANNEL_LABEL[k]}</option>)}
             </select>
           </label>
         </div>

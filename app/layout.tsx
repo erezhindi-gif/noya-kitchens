@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Heebo, Playfair_Display } from "next/font/google";
 import Script from "next/script";
 import AccessibilityWidget from "@/components/AccessibilityWidget";
+import SiteTracker from "@/components/SiteTracker";
 import "./globals.css";
 
 const heebo = Heebo({
@@ -89,6 +90,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${heebo.variable} ${playfair.variable}`}>
         <a href="#main-content" className="skip-link">דלג לתוכן הראשי</a>
         <AccessibilityWidget />
+        <SiteTracker />
         <div id="page-content">{children}</div>
         <Script src="https://elfsightcdn.com/platform.js" strategy="lazyOnload" />
       </body>

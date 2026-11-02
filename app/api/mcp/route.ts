@@ -4,7 +4,9 @@ import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
 import { calc, defaultCommissions, fdate, lineTotal, markSentFields, money, pathOf, qnum, STATUS_LABEL, todayIL, uid, waLink } from "@/lib/quotes/calc";
 import { catalogForPrompt, linesFromDraft } from "@/lib/quotes/agent";
-import { getData, getSecrets, putCatalog, putLead, putPlan, putQuote } from "@/lib/quotes/store";
+import { addSpend, getData, getMarketing, getSecrets, putCatalog, putLead, putPlan, putQuote } from "@/lib/quotes/store";
+import { CHANNELS, CHANNEL_LABEL } from "@/lib/marketing/channels";
+import { monthName, monthRange, per, report } from "@/lib/marketing/report";
 import { SOURCE_LABEL, STAGE_LABEL, ago, findPhone, leadStage } from "@/lib/quotes/leads";
 import { syncLeads } from "@/lib/quotes/lead-sync";
 import { describeLayout, layoutWarnings, normalizeLayout } from "@/lib/quotes/layout";
@@ -413,6 +415,7 @@ const handler = createMcpHandler(
           request: z.string().describe("מה הלקוח ביקש, במילים שלו ככל האפשר"),
           received: z.string().optional().describe("מתי הגיעה הפנייה, ISO, אם ידוע. ריק = עכשיו"),
           has_files: z.boolean().default(false).describe("true אם ארז שיתף תמונה או קובץ של הלקוח. תאר ב-request מה רואים בהם (מידות, סקיצה, סגנון)"),
+          channel: z.enum(CHANNELS).optional().describe(`מאיפה הלקוח שמע על נויה, רק אם ידוע: ${CHANNELS.map((c) => `${c}=${CHANNEL_LABEL[c]}`).join(", ")}`),
         }),
       },
       async (a) => {
@@ -420,6 +423,7 @@ const handler = createMcpHandler(
           id: uid(12),
           createdAt: a.received && !isNaN(Date.parse(a.received)) ? new Date(a.received).toISOString() : new Date().toISOString(),
           source: a.source,
+          ...(a.channel ? { channel: a.channel } : {}),
           name: a.name.trim(),
           phone: a.phone.trim() || findPhone(a.request),
           email: a.email.trim(),
@@ -428,6 +432,70 @@ const handler = createMcpHandler(
         await putLead(lead);
         return text(`נשמרה פנייה מ${lead.name || "לקוח"} (${SOURCE_LABEL[lead.source]}). מזהה: ${lead.id}. היא מופיעה ב"פניות" עד שתיבנה לה הצעה.
 לפתיחת מסך הפניות: ${SITE}/admin?view=leads${a.has_files ? "\nאת התמונות והקבצים עצמם מצרפים לפנייה שם, בכפתור 📎 קובץ." : ""}`);
+      }
+    );
+
+    server.registerTool(
+      "set_lead_channel",
+      {
+        title: "סימון מקור לפנייה",
+        description: "רושם מאיפה לקוח שמע על נויה (מודעת גוגל, פרופיל גוגל, המלצה…), לפנייה קיימת. lead_id מתוך list_leads.",
+        inputSchema: z.object({ lead_id: z.string(), channel: z.enum(CHANNELS) }),
+      },
+      async ({ lead_id, channel }) => {
+        const d = await getData();
+        const l = d.leads.find((x) => x.id === lead_id);
+        if (!l) return text("לא נמצאה פנייה כזאת.");
+        await putLead({ ...l, channel });
+        return text(`נרשם: ${l.name || "הלקוח"} הגיע מ${CHANNEL_LABEL[channel]}.`);
+      }
+    );
+
+    server.registerTool(
+      "add_ad_spend",
+      {
+        title: "רישום הוצאת פרסום",
+        description: "רושם כסף שארז שילם על פרסום (למשל 'גוגל השבוע 280'), כדי שהדוח יחשב עלות לפנייה ולמטבח. רק סכום שארז אמר.",
+        inputSchema: z.object({
+          channel: z.enum(CHANNELS).describe("gads = מודעות גוגל, meta = מודעות פייסבוק/אינסטגרם, אחרים לפי הצורך"),
+          amount: z.number().positive().describe("הסכום בשקלים"),
+          date: z.string().optional().describe("YYYY-MM-DD; ריק = היום"),
+          note: z.string().default(""),
+        }),
+      },
+      async ({ channel, amount, date, note }) => {
+        const day = date && /^\d{4}-\d\d-\d\d$/.test(date) ? date : todayIL();
+        await addSpend({ id: uid(12), date: day, channel, amount: Math.round(amount), note: note.slice(0, 200) });
+        const m = await getMarketing();
+        const month = day.slice(0, 7);
+        const sum = m.spends.filter((s) => s.date.startsWith(month) && s.channel === channel).reduce((t, s) => t + s.amount, 0);
+        return text(`נרשם: ${money(amount)} על ${CHANNEL_LABEL[channel]} (${fdate(day)}). סה״כ ${CHANNEL_LABEL[channel]} ב${monthName(month)}: ${money(sum)}.`);
+      }
+    );
+
+    server.registerTool(
+      "marketing_report",
+      {
+        title: "דוח שיווק",
+        description: "כמה פניות, הצעות ומטבחים הביא כל מקור, כמה הוצא על פרסום, עלות לפנייה ולמטבח, ביקורים ולחיצות באתר. ל'איך היה החודש?', 'מה עובד?'.",
+        inputSchema: z.object({ month: z.string().optional().describe("YYYY-MM; ריק = החודש הנוכחי") }),
+        annotations: { readOnlyHint: true },
+      },
+      async ({ month }) => {
+        const mo = month && /^\d{4}-\d\d$/.test(month) ? month : todayIL().slice(0, 7);
+        const [d, m] = await Promise.all([getData(), getMarketing()]);
+        const r = report(d, m, monthRange(mo));
+        const t = r.total;
+        const cost = (v: number | null) => (v === null ? "—" : money(v));
+        const rows = r.rows.map((x) =>
+          `${x.ch === "none" ? "לא סומן מקור" : CHANNEL_LABEL[x.ch]}: הוצאה ${x.spend ? money(x.spend) : "0"} · ביקורים ${x.visits} · חיוג/וואטסאפ ${x.calls + x.wa} · טפסים ${x.forms} · פניות ${x.leads} (עלות לפנייה ${cost(per(x.spend, x.leads))}) · הצעות ${x.sent} · נסגרו ${x.won}${x.revenue ? ` · ${money(x.revenue)}` : ""}`);
+        return text([
+          `דוח שיווק ${monthName(mo)} · יעד ${m.goal} מטבחים`,
+          `סה״כ: פניות ${t.leads} · הצעות ${t.sent} · נסגרו ${t.won} · הכנסה לפני מע״מ ${money(t.revenue)} · הוצאה ${money(t.spend)} · עלות לפנייה ${cost(per(t.spend, t.leads))} · עלות למטבח ${cost(per(t.spend, t.won))}`,
+          ...rows,
+          r.untaggedLeads.length ? `פניות בלי מקור: ${r.untaggedLeads.map((l) => `${l.name || l.phone} (${l.id})`).join(", ")}` : "",
+          `המסך המלא: ${SITE}/admin (לשונית שיווק)`,
+        ].filter(Boolean).join("\n"));
       }
     );
 
@@ -592,13 +660,13 @@ const handler = createMcpHandler(
     );
   },
   {
-    serverInfo: { name: "noya-quotes", version: "1.8.0" },
+    serverInfo: { name: "noya-quotes", version: "1.9.0" },
     instructions:
       "מערכת הצעות המחיר של נויה מטבחים (ארז). תהליך: 1) search_catalog כדי למצוא את הפריטים. " +
       "2) אם חסרה כמות לרכיב כלשהו (למשל ידית לחזיתות), או שיש כמה פריטים אפשריים, שאל את ארז שאלה אחת מרוכזת עם כל החסרים — לפני שבונים. " +
       "3) create_quote_draft רק כשהכול ברור. אל תנחש כמויות ואל תעתיק כמות בין רכיבים. " +
       "כל טיוטה מקבלת אוטומטית את העמלה הקבועה; remove_commission=true רק אם ארז ביקש במפורש בלי עמלה. " +
-      "להוספה להצעה קיימת: add_to_quote. לשינוי כמויות, תיאורים, הסרת שורות או פרטים: get_quote ואז update_quote. לא בונים הצעה חדשה כשארז ביקש לשנות קיימת. אם ארז רוצה לשנות הצעה ולא אמר איזו: list_quotes, הצג לו רשימה ממוספרת קצרה (מספר, לקוח, פרויקט, סכום) ושאל איזו, ורק אחר כך get_quote.  לשליחה ללקוח: whatsapp_link, או email_quote למייל עם PDF (גם כתשובה למייל שבו הלקוח ביקש הצעה) — תמיד אחרי שארז אישר נמען ונוסח. לעריכת הקטלוג (פריטים, תתי-פריטים, מחירים): search_catalog עם full_tree=true ואז edit_catalog, אחרי שארז אישר את השינויים. פניות (בקשות להצעה): כשארז משתף הודעה מלקוח או אומר 'תוסיף פנייה' — add_lead (לא create_quote_draft! פנייה היא לא הצעה; אחרי השמירה תן לארז את הקישור למסך הפניות שהכלי מחזיר). 'מה מחכה?' — list_leads. שרטוט או הדמיה של מטבח (לרוב מצילום של סקיצה ידנית): set_kitchen_layout — נשמר כתכנון בלשונית 'תכנונים', רק עם מידות שמופיעות בסקיצה או שארז אמר. 'מה התכנונים?' — list_plans. הצעה מתכנון: create_quote_draft עם plan_id. כשבונים הצעה לפנייה, העבר lead_id ואת פרטי הלקוח מהפנייה ל-create_quote_draft. דבר עם ארז בעברית.",
+      "להוספה להצעה קיימת: add_to_quote. לשינוי כמויות, תיאורים, הסרת שורות או פרטים: get_quote ואז update_quote. לא בונים הצעה חדשה כשארז ביקש לשנות קיימת. אם ארז רוצה לשנות הצעה ולא אמר איזו: list_quotes, הצג לו רשימה ממוספרת קצרה (מספר, לקוח, פרויקט, סכום) ושאל איזו, ורק אחר כך get_quote.  לשליחה ללקוח: whatsapp_link, או email_quote למייל עם PDF (גם כתשובה למייל שבו הלקוח ביקש הצעה) — תמיד אחרי שארז אישר נמען ונוסח. לעריכת הקטלוג (פריטים, תתי-פריטים, מחירים): search_catalog עם full_tree=true ואז edit_catalog, אחרי שארז אישר את השינויים. פניות (בקשות להצעה): כשארז משתף הודעה מלקוח או אומר 'תוסיף פנייה' — add_lead (לא create_quote_draft! פנייה היא לא הצעה; אחרי השמירה תן לארז את הקישור למסך הפניות שהכלי מחזיר). 'מה מחכה?' — list_leads. שרטוט או הדמיה של מטבח (לרוב מצילום של סקיצה ידנית): set_kitchen_layout — נשמר כתכנון בלשונית 'תכנונים', רק עם מידות שמופיעות בסקיצה או שארז אמר. 'מה התכנונים?' — list_plans. הצעה מתכנון: create_quote_draft עם plan_id. כשבונים הצעה לפנייה, העבר lead_id ואת פרטי הלקוח מהפנייה ל-create_quote_draft. שיווק: 'שילמתי על פרסום' — add_ad_spend; 'איך היה החודש?' / 'מה עובד?' — marketing_report; כשידוע מאיפה לקוח שמע עלינו — channel ב-add_lead או set_lead_channel. דבר עם ארז בעברית.",
   }
 );
 

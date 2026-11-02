@@ -4,6 +4,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import HeroSlider from "@/components/HeroSlider";
+import ContactForm from "@/components/ContactForm";
 import { getSiteSettings } from "@/lib/sanity";
 
 const categories = [
@@ -343,6 +344,11 @@ export default async function Home() {
           <h2 className="section-title mb-3">{contactTitle}</h2>
           <div className="gold-divider mx-auto" />
           <p className="text-[#6b6b6b] mt-5 mb-10 text-base">{contactSubtitle}</p>
+
+          <div className="max-w-xl mx-auto mb-8">
+            <ContactForm />
+          </div>
+          <p className="text-[#6b6b6b] text-sm mb-4">או ישירות:</p>
 
           <div className="flex flex-col gap-4 max-w-sm mx-auto w-full mb-8">
             {/* Phone */}

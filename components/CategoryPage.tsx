@@ -5,6 +5,7 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import Lightbox from "@/components/Lightbox";
+import ContactForm from "@/components/ContactForm";
 
 interface Props {
   title: string;
@@ -86,6 +87,10 @@ export default function CategoryPage({ title, subtitle, images }: Props) {
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <a href="tel:0502808180" className="btn-gold">התקשר עכשיו — 050-2808180</a>
           <a href="https://wa.me/972502808180" target="_blank" rel="noopener noreferrer" className="btn-outline">שלח הודעה בוואטסאפ</a>
+        </div>
+        <div className="max-w-xl mx-auto mt-8 px-5">
+          <p className="text-[#6b6b6b] text-sm mb-3">או השאירו פרטים וארז יחזור אליכם:</p>
+          <ContactForm compact />
         </div>
       </section>
 

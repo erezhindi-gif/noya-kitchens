@@ -258,3 +258,56 @@ body:has(.nq-admin) [aria-label="פתח תפריט נגישות"] { display: non
 .nq-chip.nq-chip-due[aria-pressed="true"] { background: #8a5a00; color: #fff; border-color: #8a5a00; }
 
 .nq-head-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* marketing */
+.nq-mk-period { display: flex; margin: 4px 0 14px; }
+.nq-mk-period label.f { width: min(260px, 100%); }
+.nq-mk-goal h2 { font-size: 17px; }
+.nq-mk-bar { height: 12px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; }
+.nq-mk-bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--gold), #c9a96e); border-radius: 999px; transition: width .4s; }
+.nq-mk-kpis { margin-bottom: 0; }
+.nq-mk-funnel { display: flex; flex-direction: column; gap: 8px; }
+.nq-mk-funnel .row { display: grid; grid-template-columns: 150px minmax(0, 1fr) 54px; gap: 10px; align-items: center; font-size: 14px; }
+.nq-mk-funnel .b { height: 14px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+.nq-mk-funnel .b span { display: block; height: 100%; background: var(--gold); border-radius: 999px; }
+.nq-mk-funnel .v { text-align: left; }
+@media (max-width: 560px) { .nq-mk-funnel .row { grid-template-columns: 110px minmax(0, 1fr) 44px; font-size: 13px; } }
+.nq-mk-table-wrap { overflow-x: auto; }
+.nq-mk-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.nq-mk-table th, .nq-mk-table td { padding: 9px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.nq-mk-table thead th { font-size: 12px; color: var(--muted); font-weight: 500; }
+.nq-mk-table tbody th { font-weight: 700; }
+.nq-mk-cards { display: none; flex-direction: column; gap: 10px; }
+.nq-mk-ch { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--surface-2); }
+.nq-mk-ch dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px; margin: 8px 0 0; }
+.nq-mk-ch dl div { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.nq-mk-ch dt { color: var(--muted); }
+.nq-mk-ch dd { margin: 0; font-weight: 700; }
+@media (max-width: 760px) { .nq-mk-table-wrap { display: none; } .nq-mk-cards { display: flex; } }
+.nq-mk-legend { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.nq-mk-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.nq-mk-legend i.a, .nq-mk-trend .a { background: var(--gold); }
+.nq-mk-legend i.b, .nq-mk-trend .b { background: var(--ok); }
+.nq-mk-trend { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; text-align: center; }
+.nq-mk-trend .bars { display: flex; align-items: flex-end; justify-content: center; gap: 4px; border-bottom: 1px solid var(--line); }
+.nq-mk-trend .bars span { width: min(22px, 38%); border-radius: 5px 5px 0 0; position: relative; min-height: 0; }
+.nq-mk-trend .bars em { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: 11px; color: var(--ink); }
+.nq-mk-trend .mo { font-size: 12px; margin-top: 6px; font-weight: 500; }
+.nq-mk-tags { display: flex; flex-direction: column; gap: 8px; }
+.nq-mk-tag { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.nq-mk-tag select { width: min(240px, 100%); }
+.nq-mk-links .row, .nq-mk-spends .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.nq-mk-links .row:last-child, .nq-mk-spends .row:last-child { border-bottom: 0; }
+.nq-mk-links code { font-size: 12.5px; word-break: break-all; display: block; }
+.nq-mk-links .row > div { min-width: 0; }
+.nq-mk-spend-f { display: grid; grid-template-columns: 1.4fr 1fr 1fr 2fr; gap: 12px; }
+@media (max-width: 760px) { .nq-mk-spend-f { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.nq-mk-drop { display: flex; align-items: center; justify-content: center; min-height: 180px; border: 2px dashed var(--line); border-radius: 12px; background: var(--surface-2); cursor: pointer; overflow: hidden; color: var(--muted); }
+.nq-mk-drop:hover { border-color: var(--gold); }
+.nq-mk-drop img { display: block; width: 100%; max-height: 420px; object-fit: contain; }
+.nq-mk-checks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.nq-mk-checks label.nq-chip { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.nq-mk-checks input { accent-color: var(--gold); }
+.nq-mk-checks label.nq-chip[aria-pressed="true"] input { accent-color: #fff; }
+.nq-mk-out { display: block; width: 100%; border-radius: 10px; }
+.nq-warn-box { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--bad-bg); color: var(--bad); font-size: 14px; }
