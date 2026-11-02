@@ -3,11 +3,15 @@
 // When a plan is ready, a quote is opened from it; the quote then shows the plan to the client.
 import { useState } from "react";
 import { fdate, qnum } from "@/lib/quotes/calc";
-import type { AppData, Plan, Quote } from "@/lib/quotes/types";
+import type { AppData, Lead, Plan, Quote } from "@/lib/quotes/types";
 import LayoutEditor from "./LayoutEditor";
 import { downloadBlob, sharePdf } from "./pdf";
 
 const claudeLink = (start: string) => `https://claude.ai/new?q=${encodeURIComponent(start)}`;
+const sameName = (a: string, b: string) => a.trim().replace(/\s+/g, " ") === b.trim().replace(/\s+/g, " ");
+/** the newest request whose name is exactly this client's name */
+const leadNamed = (leads: Lead[], name: string) =>
+  name.trim() ? [...leads].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).find((l) => l.name && sameName(l.name, name)) : undefined;
 const quoteOf = (p: Plan, quotes: Quote[]) => quotes.find((q) => q.id === p.quoteId) || quotes.find((q) => q.planId === p.id);
 
 export function PlansView({ data, onOpen, onNew, onQuote, onOpenQuote }: {
@@ -67,6 +71,13 @@ export function PlanScreen({ plan: p, data, upd, saveNow, onBack, onQuote, onOpe
   const [pdfError, setPdfError] = useState(false);
   const q = quoteOf(p, data.quotes);
   const who = p.client.name || "הלקוח";
+  // the client's request ("פניות") with the same name: its phone and email fill the plan
+  const lead = leadNamed(data.leads, p.client.name);
+  const fromLead = (x: Plan, l: Lead, all = false) => {
+    if (l.phone && (all || !x.client.phone)) x.client.phone = l.phone;
+    if (l.email && (all || !x.client.email)) x.client.email = l.email;
+  };
+  const differs = lead && ((lead.phone && lead.phone !== p.client.phone) || (lead.email && lead.email !== (p.client.email || "")));
   const canShare = typeof navigator !== "undefined" && "canShare" in navigator && /Android|iPhone|iPad/i.test(navigator.userAgent);
   // The plan alone for the client (drawings and 3D, no prices), made on the server like the quote PDF.
   const onPdf = async () => {
@@ -102,7 +113,16 @@ export function PlanScreen({ plan: p, data, upd, saveNow, onBack, onQuote, onOpe
       <div className="nq-stack">
         <section className="nq-card">
           <div className="nq-fields">
-            <label className="f">שם הלקוח<input className="in" value={p.client.name} onChange={(e) => upd((x) => { x.client.name = e.target.value; })} /></label>
+            <label className="f">שם הלקוח<input className="in" list="nq-lead-names" value={p.client.name} onChange={(e) => {
+              const name = e.target.value;
+              const l = leadNamed(data.leads, name);
+              upd((x) => { x.client.name = name; if (l) fromLead(x, l); });
+            }} />
+              <datalist id="nq-lead-names">{Array.from(new Set(data.leads.map((l) => l.name.trim()).filter(Boolean))).map((n) => <option key={n} value={n} />)}</datalist>
+              {differs && <button type="button" className="nq-btn sm ghost" style={{ paddingInline: 0, justifySelf: "start" }} onClick={() => upd((x) => fromLead(x, lead!, true))}>
+                לקחת טלפון ואימייל מהפנייה של {lead!.name} ({lead!.phone || lead!.email})
+              </button>}
+            </label>
             <label className="f">טלפון<input className="in num" type="tel" value={p.client.phone} onChange={(e) => upd((x) => { x.client.phone = e.target.value; })} /></label>
             <label className="f">אימייל<input className="in ltr" type="email" style={{ textAlign: "left" }} value={p.client.email || ""} onChange={(e) => upd((x) => { x.client.email = e.target.value; })} /></label>
             <label className="f">שם התכנון<input className="in" value={p.title} placeholder="מטבח, ארון קיר…" onChange={(e) => upd((x) => { x.title = e.target.value; })} /></label>
