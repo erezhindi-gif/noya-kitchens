@@ -202,7 +202,8 @@ export default function AdminApp() {
     // On the phone the app stays open for days. When a new version is on the site, reload into it
     // (nothing unsaved is lost: only when no save is waiting, and the screen comes back as it was).
     const update = async () => {
-      if (document.hidden || pending.current > 0 || BUILD === "dev") return;
+      // also not while a photo screen holds versions that were made but not saved (they cost money to make again)
+      if (document.hidden || pending.current > 0 || BUILD === "dev" || (window as { nqHold?: number }).nqHold) return;
       const v = await fetch("/api/admin/version", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
       if (!v?.build || v.build === "dev" || v.build === BUILD || pending.current > 0) return;
       // once per version, so a mismatch that a reload doesn't fix can't loop

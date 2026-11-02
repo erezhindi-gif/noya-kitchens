@@ -31,7 +31,12 @@ export default function SiteImages({ flash }: { flash: (m: string) => void }) {
   useEffect(() => { load(); }, []);
 
   if (!items) return <div className="nq-empty">טוען תמונות…</div>;
-  if (open) return <Editor item={open} flash={flash} onBack={() => { setOpen(null); load(); }} />;
+  if (open) {
+    const i = items.findIndex((x) => x.id === open.id);
+    const next = i >= 0 ? items[i + 1] : undefined;
+    return <Editor key={open.id} item={open} flash={flash} onBack={() => { setOpen(null); load(); }}
+      onNext={next ? () => { setOpen(next); window.scrollTo(0, 0); } : undefined} />;
+  }
 
   const groups = Array.from(new Set(items.map((i) => i.group)));
   return (
@@ -61,7 +66,7 @@ export default function SiteImages({ flash }: { flash: (m: string) => void }) {
 /** Small preview: Sanity resizes on its CDN; site files go through Next's image optimizer. */
 const thumb = (src: string) => (src.startsWith("https://cdn.sanity.io") ? `${src}?w=400&q=70` : `/_next/image?url=${encodeURIComponent(src)}&w=384&q=70`);
 
-function Editor({ item, flash, onBack }: { item: Item; flash: (m: string) => void; onBack: () => void }) {
+function Editor({ item, flash, onBack, onNext }: { item: Item; flash: (m: string) => void; onBack: () => void; onNext?: () => void }) {
   const [notes, setNotes] = useState("");
   const [shots, setShots] = useState<Shot[]>([]);
   const [pick, setPick] = useState(-1); // -1 = the original
@@ -104,10 +109,14 @@ function Editor({ item, flash, onBack }: { item: Item; flash: (m: string) => voi
     flash("התמונה המקורית חזרה לאתר");
   };
 
+  useHoldUpdates(shots.length > 0);
   const shown = pick >= 0 ? shots[pick]?.url : item.original;
   return (
     <div className="nq-stack">
-      <div className="nq-head-acts"><button className="nq-btn sm ghost" onClick={onBack}>→ לכל התמונות</button>{replaced && <span className="nq-pill nq-st-approved">באתר: הגרסה החדשה</span>}</div>
+      <div className="nq-head-acts" style={{ justifyContent: "space-between", alignItems: "center" }}>
+        <span className="nq-head-acts" style={{ alignItems: "center" }}><button className="nq-btn sm ghost" onClick={onBack}>→ לכל התמונות</button>{replaced && <span className="nq-pill nq-st-approved">באתר: הגרסה החדשה</span>}</span>
+        {onNext && <button className="nq-btn sm" disabled={!!busy} onClick={onNext}>התמונה הבאה ‹</button>}
+      </div>
       <section className="nq-card">
         <div className="nq-chips" style={{ marginBottom: 10 }}>
           <button className="nq-chip" aria-pressed={pick === -1} onClick={() => setPick(-1)}>מקור</button>
@@ -134,4 +143,14 @@ function Editor({ item, flash, onBack }: { item: Item; flash: (m: string) => voi
       </section>
     </div>
   );
+}
+
+/** While true, the admin does not reload itself into a new site version (see AdminApp). */
+export function useHoldUpdates(on: boolean) {
+  useEffect(() => {
+    if (!on) return;
+    const w = window as { nqHold?: number };
+    w.nqHold = (w.nqHold || 0) + 1;
+    return () => { w.nqHold = Math.max(0, (w.nqHold || 1) - 1); };
+  }, [on]);
 }
