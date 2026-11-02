@@ -14,7 +14,11 @@ const ERR: Record<string, string> = {
 };
 
 async function toJpeg(src: string) {
-  const blob = await (await fetch(src)).blob();
+  // The gallery CDN refuses reads from the admin page (CORS), so those go through the site's own image server.
+  const url = src.startsWith("https://cdn.sanity.io/") ? `/_next/image?url=${encodeURIComponent(src)}&w=2048&q=95` : src;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("read failed");
+  const blob = await res.blob();
   const img = await createImageBitmap(blob);
   const k = Math.min(1, 2048 / Math.max(img.width, img.height));
   const c = document.createElement("canvas");
