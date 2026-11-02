@@ -309,7 +309,7 @@ body:has(.nq-admin) [aria-label="פתח תפריט נגישות"] { display: non
 .nq-mk-checks label.nq-chip { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 .nq-mk-checks input { accent-color: var(--gold); }
 .nq-mk-checks label.nq-chip[aria-pressed="true"] input { accent-color: #fff; }
-.nq-mk-out { display: block; width: 100%; border-radius: 10px; }
+.nq-mk-out { display: block; max-width: 100%; max-height: calc(100vh - 230px); width: auto; height: auto; margin: 0 auto; border-radius: 10px; object-fit: contain; }
 .nq-warn-box { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--bad-bg); color: var(--bad); font-size: 14px; }
 .nq-review-ask { background: var(--ok-bg); border-color: transparent; }
 .nq-mk-tab { flex-shrink: 0; margin-inline-start: 8px; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 7px 14px; font-size: 14px; font-weight: 500; color: var(--muted); white-space: nowrap; }
