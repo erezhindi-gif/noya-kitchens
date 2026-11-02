@@ -36,10 +36,13 @@ export const LIGHTS: Record<string, { he: string; en: string }> = {
 
 /** A new professional shoot of the same room: better angle, light and a few accessories, carpentry untouched. */
 const RESHOOT_PROMPT = [
-  "Recreate this photo as a brand-new professional photograph of the exact same room, as if it was shot today (2026) by a top architectural interior photographer with a high-end full-frame camera and a tilt-shift lens, then finished in a professional studio.",
+  "Re-photograph this kitchen from scratch, the way a top architectural interior photographer would on a real 2026 photo shoot for a kitchen maker's portfolio, with a high-end full-frame camera and a tilt-shift lens, finished in a professional studio. This is a NEW photograph of the same kitchen, NOT a retouch of this phone photo.",
   "THE CARPENTRY IS SACRED: every cabinet, door, drawer, panel, shelf, handle, countertop, built-in appliance, material, color, finish and proportion must stay identical. Same number of units, same widths and heights, same order. The room architecture (walls, windows, ceiling, floor) stays identical.",
-  "You may: choose a better, more professional camera position and angle (eye level about 1.3 m, straight verticals, a balanced composition that shows the kitchen at its best); improve the light (soft natural daylight with a gentle warm glow under the wall cabinets), exposure, color and sharpness; remove clutter; add a few subtle, tasteful accessories without covering the carpentry.",
-  "The result must be a clearly NEW and better professional photograph, not the input photo with small changes: a new professional camera position and framing, new professional light, a clean finished look.",
+  "REQUIRED CHANGES (all of them):",
+  "1. CAMERA: move to a new, better professional viewpoint (follow the instructions below if given; otherwise the most flattering one, usually from a corner of the room at about 1.2-1.4 m height with a 24 mm lens), perfectly straight verticals, a balanced composition that shows the kitchen at its best. Do not keep the phone's viewpoint if it is awkward, too close, tilted or cut off.",
+  "2. LIGHT: professional lighting of the whole room: bright, soft, even daylight, windows not blown out, no dark corners, true colors, gentle soft shadows, a warm glow under the wall cabinets.",
+  "3. STAGING: the kitchen is staged for the portfolio. Clear away personal everyday items: dish soap and sponges, small appliances on the counter (coffee machines, kettles, toasters), fridge magnets and papers, towels, bags, cables, rugs and mats on the floor, anything messy. Then add only the accessories stated below.",
+  "The result must look clearly different from the phone photo and clearly better: a professional, finished, magazine-ready photograph.",
   "Photorealistic, architecture-magazine quality. No text, no watermark.",
 ].join("\n");
 
