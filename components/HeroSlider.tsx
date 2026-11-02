@@ -2,13 +2,11 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 
-const slides = [
-  { src: "/images/hero-1.jpg", alt: "מטבח מעוצב" },
-  { src: "/images/hero-2.jpg", alt: "ריהוט בהתאמה אישית" },
-  { src: "/images/hero-3.jpg", alt: "עיצוב פנים" },
-];
+const ALTS = ["מטבח מעוצב", "ריהוט בהתאמה אישית", "עיצוב פנים"];
 
-export default function HeroSlider() {
+/** srcs: the hero photos as the site shows them now (a professionally re-shot version replaces the file). */
+export default function HeroSlider({ srcs }: { srcs: string[] }) {
+  const slides = srcs.map((src, i) => ({ src, alt: ALTS[i] || "" }));
   const [current, setCurrent] = useState(0);
 
   useEffect(() => {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Faqs, InfoPage, PROCESS, Section, Steps, faqJsonLd, type Faq } from "@/components/InfoPage";
 import { CITIES, cityBySlug } from "@/lib/seo/cities";
+import { getImageOverrides, swap } from "@/lib/site-images";
 
 const SITE = "https://www.noya-k.co.il";
 const PHOTOS = Array.from({ length: 20 }, (_, i) => `/images/kitchens/kitchen-${i + 1}.jpg`);
@@ -23,11 +24,12 @@ export function generateMetadata({ params }: { params: { city: string } }): Meta
   };
 }
 
-export default function Page({ params }: { params: { city: string } }) {
+export default async function Page({ params }: { params: { city: string } }) {
   const c = cityBySlug(params.city);
   if (!c) notFound();
   const i = CITIES.indexOf(c);
   // A different set of kitchens on each town's page
+  const sw = swap(await getImageOverrides());
   const photos = Array.from({ length: 6 }, (_, k) => PHOTOS[(i * 3 + k * 7) % PHOTOS.length]);
   const faq: Faq[] = [
     { q: `אתם עובדים ב${c.name}?`, a: `כן. ${c.local}` },
@@ -61,7 +63,7 @@ export default function Page({ params }: { params: { city: string } }) {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {photos.map((src, k) => (
             <div key={src} className="relative aspect-[4/3] overflow-hidden rounded-xl">
-              <Image src={src} alt={`מטבח בהתאמה אישית של NOYA מטבחים, דוגמה ${k + 1}`} fill sizes="(max-width: 768px) 50vw, 300px" className="object-cover" />
+              <Image src={sw(src)} alt={`מטבח בהתאמה אישית של NOYA מטבחים, דוגמה ${k + 1}`} fill sizes="(max-width: 768px) 50vw, 300px" className="object-cover" />
             </div>
           ))}
         </div>

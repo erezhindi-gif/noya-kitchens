@@ -6,6 +6,7 @@ import { monthBack, monthName, monthRange, per, report, type Key, type Range, ty
 import { fdate, money, qnum, todayIL } from "@/lib/quotes/calc";
 import type { AppData, Lead, Marketing, Quote, Spend } from "@/lib/quotes/types";
 import PhotoStudio from "./PhotoStudio";
+import SiteImages from "./SiteImages";
 
 const KEY_LABEL = (k: Key) => (k === "none" ? "לא סומן מקור" : CHANNEL_LABEL[k]);
 const SITE = "https://www.noya-k.co.il";
@@ -13,7 +14,7 @@ const n0 = (n: number) => Math.round(n).toLocaleString("he-IL");
 const orDash = (v: number | null, f: (n: number) => string = money) => (v === null ? "—" : f(v));
 
 type M = Marketing & { hasPhotoKey?: boolean };
-type Section = "report" | "spend" | "photos";
+type Section = "report" | "spend" | "photos" | "site";
 
 export default function MarketingView({ data, onTagLead, onTagQuote, flash }: {
   data: AppData; onTagLead: (l: Lead, ch: Channel) => void; onTagQuote: (q: Quote, ch: Channel) => void; flash: (m: string) => void;
@@ -45,14 +46,16 @@ export default function MarketingView({ data, onTagLead, onTagQuote, flash }: {
         <div><h1>שיווק</h1><div className="sub">מאיפה מגיעים הלקוחות, כמה זה עולה ומה זה מכניס</div></div>
       </div>
       <div className="nq-chips">
-        {([["report", "דוח"], ["spend", "הוצאות פרסום"], ["photos", "תמונות לקטלוג"]] as const).map(([k, l]) => (
+        {([["report", "דוח"], ["spend", "הוצאות פרסום"], ["photos", "תמונות לקטלוג"], ["site", "תמונות האתר"]] as const).map(([k, l]) => (
           <button key={k} className="nq-chip" aria-pressed={section === k} onClick={() => setSection(k)}>{l}</button>
         ))}
       </div>
 
       {section === "photos" && <PhotoStudio hasKey={!!m.hasPhotoKey} onKeySaved={() => setM({ ...m, hasPhotoKey: true })} flash={flash} />}
 
-      {section !== "photos" && (
+      {section === "site" && <SiteImages flash={flash} />}
+
+      {section !== "photos" && section !== "site" && (
         <div className="nq-mk-period">
           <label className="f">תקופה
             <select className="in" value={period} onChange={(e) => setPeriod(e.target.value)}>

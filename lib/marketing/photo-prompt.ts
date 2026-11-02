@@ -1,6 +1,6 @@
 // What the catalog-photo tool asks the image model for. Shared by the screen (choices) and the server (prompt).
 
-export type PhotoOpts = { counter: string; appliances: string[]; light: string; clean: boolean; styling: boolean; notes: string; /** "pro": retouch a finished photo only, add nothing */ mode?: "catalog" | "pro" };
+export type PhotoOpts = { counter: string; appliances: string[]; light: string; clean: boolean; styling: boolean; notes: string; /** "pro": retouch a finished photo only, add nothing */ mode?: "catalog" | "pro" | "reshoot" };
 
 /** A finished project photographed on a phone, made to look shot and finished by a top architectural photographer. */
 const PRO_PROMPT = [
@@ -34,7 +34,16 @@ export const LIGHTS: Record<string, { he: string; en: string }> = {
   daylight: { he: "אור יום טבעי", en: "soft natural daylight from the windows, balanced exposure, airy and bright" },
 };
 
+/** A new professional shoot of the same room: better angle, light and a few accessories, carpentry untouched. */
+const RESHOOT_PROMPT = [
+  "Recreate this photo as a brand-new professional photograph of the exact same room, as if it was shot today (2026) by a top architectural interior photographer with a high-end full-frame camera and a tilt-shift lens, then finished in a professional studio.",
+  "THE CARPENTRY IS SACRED: every cabinet, door, drawer, panel, shelf, handle, countertop, built-in appliance, material, color, finish and proportion must stay identical. Same number of units, same widths and heights, same order. The room architecture (walls, windows, ceiling, floor) stays identical.",
+  "You may: choose a better, more professional camera position and angle (eye level about 1.3 m, straight verticals, a balanced composition that shows the kitchen at its best); improve the light (soft natural daylight with a gentle warm glow under the wall cabinets), exposure, color and sharpness; remove clutter; add a few subtle, tasteful accessories (a vase with greenery, a bowl, a cutting board, a couple of cookbooks) without covering the carpentry.",
+  "Photorealistic, architecture-magazine quality. No text, no watermark.",
+].join("\n");
+
 export function photoPrompt(o: PhotoOpts) {
+  if (o.mode === "reshoot") return RESHOOT_PROMPT + (o.notes?.trim() ? `\nInstructions from the kitchen maker for this photo (Hebrew, follow them exactly, they override the above except the carpentry rule): ${o.notes.trim()}` : "");
   if (o.mode === "pro") return PRO_PROMPT + (o.notes?.trim() ? `\nNotes from the kitchen maker (Hebrew, follow them): ${o.notes.trim()}` : "");
   const counter = COUNTERS[o.counter] || COUNTERS.calacatta;
   const add = [

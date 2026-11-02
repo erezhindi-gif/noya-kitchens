@@ -5,6 +5,7 @@ import Footer from "@/components/Footer";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import HeroSlider from "@/components/HeroSlider";
 import ContactForm from "@/components/ContactForm";
+import { HERO, getImageOverrides, swap } from "@/lib/site-images";
 import { getSiteSettings } from "@/lib/sanity";
 
 export const metadata = { alternates: { canonical: "/" } };
@@ -111,7 +112,8 @@ const GoogleIcon = () => (
 );
 
 export default async function Home() {
-  const s = await getSiteSettings();
+  const [s, ov] = await Promise.all([getSiteSettings(), getImageOverrides()]);
+  const sw = swap(ov);
   const heroLabel    = s?.heroLabel    || "נגרות יוקרתית בהתאמה אישית";
   const heroTitle    = s?.heroTitle    || "מטבחים שמספרים את הסיפור שלך";
   const heroSubtitle = s?.heroSubtitle || "ארז הנדי — נגר מקצועי עם למעלה מ־30 שנות ניסיון.\nכל פרויקט מתוכנן, מיוצר ומותקן על ידי ארז עצמו.";
@@ -154,7 +156,7 @@ export default async function Home() {
 
       {/* HERO */}
       <section id="main-content" className="hero-section pt-[80px]">
-        <HeroSlider />
+        <HeroSlider srcs={HERO.map(sw)} />
         <div className="relative z-10 max-w-7xl mx-auto px-5 md:px-8 w-full">
           <div className="max-w-xl md:max-w-2xl">
             <p className="text-[#C9A96E] text-xs tracking-[0.35em] uppercase mb-4 font-semibold">{heroLabel}</p>
@@ -271,7 +273,7 @@ export default async function Home() {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
             {categories.map((cat) => (
               <Link key={cat.id} href={cat.href} id={cat.id} className="category-card group block">
-                <Image src={cat.img} alt={`${cat.title} — NOYA מטבחים ארז הנדי`} fill className="object-cover" />
+                <Image src={sw(cat.img)} alt={`${cat.title} — NOYA מטבחים ארז הנדי`} fill className="object-cover" />
                 <div className="card-overlay">
                   <div className="flex items-center justify-between">
                     <h3 className="text-white text-sm md:text-lg font-bold">{cat.title}</h3>
@@ -305,7 +307,7 @@ export default async function Home() {
               "/images/kitchens/kitchen-6.jpg",
             ].map((src, i) => (
               <div key={i} className="break-inside-avoid overflow-hidden rounded-xl group">
-                <Image src={src} alt={`פרויקט ${i + 1}`} width={600} height={450}
+                <Image src={sw(src)} alt={`פרויקט ${i + 1}`} width={600} height={450}
                   className="w-full object-cover transition-transform duration-500 group-hover:scale-105"
                   title={`פרויקט נגרות ${i + 1} — NOYA מטבחים`} />
               </div>

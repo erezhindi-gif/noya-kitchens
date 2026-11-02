@@ -315,3 +315,9 @@ body:has(.nq-admin) [aria-label="פתח תפריט נגישות"] { display: non
 .nq-mk-tab { flex-shrink: 0; margin-inline-start: 8px; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 7px 14px; font-size: 14px; font-weight: 500; color: var(--muted); white-space: nowrap; }
 .nq-mk-tab[aria-current="true"] { background: var(--gold-soft); color: var(--gold-ink); border-color: var(--gold-soft); }
 @media (max-width: 480px) { .nq-mk-tab { padding: 6px 9px; font-size: 13px; margin-inline-start: auto; } }
+.nq-si-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.nq-si-thumb { position: relative; padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface-2); aspect-ratio: 4 / 3; }
+.nq-si-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.nq-si-thumb .nq-pill { position: absolute; top: 6px; right: 6px; }
+.nq-si-thumb:hover { border-color: var(--gold); }
+@media (max-width: 480px) { .nq-si-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
