@@ -82,6 +82,8 @@ export type Quote = {
   internalNotes?: string;
   /** The kitchen plan this quote was made from; its drawing and 3D view show with the quote */
   planId?: string;
+  /** When Erez last sent this client a review request */
+  reviewAskedAt?: string;
   /** What brought this client, for a quote that has no request (פנייה) behind it */
   channel?: Channel;
   updatedAt?: string;
@@ -110,6 +112,9 @@ export type Settings = {
   /** Review pages shown to the client with every quote that is sent, so the ratings help them decide */
   reviewsGoogle?: string;
   reviewsMidrag?: string;
+  /** Where a client whose kitchen is done writes a review; sent only by Erez, only after the job */
+  reviewAskGoogle?: string;
+  reviewAskB144?: string;
 };
 
 export type LeadSource = "email" | "whatsapp" | "phone" | "site" | "other";

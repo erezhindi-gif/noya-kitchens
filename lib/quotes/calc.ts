@@ -257,6 +257,35 @@ export function reviewLines(s: Settings) {
   return links.length ? ["מה הלקוחות שלנו אומרים עלינו:", ...links] : [];
 }
 
+/** Where a client who got a kitchen can write a review (Google, Bezeq B144). */
+export function reviewAskLinks(s: Settings) {
+  return [
+    s.reviewAskGoogle?.trim() && `גוגל: ${s.reviewAskGoogle.trim()}`,
+    s.reviewAskB144?.trim() && `בזק (B144): ${s.reviewAskB144.trim()}`,
+  ].filter(Boolean) as string[];
+}
+
+/** The review request Erez sends from his WhatsApp after the job; he can edit it before sending. */
+export function reviewAskText(q: Quote, s: Settings) {
+  const name = (q.client.name || "").trim().split(/\s+/)[0];
+  return [
+    `שלום${name ? ` ${name}` : ""},`,
+    "תודה שבחרתם בנויה מטבחים, היה לי כיף לעבוד איתכם ומקווה שאתם נהנים מהמטבח החדש.",
+    "אם אתם מרוצים, אשמח מאוד אם תקדישו דקה ותכתבו כמה מילים. זה עוזר לי מאוד:",
+    ...reviewAskLinks(s),
+    "",
+    "תודה רבה!",
+    `${s.owner || "ארז"}, נויה מטבחים`,
+  ].join("\n");
+}
+
+/** A WhatsApp chat with this phone, with the text typed in. */
+export function waText(phone: string, text: string) {
+  let ph = (phone || "").replace(/\D/g, "");
+  if (ph.startsWith("0")) ph = "972" + ph.slice(1);
+  return `https://wa.me/${ph}?text=${encodeURIComponent(text)}`;
+}
+
 export function waLink(q: Quote, settings: Settings, total: number, origin: string) {
   let ph = (q.client.phone || "").replace(/\D/g, "");
   if (ph.startsWith("0")) ph = "972" + ph.slice(1);

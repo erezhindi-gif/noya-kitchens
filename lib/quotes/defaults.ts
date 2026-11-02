@@ -21,6 +21,8 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultCommissionPct: 5,
   reviewsGoogle: "https://www.google.com/maps?cid=18053665565514135117",
   reviewsMidrag: "https://www.midrag.co.il/SpCard/Sp/52824?areaId=4&serviceId=216",
+  reviewAskGoogle: "https://share.google/DlkIEwVynx7sEg1Su",
+  reviewAskB144: "",
   leadAutoReply: true,
   leadReplyText:
     "שלום {שם},\n\nתודה על פנייתך לנויה מטבחים. קיבלנו את הבקשה, ונחזור אליך עם הצעת מחיר תוך 2 ימי עסקים.\n\nבברכה,\nארז\nנויה מטבחים\n050-2808180",

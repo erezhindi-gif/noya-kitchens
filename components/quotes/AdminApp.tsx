@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   STATUS_LABEL, UNIT_LABEL, ancestors, calc, descendantIds, fdate, kids, leafCount, lineFrom, lineTotal,
-  commissionsOf, defaultCommissions, followState, markSentFields, tidyLineDesc, composeDesc, label, money, pathPrice, priceOf, normalizeCat, tidyCat, qnum, reviewLines, todayIL, uid, waLink,
+  commissionsOf, defaultCommissions, followState, markSentFields, tidyLineDesc, composeDesc, label, money, pathPrice, priceOf, normalizeCat, tidyCat, qnum, reviewAskLinks, reviewAskText, reviewLines, todayIL, uid, waLink, waText,
 } from "@/lib/quotes/calc";
 import type { AppData, CatNode, Lead, LeadFile, LeadSource, Plan, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
 import { STARTER_LAYOUT } from "./LayoutEditor";
@@ -484,13 +484,14 @@ export default function AdminApp() {
             <button aria-current={tab === "leads"} onClick={() => go("leads")}>פניות{waiting ? <span className="nq-badge num">{waiting}</span> : null}</button>
             <button aria-current={tab === "plans"} onClick={() => go("plans")}>תכנונים</button>
             <button aria-current={tab === "list"} onClick={() => go("list")}>הצעות</button>
-            <button aria-current={tab === "marketing"} onClick={() => go("marketing")}>שיווק</button>
             <button aria-current={tab === "catalog"} onClick={() => go("catalog")}>קטלוג</button>
             <button aria-current={tab === "settings"} onClick={() => go("settings")}>הגדרות</button>
           </nav>
           <span className={`nq-save ${save === "error" ? "err" : ""}`}>
             {save === "saving" ? "שומר…" : save === "saved" ? "נשמר ✓" : save === "error" ? "השמירה נכשלה, בדוק חיבור" : ""}
           </span>
+          {/* Marketing is its own area, apart from the quote system's tabs */}
+          <button className="nq-mk-tab" aria-current={tab === "marketing"} onClick={() => go("marketing")}>📈 שיווק</button>
         </div>
       </header>
 
@@ -792,6 +793,25 @@ function ListView({ data, onOpen, onNew, onDup, onDelete, onAgent }: { data: App
   );
 }
 
+/** For a client whose kitchen was done (approved quote): Erez sends a review request himself, from his WhatsApp. */
+function ReviewAsk({ q, settings, onAsked }: { q: Quote; settings: Settings; onAsked: () => void }) {
+  const links = reviewAskLinks(settings);
+  if (!links.length) return null;
+  const href = waText(q.client.phone, reviewAskText(q, settings));
+  return (
+    <div className="nq-back nq-review-ask">
+      <span>
+        ⭐ {q.reviewAskedAt
+          ? <>ביקשת ביקורת ב-<span className="num">{fdate(q.reviewAskedAt.slice(0, 10))}</span></>
+          : "העבודה הסתיימה? בקש מהלקוח ביקורת"}
+      </span>
+      {q.client.phone
+        ? <a className={`nq-btn sm ${q.reviewAskedAt ? "" : "wa"}`} href={href} target="_blank" rel="noopener" onClick={onAsked}>{q.reviewAskedAt ? "שלח שוב" : "בקשת ביקורת בוואטסאפ"}</a>
+        : <span className="hint">חסר טלפון ללקוח</span>}
+    </div>
+  );
+}
+
 /* =================== editor =================== */
 function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash, planLink }: {
   data: AppData; q: Quote; upd: (fn: (q: Quote) => void, delay?: number) => void; planLink: React.ReactNode;
@@ -829,6 +849,7 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash, planL
       </div>
 
       {planLink}
+      {q.status === "approved" && <ReviewAsk q={q} settings={data.settings} onAsked={() => upd((x) => { x.reviewAskedAt = new Date().toISOString(); }, 0)} />}
       <div className="nq-ed">
         <div className="nq-stack">
           <section className="nq-card">
@@ -1355,6 +1376,8 @@ function SettingsView({ data, upd }: { data: AppData; upd: (fn: (s: Settings, pr
             {field("vatId", "עוסק מורשה")}{field("address", "כתובת")}{field("web", "אתר")}{field("email", "אימייל")}
             {field("reviewsGoogle", "קישור לביקורות בגוגל (נשלח עם כל הצעה)", { full: true })}
             {field("reviewsMidrag", "קישור לחוות דעת במידרג (נשלח עם כל הצעה)", { full: true })}
+            {field("reviewAskGoogle", "קישור לכתיבת ביקורת בגוגל (נשלח רק ללקוח שעבודתו הסתיימה)", { full: true })}
+            {field("reviewAskB144", "קישור לכתיבת ביקורת בבזק B144 (נשלח רק ללקוח שעבודתו הסתיימה)", { full: true })}
           </div>
         </section>
         <section className="nq-card">

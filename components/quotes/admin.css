@@ -311,3 +311,7 @@ body:has(.nq-admin) [aria-label="פתח תפריט נגישות"] { display: non
 .nq-mk-checks label.nq-chip[aria-pressed="true"] input { accent-color: #fff; }
 .nq-mk-out { display: block; width: 100%; border-radius: 10px; }
 .nq-warn-box { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--bad-bg); color: var(--bad); font-size: 14px; }
+.nq-review-ask { background: var(--ok-bg); border-color: transparent; }
+.nq-mk-tab { flex-shrink: 0; margin-inline-start: 8px; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 7px 14px; font-size: 14px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.nq-mk-tab[aria-current="true"] { background: var(--gold-soft); color: var(--gold-ink); border-color: var(--gold-soft); }
+@media (max-width: 480px) { .nq-mk-tab { padding: 6px 9px; font-size: 13px; margin-inline-start: auto; } }

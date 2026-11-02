@@ -200,7 +200,7 @@ export default async function Home() {
           <div className="grid md:grid-cols-2 gap-12 md:gap-16 items-start">
             <div className="relative order-2 md:order-1">
               <div className="aspect-[3/4] relative overflow-hidden rounded-2xl shadow-2xl max-w-sm mx-auto md:mx-0">
-                <Image src="/images/erez-photo.jpg" alt="ארז הנדי" fill className="object-cover object-top" />
+                <Image src="/images/erez-hindi.jpg" alt="ארז הנדי" fill className="object-cover object-top" />
               </div>
               <div className="absolute -bottom-4 -left-2 md:-left-4 bg-[#8B6F47] text-white p-5 rounded-xl shadow-lg">
                 <p className="font-bold text-2xl font-['Playfair_Display']">30+</p>
