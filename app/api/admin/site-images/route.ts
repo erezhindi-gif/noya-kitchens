@@ -17,10 +17,12 @@ const GALLERY = "מטבחים";
 
 /** A gallery photo that was replaced keeps its original asset here, for "restore". */
 type Swap = { _key: string; key: string; prevRef: string };
-type Doc = { overrides?: (Override & { _key: string })[]; gallery?: Swap[] };
+/** Photos of the same kitchen, re-shot as one set so the styling matches. */
+type KitchenSet = { _key: string; ids: string[] };
+type Doc = { overrides?: (Override & { _key: string })[]; gallery?: Swap[]; sets?: KitchenSet[] };
 type Project = { _id: string; images?: { _key: string; ref?: string; url?: string }[] };
 
-const getDoc = () => sanity.fetch<Doc | null>(`*[_id == $id][0]{ overrides, gallery }`, { id: OVERRIDES_ID }, NO_CACHE);
+const getDoc = () => sanity.fetch<Doc | null>(`*[_id == $id][0]{ overrides, gallery, sets }`, { id: OVERRIDES_ID }, NO_CACHE);
 const getProject = () =>
   sanity.fetch<Project | null>(`*[_type == "project" && category == $c][0]{ _id, images[]{ _key, "ref": asset._ref, "url": asset->url } }`, { c: GALLERY }, NO_CACHE);
 const keyOf = (s: string) => s.replace(/[^a-zA-Z0-9]/g, "").slice(-40);
@@ -45,7 +47,9 @@ export async function GET() {
       if (it && urlOf.get(g.prevRef)) it.original = urlOf.get(g.prevRef)!;
     }
   }
-  return NextResponse.json({ items });
+  const setOf = new Map<string, string>();
+  for (const st of doc?.sets || []) for (const id of st.ids) setOf.set(id, st._key);
+  return NextResponse.json({ items: items.map((it) => ({ ...it, set: setOf.get(it.id) })) });
 }
 
 /** Put an approved photo on the site in place of the original. */
@@ -95,4 +99,17 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
   return NextResponse.json({ error: "bad-request" }, { status: 400 });
+}
+
+/** Marks photos as one kitchen: they leave any set they were in, and form a new set when two or more. */
+export async function PATCH(req: NextRequest) {
+  const b = (await req.json().catch(() => null)) as { ids?: string[] } | null;
+  const ids = Array.from(new Set((b?.ids || []).filter((x) => typeof x === "string" && /^[sg]:/.test(x)))).slice(0, 30);
+  if (!ids.length) return NextResponse.json({ error: "bad-request" }, { status: 400 });
+  await sanity.createIfNotExists({ _id: OVERRIDES_ID, _type: "siteImages" });
+  const doc = await getDoc();
+  const sets = (doc?.sets || []).map((st) => ({ ...st, ids: st.ids.filter((x) => !ids.includes(x)) })).filter((st) => st.ids.length > 1);
+  if (ids.length > 1) sets.push({ _key: Math.random().toString(36).slice(2, 12), ids });
+  await sanity.patch(OVERRIDES_ID).set({ sets }).commit();
+  return NextResponse.json({ ok: true });
 }

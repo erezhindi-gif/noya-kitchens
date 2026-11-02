@@ -321,3 +321,10 @@ body:has(.nq-admin) [aria-label="פתח תפריט נגישות"] { display: non
 .nq-si-thumb .nq-pill { position: absolute; top: 6px; right: 6px; }
 .nq-si-thumb:hover { border-color: var(--gold); }
 @media (max-width: 480px) { .nq-si-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.nq-si-set { position: absolute; bottom: 6px; left: 6px; background: rgba(255,255,255,.9); border-radius: 999px; padding: 0 6px; font-size: 12px; }
+.nq-si-mates { display: flex; gap: 6px; flex-wrap: wrap; }
+.nq-si-mates img { width: 96px; height: 72px; object-fit: cover; border-radius: 8px; border: 2px solid var(--line); }
+.nq-si-mates img.done { border-color: var(--ok); }
+.nq-si-pick { max-height: 420px; overflow-y: auto; }
+.nq-si-thumb[aria-pressed="true"] { outline: 3px solid var(--gold); outline-offset: -3px; }
+.nq-si-check { position: absolute; top: 6px; left: 6px; width: 24px; height: 24px; border-radius: 999px; background: var(--gold); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; }

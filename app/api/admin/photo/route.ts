@@ -14,11 +14,21 @@ type GenResponse = { candidates?: { content?: { parts?: Part[] }; finishReason?:
 export async function POST(req: NextRequest) {
   const { geminiKey } = await getSecrets();
   if (!geminiKey) return NextResponse.json({ error: "no-key" }, { status: 503 });
-  const b = (await req.json().catch(() => null)) as { image?: string; w?: number; h?: number; opts?: PhotoOpts } | null;
+  const b = (await req.json().catch(() => null)) as { image?: string; w?: number; h?: number; opts?: PhotoOpts; refs?: { data: string; kind: "finished" | "original" }[] } | null;
   if (!b?.image || !b.opts || b.image.length > 4_000_000) return NextResponse.json({ error: "failed" }, { status: 400 });
 
+  // Other photos of the same kitchen: finished shots set the styling, originals show the rest of the room.
+  const refs = (b.refs || []).filter((r) => r?.data && r.data.length < 900_000).slice(0, 4);
+  const refParts = refs.flatMap((r, i) => [
+    { text: `Reference ${i + 1}: ${r.kind === "finished" ? "an already finished professional shot of this same kitchen (copy its accessories, styling, decor and light mood)" : "an original photo of this same kitchen from another angle (for the carpentry and the room only)"}.` },
+    { inlineData: { mimeType: "image/jpeg", data: r.data } },
+  ]);
+  const consistency = refs.length
+    ? "\n\nThe FIRST image is the photo to recreate. The reference images show the SAME kitchen. The result must look like part of the same professional photo shoot: same carpentry, same accessories in the same places, same styling, decor, flowers and light mood as the finished shots. Do not invent different accessories."
+    : "";
+
   const body = JSON.stringify({
-    contents: [{ role: "user", parts: [{ inlineData: { mimeType: "image/jpeg", data: b.image } }, { text: photoPrompt(b.opts) }] }],
+    contents: [{ role: "user", parts: [{ inlineData: { mimeType: "image/jpeg", data: b.image } }, ...refParts, { text: photoPrompt(b.opts) + consistency }] }],
     generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: nearestRatio(+b.w! || 4, +b.h! || 3), imageSize: "2K" } },
   });
 
