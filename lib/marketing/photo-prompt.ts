@@ -79,7 +79,7 @@ function reshootStyling(seed?: string) {
 const NATURAL = "It must look like a real photograph, not a render or an AI image: real camera optics, natural light falloff and soft real shadows, believable reflections, subtle real-world imperfections, nothing too perfect, too symmetrical, too glossy or over-styled.";
 
 export function photoPrompt(o: PhotoOpts) {
-  if (o.mode === "reshoot") return RESHOOT_PROMPT + `\n${reshootStyling(o.seed)}\n${NATURAL}` + (o.notes?.trim() ? `\nInstructions from the kitchen maker for this photo (Hebrew, follow them exactly, they override the above except the carpentry rule): ${o.notes.trim()}` : "");
+  if (o.mode === "reshoot") return RESHOOT_PROMPT + `\n${reshootStyling(o.seed)}\n${NATURAL}` + (o.notes?.trim() ? `\nInstructions from the kitchen maker for this photo (Hebrew, follow them exactly, they override the above, except the carpentry rule and the professional architectural composition, which always apply: straight verticals, a proper camera height and a balanced, magazine-quality framing): ${o.notes.trim()}` : "");
   if (o.mode === "pro") return PRO_PROMPT + (o.notes?.trim() ? `\nNotes from the kitchen maker (Hebrew, follow them): ${o.notes.trim()}` : "");
   const counter = COUNTERS[o.counter] || COUNTERS.calacatta;
   const add = [
@@ -108,3 +108,18 @@ export function nearestRatio(w: number, h: number) {
     return Math.abs(Math.log(a / b / r)) < Math.abs(Math.log(c / d / r)) ? x : best;
   }, "4:3");
 }
+
+/** Ready-made shot types for re-shoots, best first for selling a custom kitchen; the text goes to the model as notes. */
+export const SHOT_PRESETS = [
+  { label: "פינתי 45°", kind: "angle", text: "צילום אלכסוני מהפינה בזווית של כ-45 מעלות, שמראה עומק ושני קירות" },
+  { label: "זווית רחבה", kind: "angle", text: "צילום רחב מהצד הנגדי של החדר, שמראה את כל המטבח בפריים אחד" },
+  { label: "אור בוקר", kind: "light", text: "אור בוקר טבעי ורך שנכנס מהחלון, צללים עדינים" },
+  { label: "גובה עיניים", kind: "angle", text: "מצלמה בגובה עיניים של אדם עומד, כמו שלקוח רואה את המטבח כשהוא נכנס" },
+  { label: "מגזין עיצוב", kind: "style", text: "סגנון צילום של מגזין עיצוב פנים יוקרתי: קומפוזיציה נקייה, הרבה אוויר, צבעים מדויקים" },
+  { label: "תקריב פרטים", kind: "angle", text: "צילום תקריב של פרט נגרות מרשים (ידיות, חיבור חזיתות, פינה), עומק שדה רדוד ורקע מטושטש" },
+  { label: "חזיתי סימטרי", kind: "angle", text: "צילום חזיתי ישר מול הקיר המרכזי, סימטרי, קווים אופקיים ואנכיים ישרים לגמרי" },
+  { label: "צמחייה", kind: "style", text: "להוסיף רק צמח ירוק אחד או ענף באגרטל, בלי שום פריט אחר" },
+  { label: "בלי אקססוריז", kind: "style", text: "בלי שום אקססוריז או קישוטים, שיש נקי לגמרי כמו ביום המסירה" },
+  { label: "קרני שמש", kind: "light", text: "קרני שמש חמות ועדינות נכנסות מהחלון ונופלות על הרצפה והשיש" },
+  { label: "ערב חמים", kind: "light", text: "תאורת ערב חמימה: פס לד דולק מתחת לארונות העליונים ותאורת תקרה עמומה, בחוץ חשוך" },
+] as const;

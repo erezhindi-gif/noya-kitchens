@@ -3,6 +3,7 @@
 // professional shot of the same kitchen, and only a version he approves replaces the photo on the site.
 // Photos of the same kitchen are marked as one set, so each new shot keeps the set's accessories and styling.
 import { useEffect, useState } from "react";
+import { SHOT_PRESETS } from "@/lib/marketing/photo-prompt";
 
 type Item = { id: string; group: string; original: string; current: string; replaced: boolean; set?: string };
 type Shot = { url: string; notes: string };
@@ -30,20 +31,6 @@ async function toJpeg(src: string, max = 2048, q = 0.9) {
   return { data: c.toDataURL("image/jpeg", q).split(",")[1], w: c.width, h: c.height };
 }
 
-/** Ready-made shot types; the text goes to the model as Erez's notes. */
-const SHOT_PRESETS = [
-  { label: "זווית רחבה", text: "צילום רחב מהצד הנגדי של החדר, שמראה את כל המטבח בפריים אחד" },
-  { label: "חזיתי סימטרי", text: "צילום חזיתי ישר מול הקיר המרכזי, סימטרי, קווים אופקיים ואנכיים ישרים לגמרי" },
-  { label: "פינתי 45°", text: "צילום אלכסוני מהפינה בזווית של כ-45 מעלות, שמראה עומק ושני קירות" },
-  { label: "תקריב פרטים", text: "צילום תקריב של פרט נגרות מרשים (ידיות, חיבור חזיתות, פינה), עומק שדה רדוד ורקע מטושטש" },
-  { label: "גובה עיניים", text: "מצלמה בגובה עיניים של אדם עומד, כמו שלקוח רואה את המטבח כשהוא נכנס" },
-  { label: "אור בוקר", text: "אור בוקר טבעי ורך שנכנס מהחלון, צללים עדינים" },
-  { label: "קרני שמש", text: "קרני שמש חמות ועדינות נכנסות מהחלון ונופלות על הרצפה והשיש" },
-  { label: "ערב חמים", text: "תאורת ערב חמימה: פס לד דולק מתחת לארונות העליונים ותאורת תקרה עמומה, בחוץ חשוך" },
-  { label: "מגזין עיצוב", text: "סגנון צילום של מגזין עיצוב פנים יוקרתי: קומפוזיציה נקייה, הרבה אוויר, צבעים מדויקים" },
-  { label: "בלי אקססוריז", text: "בלי שום אקססוריז או קישוטים, שיש נקי לגמרי כמו ביום המסירה" },
-  { label: "צמחייה", text: "להוסיף רק צמח ירוק אחד או ענף באגרטל, בלי שום פריט אחר" },
-];
 
 /** Small preview: Sanity resizes on its CDN; site files go through Next's image optimizer. */
 const thumb = (src: string) => (src.startsWith("https://cdn.sanity.io") ? `${src}?w=400&q=70` : `/_next/image?url=${encodeURIComponent(src)}&w=384&q=70`);
@@ -107,6 +94,28 @@ function Editor({ item, items, flash, reload, onSaved, onRestored, onBack, onNex
 }) {
   const [notes, setNotes] = useState("");
   const [presets, setPresets] = useState<string[]>([]);
+  const [tip, setTip] = useState<string>("");
+  // When the photo opens, a small model suggests the shot types that suit it; they come ticked, Erez can change them.
+  useEffect(() => {
+    const key = `nq-si-tip-${item.id}`;
+    let cached: { presets: string[]; why: string } | null = null;
+    try { cached = JSON.parse(sessionStorage.getItem(key) || "null"); } catch {}
+    const apply = (t: { presets: string[]; why: string }) => { setPresets((p) => (p.length ? p : t.presets)); setTip(t.why); };
+    if (cached) return apply(cached);
+    let live = true;
+    setTip("…");
+    toJpeg(item.original, 1024, 0.8)
+      .then((src) => fetch("/api/admin/photo/suggest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image: src.data }) }))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((t) => {
+        if (!live) return;
+        if (!t?.presets) return setTip("");
+        try { sessionStorage.setItem(key, JSON.stringify(t)); } catch {}
+        apply(t);
+      })
+      .catch(() => live && setTip(""));
+    return () => { live = false; };
+  }, [item.id, item.original]);
   // the ready-made shot types picked, then what Erez wrote
   const fullNotes = [...SHOT_PRESETS.filter((p) => presets.includes(p.label)).map((p) => p.text), notes.trim()].filter(Boolean).join(". ");
   const [shots, setShots] = useState<Shot[]>([]);
@@ -300,6 +309,8 @@ function Editor({ item, items, flash, reload, onSaved, onRestored, onBack, onNex
                 onClick={() => setPresets((x) => (x.includes(p.label) ? x.filter((y) => y !== p.label) : [...x, p.label]))}>{p.label}</button>
             ))}
           </div>
+          {tip && <div className="nq-si-tip" role="status">💡 {tip === "…" ? "בודק איזה צילום הכי מתאים לתמונה…" : <>המלצה: {tip}</>}</div>}
+          <div className="hint" style={{ marginTop: 4 }}>בכל צילום נשמרים תמיד קווים ישרים, גובה מצלמה נכון וקומפוזיציה מקצועית.</div>
         </div>
         <label className="f">מה עוד לשנות או להוסיף (לא חובה)
           <textarea className="in" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)}
