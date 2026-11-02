@@ -28,6 +28,21 @@ async function toJpeg(src: string, max = 2048, q = 0.9) {
   return { data: c.toDataURL("image/jpeg", q).split(",")[1], w: c.width, h: c.height };
 }
 
+/** Ready-made shot types; the text goes to the model as Erez's notes. */
+const SHOT_PRESETS = [
+  { label: "זווית רחבה", text: "צילום רחב מהצד הנגדי של החדר, שמראה את כל המטבח בפריים אחד" },
+  { label: "חזיתי סימטרי", text: "צילום חזיתי ישר מול הקיר המרכזי, סימטרי, קווים אופקיים ואנכיים ישרים לגמרי" },
+  { label: "פינתי 45°", text: "צילום אלכסוני מהפינה בזווית של כ-45 מעלות, שמראה עומק ושני קירות" },
+  { label: "תקריב פרטים", text: "צילום תקריב של פרט נגרות מרשים (ידיות, חיבור חזיתות, פינה), עומק שדה רדוד ורקע מטושטש" },
+  { label: "גובה עיניים", text: "מצלמה בגובה עיניים של אדם עומד, כמו שלקוח רואה את המטבח כשהוא נכנס" },
+  { label: "אור בוקר", text: "אור בוקר טבעי ורך שנכנס מהחלון, צללים עדינים" },
+  { label: "קרני שמש", text: "קרני שמש חמות ועדינות נכנסות מהחלון ונופלות על הרצפה והשיש" },
+  { label: "ערב חמים", text: "תאורת ערב חמימה: פס לד דולק מתחת לארונות העליונים ותאורת תקרה עמומה, בחוץ חשוך" },
+  { label: "מגזין עיצוב", text: "סגנון צילום של מגזין עיצוב פנים יוקרתי: קומפוזיציה נקייה, הרבה אוויר, צבעים מדויקים" },
+  { label: "בלי אקססוריז", text: "בלי שום אקססוריז או קישוטים, שיש נקי לגמרי כמו ביום המסירה" },
+  { label: "צמחייה", text: "להוסיף רק צמח ירוק אחד או ענף באגרטל, בלי שום פריט אחר" },
+];
+
 /** Small preview: Sanity resizes on its CDN; site files go through Next's image optimizer. */
 const thumb = (src: string) => (src.startsWith("https://cdn.sanity.io") ? `${src}?w=400&q=70` : `/_next/image?url=${encodeURIComponent(src)}&w=384&q=70`);
 
@@ -89,6 +104,9 @@ function Editor({ item, items, flash, reload, onSaved, onRestored, onBack, onNex
   onSaved: (url: string) => void; onRestored: () => void; onBack: () => void; onNext?: () => void;
 }) {
   const [notes, setNotes] = useState("");
+  const [presets, setPresets] = useState<string[]>([]);
+  // the ready-made shot types picked, then what Erez wrote
+  const fullNotes = [...SHOT_PRESETS.filter((p) => presets.includes(p.label)).map((p) => p.text), notes.trim()].filter(Boolean).join(". ");
   const [shots, setShots] = useState<Shot[]>([]);
   const [pick, setPick] = useState(-1); // -1 = the original
   const [busy, setBusy] = useState<"" | "make" | "save" | "restore" | "set">("");
@@ -107,11 +125,11 @@ function Editor({ item, items, flash, reload, onSaved, onRestored, onBack, onNex
       const refs = await Promise.all(ordered.map(async (m) => ({ data: (await toJpeg(m.current, 1024, 0.8)).data, kind: m.replaced ? "finished" : "original" })));
       const r = await fetch("/api/admin/photo", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: src.data, w: src.w, h: src.h, refs, opts: { mode: "reshoot", counter: "keep", appliances: [], light: "studio", clean: true, styling: true, notes } }),
+        body: JSON.stringify({ image: src.data, w: src.w, h: src.h, refs, opts: { mode: "reshoot", counter: "keep", appliances: [], light: "studio", clean: true, styling: true, notes: fullNotes } }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.image) setErr(ERR[j.error] || "יצירת התמונה נכשלה. נסה שוב.");
-      else { setShots((s) => [...s, { url: j.image, notes }]); setPick(shots.length); }
+      else { setShots((s) => [...s, { url: j.image, notes: fullNotes }]); setPick(shots.length); }
     } catch { setErr("לא הצלחתי לקרוא את התמונה המקורית."); }
     setBusy("");
   };
@@ -184,7 +202,15 @@ function Editor({ item, items, flash, reload, onSaved, onRestored, onBack, onNex
       </section>
 
       <section className="nq-card">
-        <label className="f">מה לשנות או להוסיף (לא חובה)
+        <div className="f" style={{ marginBottom: 10 }}>סוג הצילום (אפשר לבחור כמה)
+          <div className="nq-chips" style={{ margin: "4px 0 0" }}>
+            {SHOT_PRESETS.map((p) => (
+              <button key={p.label} type="button" className="nq-chip" title={p.text} aria-pressed={presets.includes(p.label)}
+                onClick={() => setPresets((x) => (x.includes(p.label) ? x.filter((y) => y !== p.label) : [...x, p.label]))}>{p.label}</button>
+            ))}
+          </div>
+        </div>
+        <label className="f">מה עוד לשנות או להוסיף (לא חובה)
           <textarea className="in" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)}
             placeholder="למשל: לצלם מזווית רחבה יותר מהכניסה, להוסיף אגרטל עם פרחים לבנים על האי, תאורת ערב חמימה" />
         </label>
