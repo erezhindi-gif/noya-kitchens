@@ -38,12 +38,29 @@ export const LIGHTS: Record<string, { he: string; en: string }> = {
 const RESHOOT_PROMPT = [
   "Recreate this photo as a brand-new professional photograph of the exact same room, as if it was shot today (2026) by a top architectural interior photographer with a high-end full-frame camera and a tilt-shift lens, then finished in a professional studio.",
   "THE CARPENTRY IS SACRED: every cabinet, door, drawer, panel, shelf, handle, countertop, built-in appliance, material, color, finish and proportion must stay identical. Same number of units, same widths and heights, same order. The room architecture (walls, windows, ceiling, floor) stays identical.",
-  "You may: choose a better, more professional camera position and angle (eye level about 1.3 m, straight verticals, a balanced composition that shows the kitchen at its best); improve the light (soft natural daylight with a gentle warm glow under the wall cabinets), exposure, color and sharpness; remove clutter; add a few subtle, tasteful accessories (a vase with greenery, a bowl, a cutting board, a couple of cookbooks) without covering the carpentry.",
+  "You may: choose a better, more professional camera position and angle (eye level about 1.3 m, straight verticals, a balanced composition that shows the kitchen at its best); improve the light (soft natural daylight with a gentle warm glow under the wall cabinets), exposure, color and sharpness; remove clutter; add a few subtle, tasteful accessories without covering the carpentry.",
   "Photorealistic, architecture-magazine quality. No text, no watermark.",
 ].join("\n");
 
+/** Styling ideas; each shot gets a different few, so the site's kitchens don't all show the same props. */
+const STYLING = [
+  "white tulips in a tall clear glass vase", "a single olive branch in a slim ceramic vase", "a eucalyptus bunch in a stoneware jug",
+  "a bowl of green apples", "a footed bowl of oranges", "a few pomegranates on a small brass tray", "a bunch of grapes in a shallow glass dish",
+  "a white marble serving board with a loaf of sourdough bread", "a black slate tray with olive oil and vinegar bottles",
+  "folded linen tea towels in a soft neutral color", "a matte ceramic kettle", "an espresso machine with two small cups",
+  "a stack of matte stoneware plates", "two glass storage jars with pasta and coffee beans", "a cookbook open on a wooden book stand",
+  "small potted herbs (basil and rosemary) in terracotta pots", "a bottle of wine with two glasses", "a low arrangement of white hydrangeas",
+  "a ceramic pitcher with lavender", "a glass cake stand with a lemon cake",
+];
+export function pickStyling(n = 3) {
+  const pool = [...STYLING];
+  const out: string[] = [];
+  while (out.length < n && pool.length) out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  return out.join(", ");
+}
+
 export function photoPrompt(o: PhotoOpts) {
-  if (o.mode === "reshoot") return RESHOOT_PROMPT + (o.notes?.trim() ? `\nInstructions from the kitchen maker for this photo (Hebrew, follow them exactly, they override the above except the carpentry rule): ${o.notes.trim()}` : "");
+  if (o.mode === "reshoot") return RESHOOT_PROMPT + `\nAccessories for this shot: ${pickStyling()}. Do not add a wooden cutting board.` + (o.notes?.trim() ? `\nInstructions from the kitchen maker for this photo (Hebrew, follow them exactly, they override the above except the carpentry rule): ${o.notes.trim()}` : "");
   if (o.mode === "pro") return PRO_PROMPT + (o.notes?.trim() ? `\nNotes from the kitchen maker (Hebrew, follow them): ${o.notes.trim()}` : "");
   const counter = COUNTERS[o.counter] || COUNTERS.calacatta;
   const add = [
@@ -55,7 +72,7 @@ export function photoPrompt(o: PhotoOpts) {
     "ABSOLUTE RULE: the carpentry must stay exactly as it is in the photo. Keep every cabinet, door, drawer, panel, shelf, handle and gap in the same position, size, proportion, color, finish and material. Do not add, remove, move, resize, restyle or recolor any cabinet, door, drawer or handle. Keep the same camera position, angle, lens and framing, and the same room architecture (walls, windows, doors, ceiling).",
     ...add,
     o.clean && "Remove construction mess: tools, boxes, packaging, protective film and stickers, dust, cables, ladders and people. Make the floor clean and finished.",
-    o.styling && "Add only a few minimal, tasteful styling props on the countertop (a ceramic bowl, a small plant, a cutting board). Keep it sparse.",
+    o.styling && `Add only a few minimal, tasteful styling props on the countertop: ${pickStyling()}. Keep it sparse. No wooden cutting board.`,
     `Lighting: ${(LIGHTS[o.light] || LIGHTS.studio).en}.`,
     "Photorealistic, sharp focus, true-to-life colors, magazine quality. No text, no watermark.",
     o.notes.trim() && `Notes from the kitchen maker (Hebrew, follow them): ${o.notes.trim()}`,

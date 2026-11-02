@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
   ]);
   const consistency = refs.length
     ? "\n\nThe FIRST image is the photo to recreate. The reference images show the SAME kitchen. The result must look like part of the same professional photo shoot: same carpentry, same accessories in the same places, same styling, decor, flowers and light mood as the finished shots. Do not invent different accessories."
+      + (refs.some((r) => r.kind === "finished") ? " The finished shots override the accessories list above." : "")
     : "";
 
   const body = JSON.stringify({
