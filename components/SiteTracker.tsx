@@ -8,6 +8,9 @@ const KEY = "noya-ch";
 const KEEP_DAYS = 60;
 const PRIVATE = /^\/(admin|q|studio|oauth|api)(\/|$)/;
 
+const OWNER = "noya-owner";
+const isOwner = () => { try { return !!localStorage.getItem(OWNER); } catch { return false; } };
+
 type Touch = { ch: Channel; at: number; landing: string };
 
 /** The channel the visitor came from: the latest one that wasn't a direct visit, for 60 days. */
@@ -29,7 +32,9 @@ export function track(e: SiteEvent) {
 
 export default function SiteTracker() {
   useEffect(() => {
-    if (PRIVATE.test(location.pathname)) return;
+    // A browser that opened the admin is Erez's: his own visits to the site aren't counted.
+    try { if (location.pathname.startsWith("/admin")) localStorage.setItem(OWNER, "1"); } catch {}
+    if (PRIVATE.test(location.pathname) || isOwner()) return;
     const ch = channelOf(location.search, document.referrer, location.hostname);
     try {
       if (ch !== "direct" || !localStorage.getItem(KEY)) localStorage.setItem(KEY, JSON.stringify({ ch, at: Date.now(), landing: location.pathname + location.search }));
