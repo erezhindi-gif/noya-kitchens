@@ -10,15 +10,40 @@ interface Props {
   onPrev: () => void;
 }
 
-// Full-screen photo viewer. On a phone the photo fills the screen and moves with the finger:
-// drag sideways for the next/previous photo (RTL: the next one comes from the left, like the arrows),
-// drag down to close.
+const GAP = 16; // space between two photos while they slide
+const SLIDE_MS = 280;
+
+// Full-screen photo viewer. The previous and next photos sit beside the current one, so a swipe
+// (or an arrow) slides the next photo in smoothly. RTL: the next photo comes from the left, like
+// the arrows. Drag down to close.
 export default function Lightbox({ images, index, alt, onClose, onNext, onPrev }: Props) {
+  const n = images.length;
+  const [dx, setDx] = useState(0);
+  const [dy, setDy] = useState(0);
+  const [anim, setAnim] = useState(false);
+  const busy = useRef(false);
+  const width = () => (typeof window !== "undefined" ? window.innerWidth : 400);
+
+  /** slide the whole row one photo over, then show that photo as the current one */
+  const go = useCallback((dir: 1 | -1) => {
+    if (busy.current || n < 2) return;
+    busy.current = true;
+    setAnim(true);
+    setDy(0);
+    setDx(dir * (width() + GAP));
+    setTimeout(() => {
+      if (dir === 1) onNext(); else onPrev();
+      setAnim(false);
+      setDx(0);
+      busy.current = false;
+    }, SLIDE_MS);
+  }, [n, onNext, onPrev]);
+
   const handleKey = useCallback((e: KeyboardEvent) => {
     if (e.key === "Escape") onClose();
-    if (e.key === "ArrowLeft") onNext();
-    if (e.key === "ArrowRight") onPrev();
-  }, [onClose, onNext, onPrev]);
+    if (e.key === "ArrowLeft") go(1);
+    if (e.key === "ArrowRight") go(-1);
+  }, [onClose, go]);
 
   useEffect(() => {
     document.addEventListener("keydown", handleKey);
@@ -29,44 +54,43 @@ export default function Lightbox({ images, index, alt, onClose, onNext, onPrev }
     };
   }, [handleKey]);
 
-  // finger drag
-  const start = useRef<{ x: number; y: number } | null>(null);
-  const [drag, setDrag] = useState({ x: 0, y: 0 });
+  // finger drag: one direction only, whichever the finger started with
+  const start = useRef<{ x: number; y: number; axis?: "x" | "y" } | null>(null);
   const onTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length !== 1) return;
+    if (e.touches.length !== 1 || busy.current) return;
     start.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
   };
   const onTouchMove = (e: React.TouchEvent) => {
-    if (!start.current) return;
-    const dx = e.touches[0].clientX - start.current.x, dy = e.touches[0].clientY - start.current.y;
-    // follow one direction only, whichever the finger started with
-    setDrag(Math.abs(dx) > Math.abs(dy) ? { x: dx, y: 0 } : { x: 0, y: Math.max(0, dy) });
+    const s = start.current;
+    if (!s) return;
+    const x = e.touches[0].clientX - s.x, y = e.touches[0].clientY - s.y;
+    if (!s.axis && Math.abs(x) + Math.abs(y) > 8) s.axis = Math.abs(x) > Math.abs(y) ? "x" : "y";
+    if (s.axis === "x") setDx(n < 2 ? x / 4 : x);
+    if (s.axis === "y") setDy(Math.max(0, y));
   };
   const onTouchEnd = () => {
-    if (!start.current) return;
+    const s = start.current;
     start.current = null;
-    const w = typeof window !== "undefined" ? window.innerWidth : 400;
-    if (drag.x > Math.min(80, w * 0.18)) onNext();
-    else if (drag.x < -Math.min(80, w * 0.18)) onPrev();
-    else if (drag.y > 120) onClose();
-    setDrag({ x: 0, y: 0 });
+    if (!s) return;
+    const limit = Math.min(80, width() * 0.18);
+    if (s.axis === "x" && dx > limit) return go(1);
+    if (s.axis === "x" && dx < -limit) return go(-1);
+    if (s.axis === "y" && dy > 120) return onClose();
+    setAnim(true); // spring back
+    setDx(0);
+    setDy(0);
+    setTimeout(() => setAnim(false), SLIDE_MS);
   };
 
-  // load the neighbours ahead, so the swipe shows the next photo at once
-  useEffect(() => {
-    for (const i of [index + 1, index - 1]) {
-      const src = images[(i + images.length) % images.length];
-      if (src) { const im = new Image(); im.src = src; }
-    }
-  }, [index, images]);
-
   if (!images[index]) return null;
-  const moving = drag.x !== 0 || drag.y !== 0;
+  const at = (k: number) => images[(index + k + n) % n];
+  // next on the left (RTL), previous on the right
+  const slides = n > 1 ? [{ k: 1, pos: -1 }, { k: 0, pos: 0 }, { k: -1, pos: 1 }] : [{ k: 0, pos: 0 }];
 
   return (
     <div
-      className="fixed inset-0 z-[99999] bg-black flex items-center justify-center select-none"
-      style={{ touchAction: "none", backgroundColor: `rgba(0,0,0,${moving && drag.y ? Math.max(0.4, 1 - drag.y / 400) : 1})` }}
+      className="fixed inset-0 z-[99999] flex items-center justify-center select-none overflow-hidden"
+      style={{ touchAction: "none", backgroundColor: `rgba(0,0,0,${dy ? Math.max(0.4, 1 - dy / 400) : 1})` }}
       onClick={onClose}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
@@ -88,12 +112,12 @@ export default function Lightbox({ images, index, alt, onClose, onNext, onPrev }
 
       {/* Counter */}
       <div dir="ltr" className="absolute top-6 right-5 z-10 text-white/70 text-sm tabular-nums">
-        {index + 1} / {images.length}
+        {index + 1} / {n}
       </div>
 
       {/* Prev (RTL = right arrow = previous); on a phone the finger does this */}
       <button
-        onClick={(e) => { e.stopPropagation(); onPrev(); }}
+        onClick={(e) => { e.stopPropagation(); go(-1); }}
         aria-label="תמונה הקודמת"
         className="hidden sm:flex absolute right-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white z-10 w-12 h-12 items-center justify-center rounded-full hover:bg-white/10 transition-colors"
       >
@@ -104,7 +128,7 @@ export default function Lightbox({ images, index, alt, onClose, onNext, onPrev }
 
       {/* Next (RTL = left arrow = next) */}
       <button
-        onClick={(e) => { e.stopPropagation(); onNext(); }}
+        onClick={(e) => { e.stopPropagation(); go(1); }}
         aria-label="תמונה הבאה"
         className="hidden sm:flex absolute left-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white z-10 w-12 h-12 items-center justify-center rounded-full hover:bg-white/10 transition-colors"
       >
@@ -113,24 +137,30 @@ export default function Lightbox({ images, index, alt, onClose, onNext, onPrev }
         </svg>
       </button>
 
-      {/* Image: the whole screen on a phone */}
-      <div
-        className="w-full h-full sm:w-auto sm:h-auto sm:max-w-5xl sm:max-h-[90vh] sm:mx-16 flex items-center justify-center"
-        style={{ transform: `translate(${drag.x}px, ${drag.y}px)`, transition: moving ? "none" : "transform 0.2s ease-out" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={images[index]}
-          alt={`${alt} ${index + 1}`}
-          draggable={false}
-          className="w-full h-full object-contain sm:w-auto sm:h-auto sm:max-w-full sm:max-h-[90vh]"
-        />
-      </div>
+      {/* The row of photos: previous, current, next */}
+      {slides.map(({ k, pos }) => (
+        <div
+          key={at(k) + ":" + pos}
+          className="absolute inset-0 flex items-center justify-center sm:px-20 sm:py-[5vh]"
+          style={{
+            transform: `translate3d(calc(${pos * 100}% + ${pos * GAP + dx}px), ${dy}px, 0)`,
+            transition: anim ? `transform ${SLIDE_MS}ms cubic-bezier(0.22, 0.61, 0.36, 1)` : "none",
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={at(k)}
+            alt={`${alt} ${((index + k + n) % n) + 1}`}
+            draggable={false}
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-full max-h-full w-auto h-auto object-contain rounded-lg"
+          />
+        </div>
+      ))}
 
       {/* Position dots, only when there are few photos */}
-      {images.length <= 20 && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 max-w-xs overflow-hidden">
+      {n <= 20 && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 max-w-xs overflow-hidden z-10">
           {images.map((_, i) => (
             <span key={i} className={`w-8 h-1.5 rounded-full transition-all ${i === index ? "bg-white" : "bg-white/30"}`} />
           ))}
