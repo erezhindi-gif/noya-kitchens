@@ -7,7 +7,7 @@ import { adsLead } from "@/lib/marketing/gads";
 
 const KEY = "noya-ch";
 const KEEP_DAYS = 60;
-const PRIVATE = /^\/(admin|q|studio|oauth|api)(\/|$)/;
+const PRIVATE = /^\/(admin|q|p|studio|oauth|api)(\/|$)/;
 
 const OWNER = "noya-owner";
 const isOwner = () => { try { return !!localStorage.getItem(OWNER); } catch { return false; } };

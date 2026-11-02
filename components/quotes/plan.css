@@ -31,6 +31,8 @@
 /* PDF: the plan on its own page(s) after the quote */
 .nqp-print { break-before: page; width: 794px; box-sizing: border-box; padding: 0 36px; font-family: inherit; }
 .nqp-print h2 { font-size: 20px; margin: 0 0 10px; }
+/* the plan-only PDF: the drawings follow the header on the same sheet */
+.nqp-print.nqp-plan-doc { break-before: auto; width: auto; padding: 0; }
 .nqp-print .nqp-3d { margin-bottom: 12px; }
 .nqp-print .nqp-fig { break-inside: avoid; }
 .nqp-print .nqp-svg { max-height: 430px; }

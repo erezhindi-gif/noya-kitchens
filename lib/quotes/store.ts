@@ -133,6 +133,17 @@ export async function getPlan(id: string): Promise<Plan | null> {
   return (await readFile()).plans?.find((p) => p.id === id) || null;
 }
 
+/** A plan with the business details, for the client's plan PDF (no prices). */
+export async function getPlanForClient(id: string): Promise<{ plan: Plan; settings: Settings } | null> {
+  const plan = await getPlan(id);
+  if (!plan) return null;
+  if (sanity) {
+    const s = await readDoc(ID.settings);
+    return { plan, settings: withDefaults(s ? clean<{ settings: Settings }>(s).settings : undefined) };
+  }
+  return { plan, settings: withDefaults((await readFile()).settings) };
+}
+
 export async function putPlan(p: Plan) {
   p.updatedAt = new Date().toISOString();
   if (sanity) return void (await sanity.createOrReplace({ _id: ID.plan(p.id), _type: "nq_plan", ...p }));

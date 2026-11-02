@@ -5,6 +5,7 @@ import { useState } from "react";
 import { fdate, qnum } from "@/lib/quotes/calc";
 import type { AppData, Plan, Quote } from "@/lib/quotes/types";
 import LayoutEditor from "./LayoutEditor";
+import { downloadBlob, sharePdf } from "./pdf";
 
 const claudeLink = (start: string) => `https://claude.ai/new?q=${encodeURIComponent(start)}`;
 const quoteOf = (p: Plan, quotes: Quote[]) => quotes.find((q) => q.id === p.quoteId) || quotes.find((q) => q.planId === p.id);
@@ -57,13 +58,32 @@ export function PlansView({ data, onOpen, onNew, onQuote, onOpenQuote }: {
   );
 }
 
-export function PlanScreen({ plan: p, data, upd, onBack, onQuote, onOpenQuote, onDelete }: {
-  plan: Plan; data: AppData; upd: (fn: (p: Plan) => void) => void; onBack: () => void;
+export function PlanScreen({ plan: p, data, upd, saveNow, onBack, onQuote, onOpenQuote, onDelete }: {
+  plan: Plan; data: AppData; upd: (fn: (p: Plan) => void) => void; saveNow: () => Promise<unknown>; onBack: () => void;
   onQuote: (p: Plan) => void; onOpenQuote: (id: string) => void; onDelete: () => void;
 }) {
   const [confirmDel, setConfirmDel] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfError, setPdfError] = useState(false);
   const q = quoteOf(p, data.quotes);
   const who = p.client.name || "הלקוח";
+  const canShare = typeof navigator !== "undefined" && "canShare" in navigator && /Android|iPhone|iPad/i.test(navigator.userAgent);
+  // The plan alone for the client (drawings and 3D, no prices), made on the server like the quote PDF.
+  const onPdf = async () => {
+    setPdfBusy(true);
+    setPdfError(false);
+    try {
+      await saveNow();
+      const res = await fetch(`/api/p/${p.id}/pdf`);
+      if (!res.ok) throw new Error("pdf");
+      const blob = await res.blob();
+      const name = `תכנון ${p.title || "מטבח"}${p.client.name ? ` - ${p.client.name}` : ""} - נויה מטבחים.pdf`.replace(/[\\/:*?"<>|]/g, "");
+      if (!(canShare && (await sharePdf(blob, name, `התכנון של ${who} מנויה מטבחים`)))) downloadBlob(blob, name);
+    } catch {
+      setPdfError(true);
+    }
+    setPdfBusy(false);
+  };
   return (
     <>
       <div className="nq-head">
@@ -72,6 +92,8 @@ export function PlanScreen({ plan: p, data, upd, onBack, onQuote, onOpenQuote, o
           <h1>תכנון · {who}</h1>
         </div>
         <div className="nq-head-acts">
+          <button className="nq-btn" disabled={pdfBusy} onClick={onPdf}>{pdfBusy ? "מכין PDF…" : "📄 PDF ללקוח"}</button>
+          {pdfError && <span className="hint">יצירת ה-PDF נכשלה. נסה שוב</span>}
           {q
             ? <button className="nq-btn pri" onClick={() => onOpenQuote(q.id)}>פתח הצעה {qnum(q)} ›</button>
             : <button className="nq-btn pri" onClick={() => onQuote(p)}>הצעת מחיר מהתכנון ›</button>}

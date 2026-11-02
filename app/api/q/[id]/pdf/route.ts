@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getQuote } from "@/lib/quotes/store";
 import { qnum } from "@/lib/quotes/calc";
+import { countPages, launch } from "@/lib/pdf/chrome";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,38 +13,6 @@ const MARGIN_TOP = 10;
 const MARGIN_BOTTOM = 12;
 const USABLE_H = PAGE_H - (MARGIN_TOP + MARGIN_BOTTOM) * PX_PER_MM;
 const SHRINK_UP_TO = 1.4; // a sheet up to 40% longer than a page is shrunk onto one page
-
-const LOCAL_CHROME = [
-  "C:/Program Files/Google/Chrome/Application/chrome.exe",
-  "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-  "/usr/bin/google-chrome",
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-];
-
-async function launch() {
-  const puppeteer = (await import("puppeteer-core")).default;
-  if (process.env.VERCEL) {
-    // Vercel runs Node 24 on Amazon Linux 2023. @sparticuz/chromium picks its bundled system
-    // libraries (libnss3, libnspr4…) by the runtime name and only knows 20/22 as AL2023 — anything
-    // else gets the old AL2 set and Chromium can't start. Name it 22.x before the module loads.
-    process.env.AWS_EXECUTION_ENV = "AWS_Lambda_nodejs22.x";
-    process.env.AWS_LAMBDA_JS_RUNTIME = "nodejs22.x";
-    const chromium = (await import("@sparticuz/chromium")).default;
-    const opts = { args: chromium.args, executablePath: await chromium.executablePath(), headless: true };
-    try {
-      return await puppeteer.launch(opts);
-    } catch (e) {
-      // first run on a fresh instance: the unpacked binary can still be busy (ETXTBSY) for a moment
-      await new Promise((r) => setTimeout(r, 400));
-      return puppeteer.launch(opts);
-    }
-  }
-  const fs = await import("fs");
-  const exe = process.env.CHROME_PATH || LOCAL_CHROME.find((p) => fs.existsSync(p));
-  return puppeteer.launch({ executablePath: exe, headless: true });
-}
-
-const countPages = (pdf: Uint8Array) => (Buffer.from(pdf).toString("latin1").match(/\/Type\s*\/Page[^s]/g) || []).length;
 
 // Public by the quote's unguessable id, like the client page. Returns a real PDF (selectable text).
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
