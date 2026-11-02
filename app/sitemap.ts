@@ -1,4 +1,5 @@
 import { MetadataRoute } from "next";
+import { CITIES } from "@/lib/seo/cities";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = "https://www.noya-k.co.il";
@@ -10,6 +11,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: new Date(),
       changeFrequency: "monthly" as const,
       priority: 0.8,
+    })),
+    { url: `${base}/kitchen-price`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.8 },
+    ...CITIES.map((c) => ({
+      url: `${base}/kitchens/${c.slug}`,
+      lastModified: new Date(),
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
     })),
   ];
 }

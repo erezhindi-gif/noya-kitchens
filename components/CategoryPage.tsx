@@ -91,6 +91,7 @@ export default function CategoryPage({ title, subtitle, images }: Props) {
         <div className="max-w-xl mx-auto mt-8 px-5">
           <p className="text-[#6b6b6b] text-sm mb-3">או השאירו פרטים וארז יחזור אליכם:</p>
           <ContactForm compact />
+          <p className="text-sm mt-5"><Link href="/kitchen-price" className="text-[#8B6F47] underline">כמה עולה מטבח בהתאמה אישית? כך נקבע המחיר</Link></p>
         </div>
       </section>
 

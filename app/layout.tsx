@@ -44,9 +44,7 @@ export const metadata: Metadata = {
     siteName: "NOYA מטבחים",
     images: [{ url: "/images/kitchens/kitchen-1.jpg", width: 1200, height: 630, alt: "מטבח מעוצב — NOYA מטבחים" }],
   },
-  alternates: {
-    canonical: "https://www.noya-k.co.il",
-  },
+  // No site-wide canonical here: it would mark every page as a copy of the home page. Each page sets its own.
 };
 
 const jsonLd = {

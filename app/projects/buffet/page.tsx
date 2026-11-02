@@ -2,7 +2,7 @@ import CategoryPage from "@/components/CategoryPage";
 import Footer from "@/components/Footer";
 import { getProjectImages } from "@/lib/getProjectImages";
 
-export const metadata = { title: "מזנונים ושולחן סלון | NOYA Kitchens" };
+export const metadata = { title: "מזנונים ושולחן סלון | NOYA Kitchens", alternates: { canonical: "/projects/buffet" } };
 
 export default async function Page() {
   const images = await getProjectImages("מזנונים ושולחנות סלון");

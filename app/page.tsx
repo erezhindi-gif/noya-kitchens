@@ -7,6 +7,8 @@ import HeroSlider from "@/components/HeroSlider";
 import ContactForm from "@/components/ContactForm";
 import { getSiteSettings } from "@/lib/sanity";
 
+export const metadata = { alternates: { canonical: "/" } };
+
 const categories = [
   { id: "kitchens", title: "מטבחים", href: "/projects/kitchens", img: "/images/kitchens/kitchen-2.jpg" },
   { id: "bathrooms", title: "ארונות אמבטיה", href: "/projects/bathrooms", img: "/images/bathrooms/bathroom-1.jpg" },

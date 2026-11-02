@@ -2,7 +2,7 @@ import CategoryPage from "@/components/CategoryPage";
 import Footer from "@/components/Footer";
 import { getProjectImages } from "@/lib/getProjectImages";
 
-export const metadata = { title: "מטבחים | NOYA Kitchens" };
+export const metadata = { title: "מטבחים | NOYA Kitchens", alternates: { canonical: "/projects/kitchens" } };
 
 export default async function Page() {
   const images = await getProjectImages("מטבחים");

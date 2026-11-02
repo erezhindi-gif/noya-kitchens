@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { getSiteSettings } from "@/lib/sanity";
+import { CITIES } from "@/lib/seo/cities";
 
 export default async function Footer() {
   const s = await getSiteSettings();
@@ -14,7 +15,7 @@ export default async function Footer() {
   return (
     <footer className="bg-[#FAF3EB] border-t border-[#8B6F47]/15 pt-14 pb-8">
       <div className="max-w-7xl mx-auto px-5 md:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 mb-10">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-10">
 
           <div>
             <div style={{ backgroundColor: '#FAF3EB', lineHeight: 0, display: 'inline-block', marginBottom: '16px' }}>
@@ -32,8 +33,17 @@ export default async function Footer() {
           <div>
             <h4 className="text-[#8B6F47] font-semibold mb-4 text-xs tracking-widest uppercase">ניווט</h4>
             <ul className="space-y-2.5 text-sm text-[#6b6b6b]">
-              {[["אודות","#about"],["פרויקטים","#categories"],["המלצות","#testimonials"],["צור קשר","#contact"]].map(([label,href]) => (
+              {[["אודות","/#about"],["פרויקטים","/#categories"],["המלצות","/#testimonials"],["כמה עולה מטבח?","/kitchen-price"],["צור קשר","/#contact"]].map(([label,href]) => (
                 <li key={href}><a href={href} className="hover:text-[#8B6F47] transition-colors">{label}</a></li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="text-[#8B6F47] font-semibold mb-4 text-xs tracking-widest uppercase">אזורי שירות</h4>
+            <ul className="grid grid-cols-2 md:grid-cols-1 gap-x-4 gap-y-2 text-sm text-[#6b6b6b]">
+              {CITIES.map((c) => (
+                <li key={c.slug}><a href={`/kitchens/${c.slug}`} className="hover:text-[#8B6F47] transition-colors">מטבחים ב{c.name}</a></li>
               ))}
             </ul>
           </div>
