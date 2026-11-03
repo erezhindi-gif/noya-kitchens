@@ -31,6 +31,7 @@ export async function generateImage(key: string, parts: Part[], aspectRatio: str
     if (msg) detail = `${model}: ${res.status} ${msg}`.slice(0, 300);
     if (res.status === 404 || (res.status === 400 && /not supported|not found|imageSize|image_size/i.test(msg))) continue;
     if (res.status === 400 && /API key/i.test(msg)) return { ok: false, error: "bad-key" };
+    if (res.status === 402) return { ok: false, error: "billing", detail }; // the prepaid credit ran out
     if (res.status === 403) return { ok: false, error: /billing/i.test(msg) ? "billing" : "bad-key" };
     if (res.status === 429) { last = /billing|free tier|limit: 0/i.test(msg) ? "billing" : "quota"; continue; }
     if (!res.ok) { console.error("image model", model, res.status, msg); continue; }
