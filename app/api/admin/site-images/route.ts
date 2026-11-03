@@ -164,3 +164,18 @@ export async function PATCH(req: NextRequest) {
   await sanity.patch(OVERRIDES_ID).set({ sets }).commit();
   return NextResponse.json({ ok: true });
 }
+
+/** Moves gallery photos: `keys` in this order, placed right after the photo `after` (e.g. a new kitchen's other shots after its main one). */
+export async function PUT(req: NextRequest) {
+  const b = (await req.json().catch(() => null)) as { keys?: string[]; after?: string } | null;
+  const project = await getProject();
+  const imgs = project?.images || [];
+  const keys = (b?.keys || []).filter((k) => imgs.some((i) => i._key === k) && k !== b?.after);
+  if (!project || !b?.after || !keys.length || !imgs.some((i) => i._key === b.after)) return NextResponse.json({ error: "bad-request" }, { status: 400 });
+  const full = await sanity.fetch<{ images: { _key: string }[] }>(`*[_id == $id][0]{ images }`, { id: project._id }, NO_CACHE);
+  const moving = keys.map((k) => full.images.find((i) => i._key === k)!);
+  const rest = full.images.filter((i) => !keys.includes(i._key));
+  const at = rest.findIndex((i) => i._key === b.after) + 1;
+  await sanity.patch(project._id).set({ images: [...rest.slice(0, at), ...moving, ...rest.slice(at)] }).commit();
+  return NextResponse.json({ ok: true });
+}
