@@ -7,7 +7,8 @@ export const IMAGE_MODELS = ["gemini-nano-banana-2.1", "gemini-3-pro-image", "ge
 type Part = { text?: string; inlineData?: { mimeType: string; data: string } };
 type GenResponse = { candidates?: { content?: { parts?: Part[] }; finishReason?: string }[]; promptFeedback?: { blockReason?: string }; error?: { status?: string; message?: string } };
 
-export type ImageResult = { ok: true; image: string; model: string } | { ok: false; error: "bad-key" | "billing" | "quota" | "blocked" | "no-image" | "failed" };
+/** detail: what Google said last, for the admin screen when a run fails */
+export type ImageResult = { ok: true; image: string; model: string } | { ok: false; error: "bad-key" | "billing" | "quota" | "blocked" | "no-image" | "failed"; detail?: string };
 
 /** parts: images and text for the model; pro: try the stronger model first (precise work, costs more) */
 export async function generateImage(key: string, parts: Part[], aspectRatio: string, pro = false): Promise<ImageResult> {
@@ -16,6 +17,7 @@ export async function generateImage(key: string, parts: Part[], aspectRatio: str
     generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio, imageSize: "2K" } },
   });
   let last: Exclude<ImageResult, { ok: true }>["error"] = "failed";
+  let detail = "";
   const models = pro ? ["gemini-3-pro-image", ...IMAGE_MODELS.filter((m) => m !== "gemini-3-pro-image")] : IMAGE_MODELS;
   for (const model of models) {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
@@ -26,6 +28,7 @@ export async function generateImage(key: string, parts: Part[], aspectRatio: str
     if (!res) continue;
     const j = (await res.json().catch(() => ({}))) as GenResponse;
     const msg = j.error?.message || "";
+    if (msg) detail = `${model}: ${res.status} ${msg}`.slice(0, 300);
     if (res.status === 404 || (res.status === 400 && /not supported|not found|imageSize|image_size/i.test(msg))) continue;
     if (res.status === 400 && /API key/i.test(msg)) return { ok: false, error: "bad-key" };
     if (res.status === 403) return { ok: false, error: /billing/i.test(msg) ? "billing" : "bad-key" };
@@ -36,7 +39,7 @@ export async function generateImage(key: string, parts: Part[], aspectRatio: str
     if (!img) { last = j.candidates?.[0]?.finishReason && j.candidates[0].finishReason !== "STOP" ? "blocked" : "no-image"; continue; }
     return { ok: true, image: await asJpeg(img.data, img.mimeType), model };
   }
-  return { ok: false, error: last };
+  return { ok: false, error: last, detail };
 }
 
 async function asJpeg(data: string, mime: string) {

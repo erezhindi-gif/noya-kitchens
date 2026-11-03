@@ -40,7 +40,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   ].filter(Boolean).join("\n");
 
   const r = await generateImage(geminiKey, [{ inlineData: { mimeType: "image/jpeg", data: b.image.replace(/^data:image\/\w+;base64,/, "") } }, { text: prompt }], "16:9", true);
-  if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.error === "blocked" ? 422 : 502 });
+  if (!r.ok) return NextResponse.json({ error: r.error, detail: r.detail }, { status: r.error === "blocked" ? 422 : 502 });
 
   const m = r.image.match(/^data:(image\/[a-z]+);base64,(.+)$/)!;
   const asset = await sanity.assets.upload("image", Buffer.from(m[2], "base64"), { filename: `noya-render-${plan.id}-${Date.now()}.jpg`, contentType: m[1] });
