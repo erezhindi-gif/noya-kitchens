@@ -4,7 +4,7 @@ export const STATUS_LABEL: Record<Quote["status"], string> = {
   draft: "טיוטה",
   sent: "נשלחה",
   approved: "אושרה",
-  rejected: "נדחתה",
+  rejected: "לא נסגרה",
 };
 
 export const UNIT_LABEL = { m: "מ'", u: "יח'" } as const;

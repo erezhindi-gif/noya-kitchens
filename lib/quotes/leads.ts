@@ -34,7 +34,7 @@ export function leadQuote(l: Lead, quotes: Quote[]): Quote | undefined {
 export type LeadStage = "waiting" | "draft" | "sent" | "approved" | "rejected" | "closed";
 
 export const STAGE_LABEL: Record<LeadStage, string> = {
-  waiting: "מחכה להצעה", draft: "הצעה בהכנה", sent: "הצעה נשלחה", approved: "אושרה", rejected: "נדחתה", closed: "לא רלוונטי",
+  waiting: "מחכה להצעה", draft: "הצעה בהכנה", sent: "הצעה נשלחה", approved: "אושרה", rejected: "לא נסגרה", closed: "לא רלוונטי",
 };
 
 export function leadStage(l: Lead, quotes: Quote[], now = Date.now()) {

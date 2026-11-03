@@ -506,6 +506,7 @@ export default function AdminApp() {
         )}
         {view === "list" && <ListView data={data} onOpen={(id) => go("edit", id)} onNew={() => newQuote()} onDup={(q) => newQuote(q)} onDelete={removeQuote}
           onFollowed={(id) => updQuote(id, (x) => { x.followedAt = todayIL(); x.followUp = addDays(todayIL(), 5); })}
+          onStatus={(id, s) => updQuote(id, (x) => { x.status = s; }, 0)}
           onAgent={(d) => newQuote({ ...d, pros: [], commissions: defaultCommissions(data.settings), round: false } as unknown as Quote, "טיוטה מהסוכן נפתחה:")} />}
         {view === "plans" && <PlansView data={data} onOpen={(id) => go("plan", id)} onNew={() => go("plan", newPlan().id)} onQuote={quoteFromPlan} onOpenQuote={(id) => go("edit", id)} />}
         {view === "plan" && plan && (
@@ -716,7 +717,7 @@ function LeadForm({ lead, isNew, onClose, onSave }: { lead: Lead; isNew: boolean
 const claudeLink = (start: string) => `https://claude.ai/new?q=${encodeURIComponent(start)}`;
 
 /* =================== list =================== */
-function ListView({ data, onOpen, onNew, onDup, onDelete, onAgent, onFollowed }: { data: AppData; onOpen: (id: string) => void; onNew: () => void; onDup: (q: Quote) => void; onDelete: (id: string) => void; onAgent: (d: AgentDraft) => void; onFollowed: (id: string) => void }) {
+function ListView({ data, onOpen, onNew, onDup, onDelete, onAgent, onFollowed, onStatus }: { data: AppData; onOpen: (id: string) => void; onNew: () => void; onDup: (q: Quote) => void; onDelete: (id: string) => void; onAgent: (d: AgentDraft) => void; onFollowed: (id: string) => void; onStatus: (id: string, s: Status) => void }) {
   const [follow, setFollow] = useState<Quote | null>(null);
   const [agentOpen, setAgentOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
@@ -749,7 +750,8 @@ function ListView({ data, onOpen, onNew, onDup, onDelete, onAgent, onFollowed }:
         <div className="nq-kpi"><div className="k">ממתינות לתשובה</div><div className="v num">{open.length}{dueCount ? <span className="nq-due-k"> · {dueCount} לחזור</span> : null}</div></div>
         <div className="nq-kpi"><div className="k">שווי הצעות פתוחות</div><div className="v num">{money(open.reduce((s, x) => s + x.c.price, 0))}</div></div>
         <div className="nq-kpi"><div className="k">אושרו</div><div className="v num">{money(won.reduce((s, x) => s + x.c.price, 0))}</div></div>
-        <div className="nq-kpi"><div className="k">אחוז סגירה</div><div className="v num">{decided ? Math.round((won.length / decided) * 100) : 0}%</div></div>
+        <div className="nq-kpi"><div className="k">אחוז סגירה</div><div className="v num">{decided ? Math.round((won.length / decided) * 100) : 0}%</div>
+          <div className="sub num">נסגרו איתי {won.length} · לא נסגרו {decided - won.length} · מתוך {decided} שהוכרעו</div></div>
       </div>
       <div className="nq-chips">
         {(["all", "draft", "sent", "approved", "rejected"] as const).map((s) => (
@@ -784,6 +786,10 @@ function ListView({ data, onOpen, onNew, onDup, onDelete, onAgent, onFollowed }:
                 </span>
               ) : (
                 <>
+                  {q.status === "sent" && <>
+                    <button className="nq-btn sm" title="הלקוח סגר איתי" onClick={() => onStatus(q.id, "approved")}>נסגרה ✓</button>
+                    <button className="nq-btn sm" title="לא נסגרה או נסגרה במקום אחר" onClick={() => onStatus(q.id, "rejected")}>לא נסגרה</button>
+                  </>}
                   <button className="nq-btn sm" onClick={() => onDup(q)}>שכפל</button>
                   <button className="nq-btn sm danger" onClick={() => setConfirmDel(q.id)}>מחק</button>
                 </>
