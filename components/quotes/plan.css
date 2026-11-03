@@ -70,3 +70,14 @@
 .nqr-item img { width: 100%; display: block; }
 .nqr-item figcaption { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 6px 8px; font-size: 13px; }
 .nqp-render { width: 100%; border-radius: 10px; margin-bottom: 12px; display: block; }
+
+/* the brush: a shade is picked, then every front touched takes it */
+.nqp-brush-on { margin-bottom: 8px; }
+.nqp-brush { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; padding: 8px 10px; border-radius: 10px; background: #f6efe4; border: 1px solid #a8834f; }
+.nqp-brush-t { display: grid; flex: 1 1 200px; font-size: 14px; }
+.nqp-brush .nqb-dot:not([style]) { background: repeating-linear-gradient(45deg, #fff 0 4px, #d8d2c8 4px 8px); }
+.nqp-paint [data-front] { cursor: crosshair; }
+.nqp-paint [data-front]:hover { opacity: .7; }
+.nqp-paint text { pointer-events: none; }
+.nqr-tools { display: grid; gap: 8px; margin-top: 10px; }
+.nqr-tools .nqr-grid { margin-top: 4px; }

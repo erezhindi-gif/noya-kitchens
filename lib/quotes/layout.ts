@@ -41,6 +41,8 @@ export type KitchenLayout = {
   h?: Partial<LayoutHeights>;
   /** handles: "bar" a handle on every front, "integral" a grip groove cut into the front's edge, "none" push-open */
   colors?: { front?: string; upper?: string; counter?: string; handles?: "bar" | "integral" | "none" };
+  /** the kitchen's two free ends: "wall" = a wall stands across that end; missing = the wall simply stops there */
+  ends?: { left?: "wall"; right?: "wall" };
 };
 
 export const BASE_LABEL: Record<BaseKind, string> = {
@@ -168,7 +170,41 @@ export function normalizeLayout(raw: unknown): KitchenLayout | null {
       ...(c.handles === "none" || c.handles === "integral" ? { handles: c.handles } : {}),
     };
   }
+  const e = r.ends as Record<string, unknown> | undefined;
+  if (e && (e.left === "wall" || e.right === "wall")) out.ends = { ...(e.left === "wall" ? { left: "wall" as const } : {}), ...(e.right === "wall" ? { right: "wall" as const } : {}) };
   return out;
+}
+
+/** Paints one front. ref = "<wall index or island>.<base|upper|top>.<unit>.<part>"; part -1 is the unit's own color. */
+export function paintFront(l: KitchenLayout, ref: string, color: string | undefined) {
+  const [wall, row, unit, part] = ref.split(".");
+  const units = (wall === "island" ? l.island?.base : (l.walls[Number(wall)]?.[row as "base" | "upper" | "top"])) as (BaseUnit | UpperUnit)[] | undefined;
+  const u = units?.[Number(unit)];
+  if (!u) return;
+  const p = Number(part);
+  if (p < 0) {
+    if (color) u.color = color; else delete u.color;
+    return;
+  }
+  const fronts = [...(u.fronts || [])];
+  while (fronts.length < p) fronts.push("");
+  fronts[p] = color || "";
+  while (fronts.length && !fronts[fronts.length - 1]) fronts.pop();
+  if (fronts.length) u.fronts = fronts; else delete u.fronts;
+}
+
+/** The space between a wall's left end and its first cabinet: a "gap" at the start of each row, kept in step. */
+export const leftGap = (w: LayoutWall) => (w.base[0]?.kind === "gap" ? w.base[0].w : 0);
+export function setLeftGap(w: LayoutWall, v: number) {
+  const delta = v - leftGap(w);
+  const shift = <U extends { kind: string; w: number }>(us: U[]): U[] => {
+    if (!us.length) return us;
+    if (us[0].kind === "gap") return us[0].w + delta > 0 ? [{ ...us[0], w: us[0].w + delta }, ...us.slice(1)] : us.slice(1);
+    return delta > 0 ? [{ kind: "gap", w: delta } as U, ...us] : us;
+  };
+  w.base = shift(w.base);
+  w.upper = shift(w.upper);
+  if (w.top) w.top = shift(w.top);
 }
 
 const sum = (us: { w: number }[]) => us.reduce((a, u) => a + u.w, 0);
@@ -204,6 +240,7 @@ export function describeLayout(l: KitchenLayout) {
   lines.push(`גבהים: משטח ${h.base}, עליונים מ-${h.upperFrom} בגובה ${h.upper} ועומק ${h.upperDepth}, שורה עליונה בעומק ${h.topDepth}, ארון גבוה ${h.tall}, תקרה ${h.ceiling}`);
   const c = l.colors || {};
   lines.push(`צבעים: חזיתות ${colorName(c.front)}${c.upper ? `, עליונים ${colorName(c.upper)}` : ""}, משטח ${COUNTER_COLORS[c.counter || "white_stone"]?.name || c.counter}${c.handles === "none" ? ", בלי ידיות" : c.handles === "integral" ? ", ידית אינטגרלית" : ""}`);
+  if (l.ends?.left || l.ends?.right) lines.push(`קיר ניצב בקצה: ${[l.ends.left && "שמאל", l.ends.right && "ימין"].filter(Boolean).join(" ו")}`);
   return lines.join("\n");
 }
 

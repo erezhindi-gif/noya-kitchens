@@ -1,14 +1,11 @@
 "use client";
 // Kitchen plans ("תכנונים"): a drawing and 3D view made on their own, before there's a quote.
 // When a plan is ready, a quote is opened from it; the quote then shows the plan to the client.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fdate, planMessage, planSubject, planWaText, qnum, waText } from "@/lib/quotes/calc";
 import type { AppData, Lead, Plan, Quote } from "@/lib/quotes/types";
-import dynamic from "next/dynamic";
 import LayoutEditor from "./LayoutEditor";
 import { downloadBlob, sharePdf } from "./pdf";
-
-const Kitchen3D = dynamic(() => import("./Kitchen3D"), { ssr: false });
 
 const claudeLink = (start: string) => `https://claude.ai/new?q=${encodeURIComponent(start)}`;
 const sameName = (a: string, b: string) => a.trim().replace(/\s+/g, " ") === b.trim().replace(/\s+/g, " ");
@@ -74,19 +71,22 @@ export function PlanScreen({ plan: p, data, upd, saveNow, onBack, onQuote, onOpe
   const [pdfError, setPdfError] = useState(false);
   const [mailOpen, setMailOpen] = useState(false);
   const [sentNote, setSentNote] = useState("");
-  const [render, setRender] = useState<"idle" | "shot" | "busy">("idle");
+  const [render, setRender] = useState<"idle" | "photo" | "ai">("idle");
   const [renderNote, setRenderNote] = useState("");
   const [renderErr, setRenderErr] = useState("");
-  // A photorealistic render: the 3D view is drawn once off screen, its picture goes to the image model.
-  // Every render is paid for (about half a shekel to a shekel) and kept on the plan.
-  const onShot = async (jpeg: string) => {
-    setRender("busy");
+  const shotRef = useRef<(() => string) | null>(null);
+  // A picture of the 3D view from the angle on screen: kept as it is (free), or sent to the image model
+  // for a photorealistic render (paid, about half a shekel to a shekel). Either way it is kept on the plan.
+  const capture = async (kind: "photo" | "ai") => {
+    const jpeg = shotRef.current?.();
+    if (!jpeg) return setRenderErr("התלת-ממד עוד נטען. נסה שוב");
+    setRender(kind);
     setRenderErr("");
     await saveNow();
-    const res = await fetch(`/api/admin/plans/${p.id}/render`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image: jpeg, notes: renderNote }) }).catch(() => null);
+    const res = await fetch(`/api/admin/plans/${p.id}/render`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image: jpeg, notes: renderNote, raw: kind === "photo" }) }).catch(() => null);
     const j = await res?.json().catch(() => null);
     if (res?.ok && j?.url) upd((x) => { x.renders = j.renders; x.shownRender = j.shownRender; });
-    else setRenderErr(j?.error === "billing" ? "נגמרה היתרה בחשבון של גוגל (Gemini). צריך לטעון קרדיט." : "הרינדור נכשל. נסה שוב");
+    else setRenderErr(j?.error === "billing" ? "נגמרה היתרה בחשבון של גוגל (Gemini). צריך לטעון קרדיט." : "לא הצליח. נסה שוב");
     setRender("idle");
   };
   const q = quoteOf(p, data.quotes);
@@ -165,38 +165,37 @@ export function PlanScreen({ plan: p, data, upd, saveNow, onBack, onQuote, onOpe
             <label className="f full">הערות (רק לך)<textarea className="in" rows={2} value={p.notes || ""} onChange={(e) => upd((x) => { x.notes = e.target.value; })} /></label>
           </div>
         </section>
-        <section className="nq-card">
-          <div className="nq-card-h"><h2>רינדור</h2><span className="hint">תמונה ריאליסטית מהתלת-ממד, באותן מידות וצבעים. כל רינדור עולה בערך חצי שקל עד שקל</span></div>
-          <label className="f">הערות לרינדור (לא חובה)<input className="in" value={renderNote} placeholder="למשל: אור ערב חם, פרקט אלון בהיר, עציץ ליד החלון" onChange={(e) => setRenderNote(e.target.value)} /></label>
-          <div className="nq-head-acts" style={{ marginTop: 8 }}>
-            <button className="nq-btn pri" disabled={render !== "idle"} onClick={() => setRender("shot")}>{render === "idle" ? "✨ רינדור חדש" : "מרנדר… (כחצי דקה)"}</button>
-            {renderErr && <span className="hint">{renderErr}</span>}
-          </div>
-          {render === "shot" && (
-            <div style={{ position: "fixed", left: -10000, top: 0, width: 1280 }} aria-hidden>
-              <Kitchen3D layout={p.layout} still height={720} onShot={onShot} />
-            </div>
-          )}
-          {!!p.renders?.length && (
-            <div className="nqr-grid">
-              {[...p.renders].reverse().map((r) => (
-                <figure key={r.url} className={`nqr-item ${p.shownRender === r.url ? "on" : ""}`}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <a href={r.url} target="_blank" rel="noopener"><img src={`${r.url}?w=900`} alt="רינדור" loading="lazy" /></a>
-                  <figcaption>
-                    {p.shownRender === r.url
-                      ? <b>✓ זה מה שהלקוח מקבל</b>
-                      : <button className="nq-btn sm" onClick={() => upd((x) => { x.shownRender = r.url; })}>לשלוח את זה ללקוח</button>}
-                    <button className="nq-btn sm ghost" onClick={() => upd((x) => { x.renders = (x.renders || []).filter((y) => y.url !== r.url); if (x.shownRender === r.url) x.shownRender = x.renders.at(-1)?.url; })}>הסר</button>
-                  </figcaption>
-                </figure>
-              ))}
-            </div>
-          )}
-        </section>
         <LayoutEditor layout={p.layout}
           claudeHref={claudeLink(`תיקון התכנון של ${who} במערכת נויה (תכנון ${p.id}): `)}
-          onChange={(l) => upd((x) => { x.layout = l; })} />
+          onChange={(l) => upd((x) => { x.layout = l; })}
+          shotRef={shotRef}
+          viewTools={
+            <div className="nqr-tools">
+              <div className="hint">מסובבים עם העכבר, מתקרבים בגלגלת, ומצלמים מכל זווית</div>
+              <div className="nq-head-acts">
+                <button className="nq-btn" disabled={render !== "idle"} onClick={() => capture("photo")}>{render === "photo" ? "שומר…" : "📷 צילום מהזווית הזו (חינם)"}</button>
+                <button className="nq-btn pri" disabled={render !== "idle"} onClick={() => capture("ai")}>{render === "ai" ? "מרנדר… (כחצי דקה)" : "✨ רינדור מהזווית הזו (חצי שקל עד שקל)"}</button>
+                {renderErr && <span className="hint">{renderErr}</span>}
+              </div>
+              <label className="f">הערות לרינדור (לא חובה)<input className="in" value={renderNote} placeholder="למשל: אור ערב חם, פרקט אלון בהיר, עציץ ליד החלון" onChange={(e) => setRenderNote(e.target.value)} /></label>
+              {!!p.renders?.length && (
+                <div className="nqr-grid">
+                  {[...p.renders].reverse().map((r) => (
+                    <figure key={r.url} className={`nqr-item ${p.shownRender === r.url ? "on" : ""}`}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <a href={r.url} target="_blank" rel="noopener"><img src={`${r.url}?w=900`} alt="תמונה של המטבח" loading="lazy" /></a>
+                      <figcaption>
+                        {p.shownRender === r.url
+                          ? <b>✓ זה מה שהלקוח מקבל</b>
+                          : <button className="nq-btn sm" onClick={() => upd((x) => { x.shownRender = r.url; })}>לשלוח את זה ללקוח</button>}
+                        <button className="nq-btn sm ghost" onClick={() => upd((x) => { x.renders = (x.renders || []).filter((y) => y.url !== r.url); if (x.shownRender === r.url) x.shownRender = x.renders.at(-1)?.url; })}>הסר</button>
+                      </figcaption>
+                    </figure>
+                  ))}
+                </div>
+              )}
+            </div>
+          } />
         <section className="nq-card">
           {confirmDel ? (
             <div className="nq-confirm">

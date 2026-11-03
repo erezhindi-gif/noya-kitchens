@@ -17,22 +17,23 @@ const sanity = createClient({
 
 const HANDLES = { bar: "slim metal bar handles", integral: "integral handles: a grip groove milled into the top edge of each base front and the bottom edge of each wall-cabinet front, no handles sticking out", none: "handle-less push-to-open fronts" };
 
-// The 3D view of a plan (a picture the browser takes of it) becomes a photorealistic render of the same kitchen.
-// Every render is paid for, so it is kept on the plan at once.
+// A picture of the 3D view from the angle Erez chose (taken in the browser). raw: it is kept as it is, for free.
+// Otherwise it becomes a photorealistic render of the same kitchen; that is paid for, so it is kept on the plan at once.
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const { geminiKey } = await getSecrets();
-  if (!geminiKey) return NextResponse.json({ error: "no-key" }, { status: 503 });
-  const b = (await req.json().catch(() => null)) as { image?: string; notes?: string } | null;
+  const b = (await req.json().catch(() => null)) as { image?: string; notes?: string; raw?: boolean } | null;
   if (!b?.image || b.image.length > 4_000_000) return NextResponse.json({ error: "bad-request" }, { status: 400 });
   const plan = await getPlan(params.id);
   if (!plan) return NextResponse.json({ error: "not-found" }, { status: 404 });
+  if (b.raw) return keep(plan.id, b.image, false);
+  const { geminiKey } = await getSecrets();
+  if (!geminiKey) return NextResponse.json({ error: "no-key" }, { status: 503 });
 
   const l = plan.layout, c = l.colors || {}, h = heightsOf(l);
   const own = [...l.walls.flatMap((w) => [...w.base, ...w.upper, ...(w.top || [])]), ...(l.island?.base || [])]
     .flatMap((u) => [u.color, ...(u.fronts || [])]).filter(Boolean).map((v) => colorName(v)).filter((v, i, a) => a.indexOf(v) === i);
   const prompt = [
     "Turn this 3D model of a custom kitchen into a photorealistic interior photograph, as if the finished kitchen was photographed by a top architectural photographer.",
-    "ABSOLUTE RULE: keep the kitchen exactly as modeled: the same layout, the same cabinets with the same widths, heights and positions, the same division into doors and drawers, the same colors of every front (a front with a different color in the model keeps that color), the same countertop outline, the same appliances in the same places, the same camera angle and framing. Do not add, remove or move any cabinet, door, drawer or appliance. Each wall ends exactly where it ends in the model: never add extra wall, floor or empty space between a cabinet and the end of its wall.",
+    "ABSOLUTE RULE: keep the kitchen exactly as modeled: the same layout, the same cabinets with the same widths, heights and positions, the same division into doors and drawers, the same colors of every front (a front with a different color in the model keeps that color), the same countertop outline, the same appliances in the same places, the same camera angle and framing. Do not add, remove or move any cabinet, door, drawer or appliance. Spaces between cabinets and walls stay exactly as modeled: never add extra wall, floor or empty space beside a cabinet, and never close a space that is modeled. A wall that stops in the model stops there in the photograph, with the room open beyond it; a wall standing across the end of the kitchen stays right where it is.",
     "Make it real: real materials and textures for every surface, real built-in appliances (ovens, induction hob, fridge, sink and faucet, dishwasher) looking like modern premium brands, soft natural daylight with gentle shadows, a finished room (painted walls, a real floor, ceiling), a few minimal tasteful accessories at most.",
     `Materials: fronts ${c.front ? colorName(c.front) : "matte white"}${c.upper ? `, wall cabinets ${colorName(c.upper)}` : ""}${own.length ? `, other fronts as colored in the model (${own.join("; ")})` : ""}; countertop ${COUNTER_COLORS[c.counter || "white_stone"]?.name || c.counter} ${h.counter} cm thick; ${HANDLES[c.handles || "bar"]}. The Bluran front names are real Israeli front materials: render them true to their color and finish (matte, gloss, wood veneer, stone look).`,
     b.notes?.trim() && `Notes from the kitchen maker (Hebrew, follow them): ${b.notes.trim().slice(0, 800)}`,
@@ -42,11 +43,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const r = await generateImage(geminiKey, [{ inlineData: { mimeType: "image/jpeg", data: b.image.replace(/^data:image\/\w+;base64,/, "") } }, { text: prompt }], "16:9", true);
   if (!r.ok) return NextResponse.json({ error: r.error, detail: r.detail }, { status: r.error === "blocked" ? 422 : 502 });
 
-  const m = r.image.match(/^data:(image\/[a-z]+);base64,(.+)$/)!;
-  const asset = await sanity.assets.upload("image", Buffer.from(m[2], "base64"), { filename: `noya-render-${plan.id}-${Date.now()}.jpg`, contentType: m[1] });
-  const fresh = (await getPlan(params.id)) || plan;
+  return keep(plan.id, r.image, true);
+}
+
+/** Saves the picture and adds it to the plan. show: it becomes what the client gets; a free snapshot only when nothing was chosen yet. */
+async function keep(id: string, image: string, show: boolean) {
+  const m = image.match(/^data:(image\/[a-z]+);base64,(.+)$/);
+  if (!m) return NextResponse.json({ error: "bad-request" }, { status: 400 });
+  const asset = await sanity.assets.upload("image", Buffer.from(m[2], "base64"), { filename: `noya-render-${id}-${Date.now()}.jpg`, contentType: m[1] });
+  const fresh = await getPlan(id);
+  if (!fresh) return NextResponse.json({ error: "not-found" }, { status: 404 });
   fresh.renders = [...(fresh.renders || []), { url: asset.url, at: new Date().toISOString() }].slice(-12);
-  fresh.shownRender = asset.url;
+  if (show || !fresh.shownRender) fresh.shownRender = asset.url;
   fresh.updatedAt = new Date().toISOString();
   await putPlan(fresh);
   return NextResponse.json({ url: asset.url, renders: fresh.renders, shownRender: fresh.shownRender });

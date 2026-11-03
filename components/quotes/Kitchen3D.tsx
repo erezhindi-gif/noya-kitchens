@@ -1,7 +1,9 @@
 "use client";
 // The kitchen in 3D, built from the same centimeters as the drawing, so the proportions match.
 // The client turns it with a finger. In `still` mode (the PDF) it renders one frame into an image.
-import { useEffect, useRef, useState } from "react";
+// Real materials, reflections and soft contact shadows: while it moves it draws fast, and the moment
+// it stops it draws once more in full quality. Erez paints fronts on it with a touch (`paint`).
+import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type * as T from "three";
 import {
   COUNTER_COLORS, FRONT_COLORS, colorOf, cornerPart, counterSpans, heightsOf, islandBox, mainWallIndex, partsOf, placed, tallOvenParts, upperBox, wallGeometry,
@@ -14,6 +16,75 @@ type Mats = Record<"front" | "upper" | "carcass" | "upperCarcass" | "counter" | 
 
 const M = 0.01; // cm → m
 
+// Bluran swatches and the drawn materials stay loaded between rebuilds, so painting a door doesn't flash
+const swatches = new Map<string, T.Texture>();
+const drawn = new Map<string, T.CanvasTexture>();
+const seeded = (seed: number) => () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+
+function drawnTexture(three: Three, key: string, paint: (g: CanvasRenderingContext2D, size: number) => void) {
+  const hit = drawn.get(key);
+  if (hit) return hit;
+  const size = 1024;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  paint(canvas.getContext("2d")!, size);
+  const t = new three.CanvasTexture(canvas);
+  t.colorSpace = three.SRGBColorSpace;
+  t.wrapS = t.wrapT = three.RepeatWrapping;
+  t.anisotropy = 8;
+  drawn.set(key, t);
+  return t;
+}
+
+/** Oak planks, 20 cm wide on a 2.4 m square of texture */
+const oakFloor = (g: CanvasRenderingContext2D, size: number) => {
+  const r = seeded(4711), rows = 12, ph = size / rows;
+  for (let y = 0; y < rows; y++) {
+    let x = -r() * size * 0.5;
+    while (x < size) {
+      const len = size * (0.45 + r() * 0.35);
+      const l = 60 + r() * 9, hue = 30 + r() * 5;
+      g.fillStyle = `hsl(${hue} 27% ${l}%)`;
+      g.fillRect(x, y * ph, len, ph);
+      for (let k = 0; k < 26; k++) {
+        const gy = y * ph + r() * ph;
+        g.strokeStyle = `hsla(${hue - 4} 45% 32% / ${0.04 + r() * 0.1})`;
+        g.lineWidth = 0.6 + r() * 1.2;
+        g.beginPath();
+        g.moveTo(x, gy);
+        g.bezierCurveTo(x + len * 0.3, gy + r() * 6 - 3, x + len * 0.7, gy + r() * 6 - 3, x + len, gy + r() * 4 - 2);
+        g.stroke();
+      }
+      g.fillStyle = "rgba(60,40,22,.45)";
+      g.fillRect(x + len - 1, y * ph, 1.5, ph);
+      x += len;
+    }
+    g.fillStyle = "rgba(60,40,22,.45)";
+    g.fillRect(0, y * ph, size, 1.5);
+  }
+};
+
+/** Stone with thin soft veins, on the counter's color */
+const stone = (hex: string, dark: boolean) => (g: CanvasRenderingContext2D, size: number) => {
+  const r = seeded(hex.length * 977 + parseInt(hex.slice(1), 16) % 9973 + 1);
+  g.fillStyle = hex;
+  g.fillRect(0, 0, size, size);
+  for (let v = 0; v < 9; v++) {
+    let x = r() * size, y = r() * size, a = r() * Math.PI * 2;
+    g.strokeStyle = dark ? `rgba(235,230,220,${0.1 + r() * 0.25})` : `rgba(95,90,85,${0.07 + r() * 0.18})`;
+    g.lineWidth = 0.6 + r() * 2;
+    g.beginPath();
+    g.moveTo(x, y);
+    for (let k = 0; k < 40; k++) {
+      a += (r() - 0.5) * 0.7;
+      x += Math.cos(a) * 26;
+      y += Math.sin(a) * 26;
+      g.lineTo(x, y);
+    }
+    g.stroke();
+  }
+};
+
 function shade(three: Three, hex: string, k: number) {
   const c = new three.Color(hex);
   return c.multiplyScalar(k);
@@ -25,6 +96,7 @@ function buildKitchen(three: Three, l: KitchenLayout) {
   const front = colorOf(l.colors?.front, FRONT_COLORS, FRONT_COLORS.white.hex);
   const upper = colorOf(l.colors?.upper || l.colors?.front, FRONT_COLORS, front);
   const counter = colorOf(l.colors?.counter, COUNTER_COLORS, COUNTER_COLORS.white_stone.hex);
+  const stoneTop = (l.colors?.counter || "white_stone").endsWith("_stone");
   const handles = !l.colors?.handles || l.colors.handles === "bar";
   const grip = l.colors?.handles === "integral";
   const std = (color: T.ColorRepresentation, rough = 0.6, metal = 0, extra: Partial<T.MeshStandardMaterialParameters> = {}) =>
@@ -41,8 +113,11 @@ function buildKitchen(three: Three, l: KitchenLayout) {
     let m: T.Material;
     if (bl && bl.tex) {
       const mat = std("#ffffff", bl.gloss ? 0.18 : 0.6);
-      loading.push(new Promise((ok) => {
-        new three.TextureLoader().load(bluranImg(bl), (t) => { t.colorSpace = three.SRGBColorSpace; mat.map = t; mat.needsUpdate = true; ok(t); }, undefined, () => { mat.color.set(bl.hex); ok(null); });
+      const url = bluranImg(bl);
+      const have = swatches.get(url);
+      if (have) mat.map = have;
+      else loading.push(new Promise((ok) => {
+        new three.TextureLoader().load(url, (t) => { t.colorSpace = three.SRGBColorSpace; swatches.set(url, t); mat.map = t; mat.needsUpdate = true; ok(t); }, undefined, () => { mat.color.set(bl.hex); ok(null); });
       }));
       m = mat;
     } else m = std(colorOf(v, FRONT_COLORS, "#f2f1ec"), bl?.gloss || bl?.group === "זכוכית" ? 0.15 : 0.55);
@@ -59,8 +134,8 @@ function buildKitchen(three: Three, l: KitchenLayout) {
     steel: std("#d4d7da", 0.35, 0.25),
     glass: std("#1b1b1c", 0.12, 0.3),
     handle: std("#7d8185", 0.35, 0.4),
-    wall: std("#efebe4", 0.95, 0, { side: three.FrontSide }),
-    floor: std("#d6cdbf", 0.85),
+    wall: std("#f4f1eb", 0.92, 0, { side: three.FrontSide }),
+    floor: std("#ffffff", 0.5, 0, { map: drawnTexture(three, "oak", oakFloor) }),
     shelf: std("#e3ddd2", 0.7),
     sink: std("#b4babe", 0.3, 0.35),
     grip: std("#2b2724", 0.85),
@@ -85,19 +160,32 @@ function buildKitchen(three: Three, l: KitchenLayout) {
     return m;
   };
 
+  /** the counter's stone keeps its scale on a piece of any size */
+  const counterMat = (w: number, d: number) => {
+    if (!stoneTop) return mats.counter;
+    const tex = drawnTexture(three, "stone" + counter, stone(counter, l.colors?.counter === "black_stone")).clone();
+    tex.repeat.set(w / 240, d / 240);
+    tex.needsUpdate = true;
+    return std("#ffffff", 0.3, 0, { map: tex });
+  };
+  /** marks a mesh as part of a front, so a touch can paint it (see paintFront) */
+  const tag = (m: T.Mesh, front: string | undefined, panel: T.Mesh = m) => {
+    if (front) m.userData = { front, panel };
+    return m;
+  };
   /** A door or drawer front with its handle; (x0,y0) is its lower-left corner on the run's face at depth z. */
-  const frontPanel = (p: T.Object3D, mat: T.Material, x0: number, y0: number, w: number, hh: number, z: number, handle?: "top" | "bottom" | "mid") => {
-    box(p, mat, w - 0.4, hh - 0.4, 1.8, x0 + w / 2, y0 + hh / 2, z + 0.9);
+  const frontPanel = (p: T.Object3D, mat: T.Material, x0: number, y0: number, w: number, hh: number, z: number, handle: "top" | "bottom" | "mid" | undefined, ref?: string) => {
+    const panel = tag(box(p, mat, w - 0.4, hh - 0.4, 1.8, x0 + w / 2, y0 + hh / 2, z + 0.9), ref);
     if (grip && handle) {
       // integral handle: a grip groove milled into the edge of the front
-      if (handle === "mid") box(p, mats.grip, 1.6, hh - 0.4, 0.5, x0 + 1.2, y0 + hh / 2, z + 1.6);
-      else box(p, mats.grip, w - 0.4, 1.6, 0.5, x0 + w / 2, handle === "top" ? y0 + hh - 1.2 : y0 + 1.2, z + 1.6);
+      if (handle === "mid") tag(box(p, mats.grip, 1.6, hh - 0.4, 0.5, x0 + 1.2, y0 + hh / 2, z + 1.6), ref, panel);
+      else tag(box(p, mats.grip, w - 0.4, 1.6, 0.5, x0 + w / 2, handle === "top" ? y0 + hh - 1.2 : y0 + 1.2, z + 1.6), ref, panel);
       return;
     }
     if (!handles || !handle) return;
     const hy = handle === "top" ? y0 + hh - 4 : handle === "bottom" ? y0 + 4 : y0 + hh / 2;
-    if (handle === "mid") box(p, mats.handle, 1.2, Math.min(30, hh * 0.3), 1.6, x0 + 5, hy, z + 2.6);
-    else box(p, mats.handle, Math.min(16, w * 0.45), 1.2, 1.6, x0 + w / 2, hy, z + 2.6);
+    if (handle === "mid") tag(box(p, mats.handle, 1.2, Math.min(30, hh * 0.3), 1.6, x0 + 5, hy, z + 2.6), ref, panel);
+    else tag(box(p, mats.handle, Math.min(16, w * 0.45), 1.2, 1.6, x0 + w / 2, hy, z + 2.6), ref, panel);
   };
 
   /** A built-in oven: black glass door in a steel frame, a control strip with a display and knobs, a bar handle. */
@@ -142,13 +230,14 @@ function buildKitchen(three: Three, l: KitchenLayout) {
   };
 
   /** One run of base cabinets along local x, backs at z=0, fronts facing +z. */
-  const baseRun = (p: T.Object3D, units: BaseUnit[], depth: number, hs: LayoutHeights, withCounter = true) => {
+  const baseRun = (p: T.Object3D, units: BaseUnit[], depth: number, hs: LayoutHeights, at: string, withCounter = true) => {
     const f0 = hs.plinth, f1 = hs.base - hs.counter, fh = f1 - f0;
     const z = depth - 2;
     const pl = placed(units);
     for (let idx = 0; idx < pl.length; idx++) {
       const u = pl[idx];
       const x = u.a, w = u.w, n = partsOf(u.kind, u.w, u.n);
+      const r = (part: number) => `${at}.base.${idx}.${part}`;
       if (u.kind === "gap") continue;
       if (u.kind === "corner") {
         // a closed corner cabinet: only its filler strip shows, without a handle
@@ -157,18 +246,18 @@ function buildKitchen(three: Three, l: KitchenLayout) {
           box(p, mats.plinth, c.w, f0, depth - 6, x + c.a + c.w / 2, f0 / 2, (depth - 6) / 2);
           box(p, mats.carcass, c.w, f1 - f0, z, x + c.a + c.w / 2, f0 + (f1 - f0) / 2, z / 2);
         }
-        if (c.filler.w > 0.01) frontPanel(p, matOf(u.color, mats.front), x + c.filler.a, f0, c.filler.w + 0.4, fh, z);
+        if (c.filler.w > 0.01) frontPanel(p, matOf(u.color, mats.front), x + c.filler.a, f0, c.filler.w + 0.4, fh, z, undefined, r(-1));
         continue;
       }
       if (u.kind === "fridge") {
-        const body = u.color ? std(colorOf(u.color, FRONT_COLORS, "#d4d7da"), 0.32, 0.35) : mats.inox;
+        const body = matOf(u.color, mats.inox);
         // a real fridge: one or two columns (a wide one is two), freezer below, bar handles, a small display
         const cols = w >= 100 ? 2 : 1, cw = (w - 0.6) / cols, fz = hs.tall * 0.36;
         box(p, mats.black, w - 0.6, hs.tall - 1, depth - 4, x + w / 2, (hs.tall - 1) / 2, (depth - 4) / 2);
         for (let k = 0; k < cols; k++) {
           const cx = x + 0.3 + cw * k + cw / 2;
-          box(p, body, cw - 0.5, hs.tall - fz - 1.2, 3, cx, fz + (hs.tall - fz) / 2, depth - 1.5);
-          box(p, body, cw - 0.5, fz - 2, 3, cx, 1 + (fz - 2) / 2, depth - 1.5);
+          tag(box(p, body, cw - 0.5, hs.tall - fz - 1.2, 3, cx, fz + (hs.tall - fz) / 2, depth - 1.5), r(-1));
+          tag(box(p, body, cw - 0.5, fz - 2, 3, cx, 1 + (fz - 2) / 2, depth - 1.5), r(-1));
           const hx = cols === 2 ? (k === 0 ? cx + cw / 2 - 5 : cx - cw / 2 + 5) : x + 5;
           box(p, mats.inox, 1.6, 45, 2.4, hx, fz + 40, depth + 1);
           box(p, mats.inox, 1.6, 30, 2.4, hx, fz - 22, depth + 1);
@@ -184,32 +273,31 @@ function buildKitchen(three: Three, l: KitchenLayout) {
       switch (u.kind) {
         case "doors":
         case "sink":
-          for (let i = 0; i < n; i++) frontPanel(p, fm(i), x + (i * w) / n, f0, w / n, fh, z, "top");
+          for (let i = 0; i < n; i++) frontPanel(p, fm(i), x + (i * w) / n, f0, w / n, fh, z, "top", r(i));
           break;
         case "drawers":
         case "cooktop":
-          for (let i = 0; i < n; i++) frontPanel(p, fm(n - 1 - i), x, f0 + (i * fh) / n, w, fh / n, z, "top");
+          for (let i = 0; i < n; i++) frontPanel(p, fm(n - 1 - i), x, f0 + (i * fh) / n, w, fh / n, z, "top", r(n - 1 - i));
           break;
         case "dishwasher":
-          frontPanel(p, fm(0), x, f0, w, fh, z, "top");
+          frontPanel(p, fm(0), x, f0, w, fh, z, "top", r(0));
           break;
         case "oven": {
           const dr = Math.min(18, fh * 0.25);
-          frontPanel(p, fm(0), x, f0, w, dr, z, "top");
+          frontPanel(p, fm(0), x, f0, w, dr, z, "top", r(0));
           oven(p, x, f0 + dr, w, fh - dr, z);
           break;
         }
         case "tall":
-          for (let i = 0; i < n; i++) frontPanel(p, fm(n - 1 - i), x, f0 + (i * (top - f0)) / n, w, (top - f0) / n, z, "mid");
+          for (let i = 0; i < n; i++) frontPanel(p, fm(n - 1 - i), x, f0 + (i * (top - f0)) / n, w, (top - f0) / n, z, "mid", r(n - 1 - i));
           break;
         case "tall_oven": {
           const t = tallOvenParts(u, hs);
           const dh = (t.d1 - t.d0) / t.drawers;
-          const own = matOf(u.color, mats.front);
-          for (let i = 0; i < t.drawers; i++) frontPanel(p, fm(t.drawers - 1 - i), x, t.d0 + i * dh, w, dh, z, "top");
+          for (let i = 0; i < t.drawers; i++) frontPanel(p, fm(t.drawers - 1 - i), x, t.d0 + i * dh, w, dh, z, "top", r(t.drawers - 1 - i));
           oven(p, x, t.d1, w, t.o1 - t.d1, z);
-          if (t.m1 > t.o1 + 2) frontPanel(p, own, x, t.o1, w, t.m1 - t.o1, z, "bottom");
-          if (t.rest) frontPanel(p, own, x, t.m1, w, top - t.m1, z, "bottom");
+          if (t.m1 > t.o1 + 2) frontPanel(p, fm(t.drawers), x, t.o1, w, t.m1 - t.o1, z, "bottom", r(t.drawers));
+          if (t.rest) frontPanel(p, fm(t.drawers + 1), x, t.m1, w, top - t.m1, z, "bottom", r(t.drawers + 1));
           break;
         }
       }
@@ -222,13 +310,16 @@ function buildKitchen(three: Three, l: KitchenLayout) {
       }
       if (u.kind === "cooktop") cooktop(p, x + w / 2, hs.base, depth / 2 + 1, Math.min(w - 8, 60));
     }
-    if (withCounter) for (const s of counterSpans(units, depth)) box(p, mats.counter, s.w, hs.counter, depth + 2, s.a + s.w / 2, hs.base - hs.counter / 2, (depth + 2) / 2);
+    if (withCounter) for (const s of counterSpans(units, depth)) box(p, counterMat(s.w, depth + 2), s.w, hs.counter, depth + 2, s.a + s.w / 2, hs.base - hs.counter / 2, (depth + 2) / 2);
   };
 
   /** a row of upper cabinets; each cabinet may have its own depth, height and bottom */
-  const upperRun = (p: T.Object3D, units: UpperUnit[], row: UpperRow) => {
-    for (const u of placed(units)) {
+  const upperRun = (p: T.Object3D, units: UpperUnit[], row: UpperRow, at: string) => {
+    const pl = placed(units);
+    for (let idx = 0; idx < pl.length; idx++) {
+      const u = pl[idx];
       const x = u.a, w = u.w, n = partsOf(u.kind, u.w, u.n, true);
+      const r = (part: number) => `${at}.${row}.${idx}.${part}`;
       const { y0, hh: uh, d } = upperBox(u, h, row);
       if (u.kind === "gap" || u.kind === "corner") continue;
       if (u.kind === "hood") {
@@ -247,8 +338,8 @@ function buildKitchen(three: Three, l: KitchenLayout) {
       }
       box(p, mats.upperCarcass, w - 0.2, uh, d - 2, x + w / 2, y0 + uh / 2, (d - 2) / 2);
       const um = unitMats(u, mats.upper);
-      if (u.kind === "doors") for (let i = 0; i < n; i++) frontPanel(p, um(i), x + (i * w) / n, y0, w / n, uh, d - 2, "bottom");
-      else for (let i = 0; i < n; i++) frontPanel(p, um(n - 1 - i), x, y0 + (i * uh) / n, w, uh / n, d - 2, "bottom");
+      if (u.kind === "doors") for (let i = 0; i < n; i++) frontPanel(p, um(i), x + (i * w) / n, y0, w / n, uh, d - 2, "bottom", r(i));
+      else for (let i = 0; i < n; i++) frontPanel(p, um(n - 1 - i), x, y0 + (i * uh) / n, w, uh / n, d - 2, "bottom", r(n - 1 - i));
     }
   };
 
@@ -262,9 +353,20 @@ function buildKitchen(three: Three, l: KitchenLayout) {
     wall.position.set((w.length / 2) * M, (h.ceiling / 2) * M, 0);
     wall.receiveShadow = true;
     grp.add(wall);
-    baseRun(grp, w.base, h.depth, h);
-    upperRun(grp, w.upper, "upper");
-    upperRun(grp, w.top || [], "top");
+    // a wall standing across the kitchen's free end, if there is one
+    const cross = (x: number, facing: 1 | -1) => {
+      const len = h.depth + 150;
+      const side = new three.Mesh(new three.PlaneGeometry(len * M, h.ceiling * M), mats.wall);
+      side.position.set(x * M, (h.ceiling / 2) * M, (len / 2) * M);
+      side.rotation.y = (facing * Math.PI) / 2;
+      side.receiveShadow = true;
+      grp.add(side);
+    };
+    if (i === 0 && l.ends?.left) cross(0, 1);
+    if (i === geo.length - 1 && l.ends?.right) cross(w.length, -1);
+    baseRun(grp, w.base, h.depth, h, String(i));
+    upperRun(grp, w.upper, "upper", String(i));
+    upperRun(grp, w.top || [], "top", String(i));
     root.add(grp);
   });
 
@@ -276,29 +378,45 @@ function buildKitchen(three: Three, l: KitchenLayout) {
     grp.position.set((isl.cx + g.dx * (isl.w / 2) + g.nx * (isl.d / 2)) * M, 0, (isl.cz + g.dz * (isl.w / 2) + g.nz * (isl.d / 2)) * M);
     grp.rotation.y = Math.atan2(g.dz, -g.dx);
     const units = l.island.base.length ? l.island.base : [{ kind: "doors" as const, w: isl.w }];
-    baseRun(grp, units, isl.d, h, false);
+    baseRun(grp, units, isl.d, h, "island", false);
     // the counter covers the whole island even where there are no cabinets
-    box(grp, mats.counter, isl.w, h.counter, isl.d + 2, isl.w / 2, h.base - h.counter / 2, isl.d / 2);
+    box(grp, counterMat(isl.w, isl.d + 2), isl.w, h.counter, isl.d + 2, isl.w / 2, h.base - h.counter / 2, isl.d / 2);
     root.add(grp);
   }
 
-  // floor under everything
+  // an oak floor under everything, and a ceiling (seen only from below, so it never hides the view from above)
   const bb = new three.Box3().setFromObject(root);
-  const fw = bb.max.x - bb.min.x + 1.2, fd = bb.max.z - bb.min.z + 2.2;
+  const fw = bb.max.x - bb.min.x + 3, fd = bb.max.z - bb.min.z + 4;
+  const fx = (bb.min.x + bb.max.x) / 2, fz = (bb.min.z + bb.max.z) / 2 + 1;
+  const floorTex = drawnTexture(three, "oak", oakFloor).clone();
+  floorTex.repeat.set(fw / 2.4, fd / 2.4);
+  floorTex.needsUpdate = true;
+  (mats.floor as T.MeshStandardMaterial).map = floorTex;
   const floor = new three.Mesh(new three.PlaneGeometry(fw, fd), mats.floor);
   floor.rotation.x = -Math.PI / 2;
-  floor.position.set((bb.min.x + bb.max.x) / 2, 0, (bb.min.z + bb.max.z) / 2 + 0.5);
+  floor.position.set(fx, 0, fz);
   floor.receiveShadow = true;
   root.add(floor);
+  const ceiling = new three.Mesh(new three.PlaneGeometry(fw, fd), std("#ffffff", 0.9, 0, { emissive: new three.Color("#ffffff"), emissiveIntensity: 0.45 }));
+  ceiling.rotation.x = Math.PI / 2;
+  ceiling.position.set(fx, h.ceiling * M, fz);
+  root.add(ceiling);
   return { root, box: bb, ready: Promise.all(loading) };
 }
 
-/** onShot (still mode): gets the picture once it is taken, e.g. to send it for a photorealistic render */
-export default function Kitchen3D({ layout, still = false, height = 420, onShot }: { layout: KitchenLayout; still?: boolean; height?: number; onShot?: (jpeg: string) => void }) {
+/** shotRef: takes a 16:9 picture from the angle now on screen. paint: while set, a touch on a front paints it. */
+export default function Kitchen3D({ layout, still = false, height = 420, shotRef, paint }: {
+  layout: KitchenLayout; still?: boolean; height?: number; shotRef?: MutableRefObject<(() => string) | null>; paint?: (ref: string) => void;
+}) {
   const host = useRef<HTMLDivElement>(null);
   const [img, setImg] = useState("");
   const [failed, setFailed] = useState(false);
   const key = JSON.stringify(layout);
+  const keyRef = useRef(key);
+  keyRef.current = key;
+  const paintRef = useRef(paint);
+  paintRef.current = paint;
+  const swap = useRef<((k: string) => void) | null>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -306,6 +424,7 @@ export default function Kitchen3D({ layout, still = false, height = 420, onShot 
     (async () => {
       const three = await import("three");
       const { OrbitControls } = await import("three/examples/jsm/controls/OrbitControls.js");
+      const { RoomEnvironment } = await import("three/examples/jsm/environments/RoomEnvironment.js");
       if (disposed || !host.current) return;
       const el = host.current;
       let renderer: T.WebGLRenderer;
@@ -316,35 +435,48 @@ export default function Kitchen3D({ layout, still = false, height = 420, onShot 
         return;
       }
       const W = el.clientWidth || 700, H = height;
-      renderer.setPixelRatio(still ? 2 : Math.min(2, window.devicePixelRatio || 1));
+      const ratio = still ? 2 : Math.min(2, window.devicePixelRatio || 1);
+      renderer.setPixelRatio(ratio);
       renderer.setSize(W, H);
       renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = three.PCFSoftShadowMap;
-      renderer.toneMapping = three.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.05;
+      renderer.shadowMap.type = three.PCFShadowMap;
+      renderer.toneMapping = three.NeutralToneMapping; // keeps the Bluran colors true
+      renderer.toneMappingExposure = 1;
       el.appendChild(renderer.domElement);
 
       const scene = new three.Scene();
       scene.background = new three.Color("#f4f1ec");
-      const { root, box, ready } = buildKitchen(three, JSON.parse(key));
-      scene.add(root);
+      const pmrem = new three.PMREMGenerator(renderer);
+      const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+      scene.environment = envMap;
+      scene.environmentIntensity = 0.95;
+      let builtKey = keyRef.current;
+      let kitchen = buildKitchen(three, JSON.parse(builtKey));
+      scene.add(kitchen.root);
+      const { box } = kitchen;
 
       const center = new three.Vector3((box.min.x + box.max.x) / 2, 1.0, (box.min.z + box.max.z) / 2);
       const size = Math.max(box.max.x - box.min.x, box.max.z - box.min.z, 2.5);
-      scene.add(new three.HemisphereLight(0xffffff, 0xcfc6b8, 1.6));
-      const sun = new three.DirectionalLight(0xffffff, 1.9);
-      sun.position.set(center.x + size * 0.6, 4.5, center.z + size * 1.2);
+      scene.add(new three.HemisphereLight(0xffffff, 0xdcd3c4, 0.95));
+      const sun = new three.DirectionalLight(0xfff4e6, 1.25);
+      sun.position.set(center.x - size * 0.7, 4.2, center.z + size * 1.3); // from the room's open side, on every wall of an L
       sun.target.position.copy(center);
       sun.castShadow = true;
-      sun.shadow.mapSize.set(2048, 2048);
+      sun.shadow.mapSize.set(still ? 2048 : 4096, still ? 2048 : 4096);
+      sun.shadow.radius = 4;
       const sc = sun.shadow.camera;
       sc.left = -size; sc.right = size; sc.top = size; sc.bottom = -size; sc.near = 0.5; sc.far = 20;
-      sun.shadow.bias = -0.0005;
+      sun.shadow.bias = -0.0004;
+      sun.shadow.normalBias = 0.01;
       scene.add(sun, sun.target);
+      const fill = new three.DirectionalLight(0xffffff, 0.45); // the other way, so no wall stays grey
+      fill.position.set(center.x + size, 2.5, center.z + size);
+      fill.target.position.copy(center);
+      scene.add(fill, fill.target);
 
       const cam = new three.PerspectiveCamera(42, W / H, 0.05, 60);
       // from the room's open side, above eye level; an L is seen from the left so its side wall faces the camera
-      const walls = (JSON.parse(key) as KitchenLayout).walls.length;
+      const walls = (JSON.parse(builtKey) as KitchenLayout).walls.length;
       const side = walls === 2 ? -0.42 : walls === 1 ? 0.18 : 0;
       cam.position.set(center.x + size * side, 1.6 + size * 0.2, center.z + size * 0.85 + 0.8);
       // a narrow (phone) frame needs the camera further back to fit the whole kitchen
@@ -352,46 +484,207 @@ export default function Kitchen3D({ layout, still = false, height = 420, onShot 
       cam.position.sub(center).multiplyScalar(back).add(center);
       cam.lookAt(center);
 
-      const render = () => renderer.render(scene, cam);
       if (still) {
-        await ready; // the Bluran swatches must be on the doors before the picture is taken
+        await kitchen.ready; // the Bluran swatches must be on the doors before the picture is taken
         if (disposed) return;
-        render();
-        const shot = renderer.domElement.toDataURL("image/jpeg", 0.9);
-        setImg(shot);
-        onShot?.(shot);
+        renderer.render(scene, cam);
+        setImg(renderer.domElement.toDataURL("image/jpeg", 0.9));
         renderer.domElement.remove();
         renderer.dispose();
+        pmrem.dispose();
         return;
       }
+
+      // Full quality (soft contact shadows between the cabinets) once the view stops; a phone stays with the fast picture.
+      let composer: import("three/examples/jsm/postprocessing/EffectComposer.js").EffectComposer | null = null;
+      if (!(navigator.maxTouchPoints > 0 && W < 700)) {
+        const [{ EffectComposer }, { RenderPass }, { GTAOPass }, { OutputPass }] = await Promise.all([
+          import("three/examples/jsm/postprocessing/EffectComposer.js"),
+          import("three/examples/jsm/postprocessing/RenderPass.js"),
+          import("three/examples/jsm/postprocessing/GTAOPass.js"),
+          import("three/examples/jsm/postprocessing/OutputPass.js"),
+        ]);
+        if (disposed) { renderer.dispose(); return; }
+        composer = new EffectComposer(renderer, new three.WebGLRenderTarget(W * ratio, H * ratio, { type: three.HalfFloatType, samples: 4 }));
+        composer.setPixelRatio(ratio);
+        composer.setSize(W, H);
+        composer.addPass(new RenderPass(scene, cam));
+        const ao = new GTAOPass(scene, cam, W, H);
+        ao.updateGtaoMaterial({ radius: 0.22, distanceExponent: 1.4, thickness: 1, scale: 1.1, samples: 16, distanceFallOff: 1, screenSpaceRadius: false });
+        ao.blendIntensity = 0.85;
+        composer.addPass(ao);
+        composer.addPass(new OutputPass());
+      }
+
       const controls = new OrbitControls(cam, renderer.domElement);
       controls.target.copy(center);
       controls.enableDamping = true;
-      controls.maxPolarAngle = Math.PI * 0.48;
-      controls.minDistance = 1.2;
+      controls.maxPolarAngle = Math.PI * 0.49;
+      controls.minDistance = 0.4;
       controls.maxDistance = size * 3 + 3;
       controls.update();
+
+      // what a touch can paint, and the glow on the front under the mouse
+      const hl = new three.Mesh(new three.BufferGeometry(), new three.MeshBasicMaterial({ color: "#b5835a", transparent: true, opacity: 0.35, depthTest: false }));
+      hl.matrixAutoUpdate = false;
+      hl.visible = false;
+      hl.renderOrder = 10;
+      scene.add(hl);
+
+      let dirty = true, fine = false, movedAt = 0;
+      const invalidate = () => { dirty = true; };
+      controls.addEventListener("change", invalidate);
+      kitchen.ready.then(invalidate);
+
+      const dispose3D = (root: T.Object3D) => root.traverse((o) => {
+        const m = o as T.Mesh;
+        if (!m.isMesh) return;
+        m.geometry.dispose();
+        (Array.isArray(m.material) ? m.material : [m.material]).forEach((x) => x.dispose());
+      });
+      // the layout changed (a door painted, a width typed): only the kitchen is rebuilt, the view stays where it is
+      swap.current = (k) => {
+        if (k === builtKey) return;
+        builtKey = k;
+        scene.remove(kitchen.root);
+        dispose3D(kitchen.root);
+        kitchen = buildKitchen(three, JSON.parse(k));
+        scene.add(kitchen.root);
+        hl.visible = false;
+        kitchen.ready.then(invalidate);
+        invalidate();
+      };
+      swap.current(keyRef.current); // it may have changed while the 3D was loading
+
       let raf = 0;
-      const loop = () => { controls.update(); render(); raf = requestAnimationFrame(loop); };
+      const loop = () => {
+        controls.update();
+        const now = performance.now();
+        if (dirty) {
+          renderer.render(scene, cam);
+          dirty = false;
+          fine = false;
+          movedAt = now;
+        } else if (!fine && composer && !paintRef.current && now - movedAt > 180) {
+          composer.render();
+          fine = true;
+        }
+        raf = requestAnimationFrame(loop);
+      };
       loop();
+
+      const ray = new three.Raycaster();
+      const ndc = new three.Vector2();
+      const frontAt = (e: PointerEvent) => {
+        const r = renderer.domElement.getBoundingClientRect();
+        ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+        ray.setFromCamera(ndc, cam);
+        const hit = ray.intersectObject(kitchen.root, true)[0]?.object;
+        return hit?.userData.front ? (hit.userData as { front: string; panel: T.Mesh }) : null;
+      };
+      let painting = false, lastRef = "", hovered: T.Mesh | null = null;
+      const glow = (panel: T.Mesh | null) => {
+        if (panel === hovered && hl.visible === !!panel) return;
+        hovered = panel;
+        hl.visible = !!panel;
+        if (panel) {
+          panel.updateWorldMatrix(true, false);
+          hl.geometry = panel.geometry;
+          hl.matrix.copy(panel.matrixWorld);
+        }
+        invalidate();
+      };
+      const onDown = (e: PointerEvent) => {
+        if (!paintRef.current || e.button !== 0) return;
+        const f = frontAt(e);
+        if (!f) return; // on the wall or the floor the view turns as usual
+        controls.enabled = false;
+        painting = true;
+        lastRef = f.front;
+        paintRef.current(f.front);
+      };
+      const onMove = (e: PointerEvent) => {
+        if (!paintRef.current) {
+          if (hl.visible) glow(null);
+          el.style.cursor = "";
+          return;
+        }
+        const f = frontAt(e);
+        el.style.cursor = f ? "crosshair" : "";
+        glow(f ? f.panel : null);
+        if (painting && f && f.front !== lastRef) {
+          lastRef = f.front;
+          paintRef.current(f.front);
+        }
+      };
+      const onUp = () => {
+        painting = false;
+        controls.enabled = true;
+      };
+      el.addEventListener("pointerdown", onDown, true); // before the view control sees it
+      el.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+
+      if (shotRef) shotRef.current = () => {
+        const w = el.clientWidth;
+        const SW = 1920, SH = 1080;
+        hl.visible = false;
+        renderer.setPixelRatio(1);
+        renderer.setSize(SW, SH, false);
+        cam.aspect = SW / SH;
+        cam.updateProjectionMatrix();
+        if (composer) {
+          composer.setPixelRatio(1);
+          composer.setSize(SW, SH);
+          composer.render();
+        } else renderer.render(scene, cam);
+        const jpeg = renderer.domElement.toDataURL("image/jpeg", 0.92);
+        renderer.setPixelRatio(ratio);
+        renderer.setSize(w, H);
+        cam.aspect = w / H;
+        cam.updateProjectionMatrix();
+        if (composer) {
+          composer.setPixelRatio(ratio);
+          composer.setSize(w, H);
+        }
+        invalidate();
+        return jpeg;
+      };
+
       const ro = new ResizeObserver(() => {
         const w = el.clientWidth;
         if (!w) return;
         renderer.setSize(w, H);
+        composer?.setSize(w, H);
         cam.aspect = w / H;
         cam.updateProjectionMatrix();
+        invalidate();
       });
       ro.observe(el);
       cleanup = () => {
         cancelAnimationFrame(raf);
         ro.disconnect();
+        el.removeEventListener("pointerdown", onDown, true);
+        el.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        swap.current = null;
+        if (shotRef) shotRef.current = null;
         controls.dispose();
+        dispose3D(kitchen.root);
+        composer?.dispose();
+        pmrem.dispose();
+        envMap.dispose();
         renderer.dispose();
         renderer.domElement.remove();
       };
     })().catch(() => setFailed(true));
     return () => { disposed = true; cleanup(); };
-  }, [key, still, height]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [still ? key : "", still, height]);
+
+  useEffect(() => {
+    if (!still) swap.current?.(key);
+  }, [key, still]);
 
   if (failed && still) return <div className="nqp-3d still" data-ready="1" />; // the PDF goes out with the drawings only
   if (failed) return <div className="nqp-3d-fail">התצוגה בתלת-ממד לא נתמכת בדפדפן הזה. השרטוט עם המידות מופיע למטה.</div>;

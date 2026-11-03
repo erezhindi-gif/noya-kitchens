@@ -2,10 +2,10 @@
 // Editing the kitchen plan of a quote: walls, cabinets with their widths, heights and colors,
 // with the 3D view and the to-scale drawing right under it. Claude usually fills this in from
 // Erez's hand sketch; here he checks and fixes it.
-import { useState } from "react";
+import { useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import {
-  BASE_LABEL, COUNTER_COLORS, DEFAULT_HEIGHTS, UPPER_LABEL, heightsOf, layoutWarnings, partsOf, wallName,
+  BASE_LABEL, COUNTER_COLORS, DEFAULT_HEIGHTS, UPPER_LABEL, heightsOf, layoutWarnings, leftGap, paintFront, partsOf, setLeftGap, wallName,
   type BaseKind, type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperKind, type UpperUnit,
 } from "@/lib/quotes/layout";
 import KitchenPlan from "./KitchenPlan";
@@ -40,7 +40,8 @@ function frontScopes(kind: string, w: number, n: number | undefined, upper: bool
   const parts = kind === "dishwasher" || kind === "oven" ? 1 : partsOf(kind as never, w, n, upper);
   const stack = ["drawers", "cooktop", "tall", "tall_oven", "lift"].includes(kind);
   const word = kind === "lift" ? "קלפה" : stack && kind !== "tall" ? "מגירה" : "דלת";
-  return ["כל הארון", ...Array.from({ length: parts }, (_, i) => `${word} ${i + 1}${stack && parts > 1 ? (i === 0 ? " (עליונה)" : i === parts - 1 ? " (תחתונה)" : "") : ""}`)];
+  const own = ["כל הארון", ...Array.from({ length: parts }, (_, i) => `${word} ${i + 1}${stack && parts > 1 ? (i === 0 ? " (עליונה)" : i === parts - 1 ? " (תחתונה)" : "") : ""}`)];
+  return kind === "tall_oven" ? [...own, "דלת מיקרו", "דלת עליונה"] : own;
 }
 const optNum = (v: string) => (v === "" ? undefined : Number(v));
 
@@ -117,9 +118,42 @@ function colorLabel(v: string | undefined, empty: string) {
   return bl ? `${bl.name} ${bl.code} · ${bl.group}` : FRONT_COLORS[v]?.name || v;
 }
 
-export default function LayoutEditor({ layout, onChange, claudeHref }: { layout: KitchenLayout; onChange: (l: KitchenLayout) => void; claudeHref: string }) {
+/** shotRef and viewTools: the picture from the angle on screen, and what is done with it (only under the 3D view) */
+export default function LayoutEditor({ layout, onChange, claudeHref, shotRef, viewTools }: {
+  layout: KitchenLayout; onChange: (l: KitchenLayout) => void; claudeHref: string; shotRef?: MutableRefObject<(() => string) | null>; viewTools?: ReactNode;
+}) {
   const [tab, setTab] = useState<"3d" | "plan">("3d");
   const [showH, setShowH] = useState(false);
+  // The brush: pick a Bluran shade once, then every front touched in the 3D view or the drawing takes it.
+  const [brush, setBrush] = useState<{ v?: string } | null>(null);
+  const [pickBrush, setPickBrush] = useState(false);
+  const latest = useRef(layout);
+  latest.current = layout;
+  const undo = useRef<KitchenLayout[]>([]);
+  const [undoCount, setUndoCount] = useState(0);
+  const paintOn = (ref: string) => {
+    if (!brush) return;
+    const l = clone(latest.current);
+    paintFront(l, ref, brush.v);
+    if (JSON.stringify(l) === JSON.stringify(latest.current)) return;
+    undo.current = [...undo.current.slice(-49), latest.current];
+    setUndoCount(undo.current.length);
+    latest.current = l;
+    onChange(l);
+  };
+  const undoPaint = () => {
+    const prev = undo.current[undo.current.length - 1];
+    if (!prev) return;
+    undo.current = undo.current.slice(0, -1);
+    setUndoCount(undo.current.length);
+    latest.current = prev;
+    onChange(prev);
+  };
+  const drawingPaint = (e: React.PointerEvent) => {
+    if (!brush || (e.type === "pointerover" && !(e.buttons & 1))) return;
+    const ref = (e.target as Element).closest?.("[data-front]")?.getAttribute("data-front");
+    if (ref) paintOn(ref);
+  };
 
   const up = (fn: (l: KitchenLayout) => void) => {
     const l = clone(layout);
@@ -139,7 +173,30 @@ export default function LayoutEditor({ layout, onChange, claudeHref }: { layout:
         <button type="button" role="tab" aria-selected={tab === "3d"} className="nq-chip" aria-pressed={tab === "3d"} onClick={() => setTab("3d")}>תלת-ממד</button>
         <button type="button" role="tab" aria-selected={tab === "plan"} className="nq-chip" aria-pressed={tab === "plan"} onClick={() => setTab("plan")}>שרטוט עם מידות</button>
       </div>
-      {tab === "3d" ? <Kitchen3D layout={layout} height={380} /> : <KitchenPlan layout={layout} />}
+      {brush ? (
+        <div className="nqp-brush" role="status">
+          <span className="nqb-dot lg" style={brush.v ? swatchStyle(brush.v) : undefined} />
+          <span className="nqp-brush-t"><b>{brush.v ? colorLabel(brush.v, "") : "מחיקת צבע: החזית חוזרת לצבע המטבח"}</b><span className="hint">לחץ על חזית והיא נצבעת. אפשר גם לגרור על כמה חזיתות</span></span>
+          <button type="button" className="nq-btn sm" onClick={() => setPickBrush(true)}>צבע אחר</button>
+          <button type="button" className="nq-btn sm" onClick={() => setBrush({})}>מחק צבע</button>
+          <button type="button" className="nq-btn sm" disabled={!undoCount} onClick={undoPaint}>↶ בטל</button>
+          <button type="button" className="nq-btn sm pri" onClick={() => setBrush(null)}>סיום</button>
+        </div>
+      ) : (
+        <button type="button" className="nq-btn sm nqp-brush-on" onClick={() => setPickBrush(true)}>🖌️ צביעת חזיתות</button>
+      )}
+      {pickBrush && (
+        <BluranSheet
+          title="בחר צבע, ואז לחץ על החזיתות"
+          value={() => brush?.v}
+          emptyLabel="עוד לא נבחר צבע"
+          onPick={(v) => { if (v) { setBrush({ v }); setPickBrush(false); } }}
+          onClose={() => setPickBrush(false)}
+        />
+      )}
+      {tab === "3d"
+        ? <><Kitchen3D layout={layout} height={460} shotRef={shotRef} paint={brush ? paintOn : undefined} />{viewTools}</>
+        : <div className={brush ? "nqp-paint" : undefined} onPointerDown={drawingPaint} onPointerOver={drawingPaint}><KitchenPlan layout={layout} /></div>}
       {warns.length > 0 && <div className="nq-back nq-warn" role="alert" style={{ marginTop: 10 }}><span>⚠️ {warns.join(" · ")}</span></div>}
 
       <div className="nq-fields" style={{ marginTop: 14 }}>
@@ -187,6 +244,28 @@ export default function LayoutEditor({ layout, onChange, claudeHref }: { layout:
           <div className="nqp-wall-h">
             <b>{wallName(layout, i)}</b>
             <label className="nqp-num">אורך הקיר<input className="in num" type="number" inputMode="decimal" value={w.length || ""} onChange={(e) => up((l) => { l.walls[i].length = Number(e.target.value) || 0; })} /></label>
+            {w.base[0]?.kind !== "corner" && (
+              <label className="nqp-num">רווח משמאל לארון<input className="in num" type="number" inputMode="decimal" placeholder="0" value={leftGap(w) || ""} onChange={(e) => up((l) => setLeftGap(l.walls[i], Math.max(0, Number(e.target.value) || 0)))} /></label>
+            )}
+            {w.base[w.base.length - 1]?.kind !== "corner" && (
+              <label className="nqp-num">רווח מימין לארון<input className="in num" type="number" inputMode="decimal" placeholder="0" value={Math.max(0, Math.round((w.length - sumW(w.base)) * 10) / 10) || ""} onChange={(e) => up((l) => { l.walls[i].length = sumW(l.walls[i].base) + Math.max(0, Number(e.target.value) || 0); })} /></label>
+            )}
+            {i === 0 && (
+              <label className="nqp-num">בקצה השמאלי
+                <select className="in" value={layout.ends?.left || ""} onChange={(e) => up((l) => { l.ends = { ...l.ends, left: e.target.value ? "wall" : undefined }; })}>
+                  <option value="">הקיר נגמר</option>
+                  <option value="wall">קיר ניצב</option>
+                </select>
+              </label>
+            )}
+            {i === layout.walls.length - 1 && (
+              <label className="nqp-num">בקצה הימני
+                <select className="in" value={layout.ends?.right || ""} onChange={(e) => up((l) => { l.ends = { ...l.ends, right: e.target.value ? "wall" : undefined }; })}>
+                  <option value="">הקיר נגמר</option>
+                  <option value="wall">קיר ניצב</option>
+                </select>
+              </label>
+            )}
           </div>
           <div className="nqp-sub">ארונות תחתונים · <span className={sumW(w.base) > w.length ? "bad" : ""}>{sumW(w.base)} מתוך {w.length}</span></div>
           <UnitRows<BaseKind> units={w.base} labels={BASE_LABEL} addKind="doors" onChange={(us) => up((l) => { l.walls[i].base = us as BaseUnit[]; })} />
