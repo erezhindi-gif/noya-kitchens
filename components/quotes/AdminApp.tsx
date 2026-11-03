@@ -790,6 +790,9 @@ function ListView({ data, onOpen, onNew, onDup, onDelete, onAgent, onFollowed, o
                     <button className="nq-btn sm" title="הלקוח סגר איתי" onClick={() => onStatus(q.id, "approved")}>נסגרה ✓</button>
                     <button className="nq-btn sm" title="לא נסגרה או נסגרה במקום אחר" onClick={() => onStatus(q.id, "rejected")}>לא נסגרה</button>
                   </>}
+                  {(q.status === "approved" || q.status === "rejected") && (
+                    <button className="nq-btn sm" title="טעות בסטטוס? מחזיר ל'נשלחה'" onClick={() => onStatus(q.id, "sent")}>↩ שנה סטטוס</button>
+                  )}
                   <button className="nq-btn sm" onClick={() => onDup(q)}>שכפל</button>
                   <button className="nq-btn sm danger" onClick={() => setConfirmDel(q.id)}>מחק</button>
                 </>
