@@ -36,7 +36,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     "Make it real: real materials and textures for every surface, real built-in appliances (ovens, induction hob, fridge, sink and faucet, dishwasher) looking like modern premium brands, soft natural daylight with gentle shadows, a finished room (painted walls, a real floor, ceiling), a few minimal tasteful accessories at most.",
     `Materials: fronts ${c.front ? colorName(c.front) : "matte white"}${c.upper ? `, wall cabinets ${colorName(c.upper)}` : ""}${own.length ? `, other fronts as colored in the model (${own.join("; ")})` : ""}; countertop ${COUNTER_COLORS[c.counter || "white_stone"]?.name || c.counter} ${h.counter} cm thick; ${HANDLES[c.handles || "bar"]}. The Bluran front names are real Israeli front materials: render them true to their color and finish (matte, gloss, wood veneer, stone look).`,
     b.notes?.trim() && `Notes from the kitchen maker (Hebrew, follow them): ${b.notes.trim().slice(0, 800)}`,
-    "It must look like a real photograph, not a render: real optics, natural light falloff, believable reflections. No text, no watermark.",
+    "It must look like a real photograph, not a render: real optics, natural light falloff, believable reflections. No text, no watermark, no brand names or logos on any appliance or anywhere else.",
   ].filter(Boolean).join("\n");
 
   const r = await generateImage(geminiKey, [{ inlineData: { mimeType: "image/jpeg", data: b.image.replace(/^data:image\/\w+;base64,/, "") } }, { text: prompt }], "16:9", true);
