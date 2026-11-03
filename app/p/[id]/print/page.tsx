@@ -39,6 +39,8 @@ export default async function PrintPlanPage({ params }: { params: { id: string }
         <div><b>תכנון:</b> {p.title || "מטבח"}</div>
       </section>
       <section className="nqp-print nqp-plan-doc" dir="rtl">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {p.shownRender && <img className="nqp-render" src={`${p.shownRender}?w=1600`} alt="הדמיה של המטבח" />}
         <Kitchen3D layout={p.layout} still height={430} />
         <KitchenPlan layout={p.layout} />
       </section>

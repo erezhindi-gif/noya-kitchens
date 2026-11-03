@@ -5,10 +5,13 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import {
-  BASE_LABEL, COUNTER_COLORS, DEFAULT_HEIGHTS, FRONT_COLORS, UPPER_LABEL, heightsOf, layoutWarnings, wallName,
+  BASE_LABEL, COUNTER_COLORS, DEFAULT_HEIGHTS, UPPER_LABEL, heightsOf, layoutWarnings, partsOf, wallName,
   type BaseKind, type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperKind, type UpperUnit,
 } from "@/lib/quotes/layout";
 import KitchenPlan from "./KitchenPlan";
+import { BluranSheet, SwatchButton, swatchStyle } from "./BluranPicker";
+import { bluranOf } from "@/lib/quotes/bluran";
+import { FRONT_COLORS } from "@/lib/quotes/layout";
 
 const Kitchen3D = dynamic(() => import("./Kitchen3D"), { ssr: false, loading: () => <div className="nqp-3d" style={{ height: 380 }} /> });
 
@@ -27,7 +30,18 @@ const HEIGHT_LABEL: Record<keyof LayoutHeights, string> = {
 const sumW = (us: { w: number }[]) => us.reduce((a, u) => a + u.w, 0);
 const clone = (l: KitchenLayout): KitchenLayout => JSON.parse(JSON.stringify(l));
 
-type Row<K> = { kind: K; w: number; n?: number; d?: number; h?: number; y?: number };
+type Row<K> = { kind: K; w: number; n?: number; d?: number; h?: number; y?: number; color?: string; fronts?: string[] };
+
+/** What a cabinet's color can be set for: the whole cabinet, then each of its fronts (doors left to right,
+ *  drawers top to bottom). Units without fronts of their own get none; a fridge only its own color. */
+function frontScopes(kind: string, w: number, n: number | undefined, upper: boolean): string[] {
+  if (["gap", "open", "hood"].includes(kind)) return [];
+  if (kind === "fridge" || kind === "corner") return ["כל הארון"];
+  const parts = kind === "dishwasher" || kind === "oven" ? 1 : partsOf(kind as never, w, n, upper);
+  const stack = ["drawers", "cooktop", "tall", "tall_oven", "lift"].includes(kind);
+  const word = kind === "lift" ? "קלפה" : stack && kind !== "tall" ? "מגירה" : "דלת";
+  return ["כל הארון", ...Array.from({ length: parts }, (_, i) => `${word} ${i + 1}${stack && parts > 1 ? (i === 0 ? " (עליונה)" : i === parts - 1 ? " (תחתונה)" : "") : ""}`)];
+}
 const optNum = (v: string) => (v === "" ? undefined : Number(v));
 
 /** `box` (upper cabinets only): the row's default depth, height and bottom, shown as placeholders;
@@ -35,7 +49,17 @@ const optNum = (v: string) => (v === "" ? undefined : Number(v));
 function UnitRows<K extends string>({ units, labels, onChange, addKind, box }: {
   units: Row<K>[]; labels: Record<K, string>; onChange: (u: Row<K>[]) => void; addKind: K; box?: { d: number; h: number; y: number };
 }) {
+  const [paint, setPaint] = useState<number | null>(null);
   const set = (i: number, p: Partial<Row<K>>) => onChange(units.map((u, j) => (j === i ? { ...u, ...p } : u)));
+  /** scope 0 = the whole cabinet, 1.. = one front */
+  const pick = (i: number, v: string | undefined, scope: number) => {
+    const u = units[i];
+    if (!scope) return set(i, { color: v });
+    const fronts = [...(u.fronts || [])];
+    fronts[scope - 1] = v || "";
+    while (fronts.length && !fronts[fronts.length - 1]) fronts.pop();
+    set(i, { fronts: fronts.length ? fronts : undefined });
+  };
   const move = (i: number, d: number) => {
     const a = [...units];
     [a[i], a[i + d]] = [a[i + d], a[i]];
@@ -53,6 +77,9 @@ function UnitRows<K extends string>({ units, labels, onChange, addKind, box }: {
           <input className="in num" type="number" inputMode="decimal" aria-label="רוחב בס״מ" value={u.w || ""} onChange={(e) => set(i, { w: Number(e.target.value) || 0 })} />
           <input className="in num" type="number" inputMode="numeric" aria-label="כמות דלתות או מגירות" placeholder="אוטו׳" value={u.n || ""} onChange={(e) => set(i, { n: Number(e.target.value) || undefined })} />
           <span className="nqp-acts">
+            {frontScopes(u.kind, u.w, u.n, !!box).length > 0 && (
+              <SwatchButton value={u.color || u.fronts?.find(Boolean)} empty={!u.color && !u.fronts?.some(Boolean)} label="צבע הארון והדלתות" onClick={() => setPaint(i)} />
+            )}
             <button type="button" className="nq-btn sm ghost" disabled={i === 0} onClick={() => move(i, -1)} aria-label="הזז שמאלה">‹</button>
             <button type="button" className="nq-btn sm ghost" disabled={i === units.length - 1} onClick={() => move(i, 1)} aria-label="הזז ימינה">›</button>
             <button type="button" className="nq-btn sm ghost" onClick={() => onChange(units.filter((_, j) => j !== i))} aria-label="הסר">×</button>
@@ -67,11 +94,28 @@ function UnitRows<K extends string>({ units, labels, onChange, addKind, box }: {
         </div>
       ))}
       <button type="button" className="nq-btn sm" onClick={() => onChange([...units, { kind: addKind, w: 60 }])}>+ הוסף</button>
+      {paint !== null && units[paint] && (
+        <BluranSheet
+          title={`צבע: ${labels[units[paint].kind]} ${units[paint].w}`}
+          scopes={frontScopes(units[paint].kind, units[paint].w, units[paint].n, !!box)}
+          value={(scope) => (scope ? units[paint].fronts?.[scope - 1] || undefined : units[paint].color)}
+          emptyLabel="כמו כל המטבח"
+          onPick={(v, scope) => pick(paint, v, scope)}
+          onClose={() => setPaint(null)}
+        />
+      )}
     </div>
   );
 }
 
 export const STARTER_LAYOUT = (): KitchenLayout => clone(STARTER);
+
+/** "שנהב ZA02SM" for a Bluran shade, the old color names as they were */
+function colorLabel(v: string | undefined, empty: string) {
+  if (!v) return empty;
+  const bl = bluranOf(v);
+  return bl ? `${bl.name} ${bl.code} · ${bl.group}` : FRONT_COLORS[v]?.name || v;
+}
 
 export default function LayoutEditor({ layout, onChange, claudeHref }: { layout: KitchenLayout; onChange: (l: KitchenLayout) => void; claudeHref: string }) {
   const [tab, setTab] = useState<"3d" | "plan">("3d");
@@ -85,6 +129,7 @@ export default function LayoutEditor({ layout, onChange, claudeHref }: { layout:
   const h = heightsOf(layout);
   const warns = layoutWarnings(layout);
   const c = layout.colors || {};
+  const [paintAll, setPaintAll] = useState<"front" | "upper" | null>(null);
 
   return (
     <section className="nq-card">
@@ -107,27 +152,35 @@ export default function LayoutEditor({ layout, onChange, claudeHref }: { layout:
             {SHAPES.map(([t, n]) => <option key={n} value={n}>{t}</option>)}
           </select>
         </label>
-        <label className="f">חזיתות
-          <select className="in" value={c.front || "white"} onChange={(e) => up((l) => { l.colors = { ...l.colors, front: e.target.value }; })}>
-            {Object.entries(FRONT_COLORS).map(([k, v]) => <option key={k} value={k}>{v.name}</option>)}
-            {c.front && !FRONT_COLORS[c.front] && <option value={c.front}>{c.front}</option>}
-          </select>
-        </label>
-        <label className="f">עליונים
-          <select className="in" value={c.upper || ""} onChange={(e) => up((l) => { l.colors = { ...l.colors, upper: e.target.value || undefined }; })}>
-            <option value="">כמו החזיתות</option>
-            {Object.entries(FRONT_COLORS).map(([k, v]) => <option key={k} value={k}>{v.name}</option>)}
-            {c.upper && !FRONT_COLORS[c.upper] && <option value={c.upper}>{c.upper}</option>}
-          </select>
-        </label>
+        <div className="f">חזיתות (בלורן)
+          <button type="button" className="in nqb-field" onClick={() => setPaintAll("front")}><span className="nqb-dot" style={swatchStyle(c.front)} />{colorLabel(c.front, "לבן")}</button>
+        </div>
+        <div className="f">עליונים (בלורן)
+          <button type="button" className="in nqb-field" onClick={() => setPaintAll("upper")}><span className="nqb-dot" style={swatchStyle(c.upper || c.front)} />{c.upper ? colorLabel(c.upper, "") : "כמו החזיתות"}</button>
+        </div>
         <label className="f">משטח
           <select className="in" value={c.counter || "white_stone"} onChange={(e) => up((l) => { l.colors = { ...l.colors, counter: e.target.value }; })}>
             {Object.entries(COUNTER_COLORS).map(([k, v]) => <option key={k} value={k}>{v.name}</option>)}
             {c.counter && !COUNTER_COLORS[c.counter] && <option value={c.counter}>{c.counter}</option>}
           </select>
         </label>
-        <label className="f nq-check"><input type="checkbox" checked={c.handles !== "none"} onChange={(e) => up((l) => { l.colors = { ...l.colors, handles: e.target.checked ? undefined : "none" }; })} />ידיות</label>
+        <label className="f">ידיות
+          <select className="in" value={c.handles || "bar"} onChange={(e) => up((l) => { const v = e.target.value; l.colors = { ...l.colors, handles: v === "bar" ? undefined : (v as "integral" | "none") }; })}>
+            <option value="bar">ידית חיצונית</option>
+            <option value="integral">ידית אינטגרלית (חריץ בחזית)</option>
+            <option value="none">בלי ידיות (פתיחה בלחיצה)</option>
+          </select>
+        </label>
       </div>
+      {paintAll && (
+        <BluranSheet
+          title={paintAll === "front" ? "צבע החזיתות של כל המטבח" : "צבע הארונות העליונים"}
+          value={() => c[paintAll]}
+          emptyLabel={paintAll === "front" ? "לבן רגיל" : "כמו החזיתות"}
+          onPick={(v) => up((l) => { l.colors = { ...l.colors, [paintAll]: v }; })}
+          onClose={() => setPaintAll(null)}
+        />
+      )}
 
       {layout.walls.map((w, i) => (
         <div key={i} className="nqp-wall">

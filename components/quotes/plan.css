@@ -42,3 +42,31 @@
 .nqp-box { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: #8a7766; margin-bottom: 4px; }
 .nqp-box label { display: inline-flex; align-items: center; gap: 4px; }
 .nqp-box .in { width: 56px; padding-inline: 6px; }
+
+/* Bluran color fan */
+.nqb-btn { border: 0; background: none; padding: 0 3px; cursor: pointer; display: inline-flex; align-items: center; min-height: 32px; }
+.nqb-dot { display: inline-block; width: 22px; height: 22px; border-radius: 6px; border: 1px solid #00000026; background: #f2f1ec; flex: none; }
+.nqb-dot.lg { width: 40px; height: 40px; border-radius: 8px; }
+.nqb-dot.empty { background: repeating-linear-gradient(45deg, #fff 0 4px, #e9e4da 4px 8px); }
+.nqb-field { display: flex; align-items: center; gap: 8px; text-align: start; cursor: pointer; }
+.nqb-sheet { max-width: 760px; width: min(760px, 96vw); max-height: 90vh; overflow: auto; display: grid; gap: 10px; }
+.nqb-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.nqb-head h2 { margin: 0; }
+.nqb-now { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.nqb-scope { display: inline-flex; align-items: center; gap: 6px; }
+.nqb-scope .nqb-dot { width: 16px; height: 16px; border-radius: 4px; }
+.nqb-groups { flex-wrap: wrap; }
+.nqb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.nqb-sw { border: 2px solid transparent; border-radius: 10px; background: #fff; padding: 4px; cursor: pointer; display: grid; gap: 2px; text-align: center; font-size: 12px; line-height: 1.25; }
+.nqb-sw img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 7px; border: 1px solid #0000001a; }
+.nqb-sw small { color: #8a7766; font-size: 11px; }
+.nqb-sw.on { border-color: #a8834f; }
+.nqb-sw:hover { border-color: #d9c6a6; }
+
+/* renders of a plan */
+.nqr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin-top: 12px; }
+.nqr-item { margin: 0; border: 2px solid transparent; border-radius: 12px; overflow: hidden; background: #fff; }
+.nqr-item.on { border-color: #a8834f; }
+.nqr-item img { width: 100%; display: block; }
+.nqr-item figcaption { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 6px 8px; font-size: 13px; }
+.nqp-render { width: 100%; border-radius: 10px; margin-bottom: 12px; display: block; }

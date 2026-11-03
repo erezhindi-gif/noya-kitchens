@@ -32,5 +32,5 @@ export default async function ClientQuotePage({ params }: { params: { id: string
     lines: quote.lines.map((l) => ({ id: l.id, type: l.type, desc: l.desc, qty: 0, showQty: !!shownQty(l), price: 0 })),
   };
   const doc = <QuoteDoc quote={quote} settings={settings} pros={[]} />;
-  return <ClientQuote quote={safe} settings={settings} doc={doc} layout={plan?.layout} />;
+  return <ClientQuote quote={safe} settings={settings} doc={doc} layout={plan?.layout} render={plan?.shownRender} />;
 }

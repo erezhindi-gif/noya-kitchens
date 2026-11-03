@@ -168,6 +168,9 @@ export type Plan = {
   notes?: string;
   /** the quote made from this plan */
   quoteId?: string;
+  /** photorealistic renders made from the 3D view, newest last; `shown` is the one the client gets */
+  renders?: { url: string; at: string }[];
+  shownRender?: string;
 };
 
 export type AppData = { settings: Settings; pros: Pro[]; cat: CatNode[]; quotes: Quote[]; leads: Lead[]; plans: Plan[] };

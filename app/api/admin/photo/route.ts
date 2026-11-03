@@ -2,15 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { nearestRatio, photoPrompt, type PhotoOpts } from "@/lib/marketing/photo-prompt";
 import { getSecrets } from "@/lib/quotes/store";
 import { createClient } from "@sanity/client";
+import { generateImage } from "@/lib/marketing/gemini-image";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
-
-// Newest first; a model this key can't use is skipped for the next one.
-const MODELS = ["gemini-nano-banana-2.1", "gemini-3-pro-image", "gemini-3.1-flash-image", "gemini-2.5-flash-image"];
-
-type Part = { text?: string; inlineData?: { mimeType: string; data: string } };
-type GenResponse = { candidates?: { content?: { parts?: Part[] }; finishReason?: string }[]; promptFeedback?: { blockReason?: string }; error?: { status?: string; message?: string } };
 
 export async function POST(req: NextRequest) {
   const raw = (await req.json().catch(() => null)) as { keep?: string } | null;
@@ -36,37 +31,13 @@ export async function POST(req: NextRequest) {
     ? "\n\nThe FIRST image is the photo to recreate; recreate THAT view. The reference images are finished professional shots of the SAME kitchen from this shoot: use them only for the accessories, styling, decor, colors and light mood, so the new shot matches them (they override the accessories list above). Do not copy their camera angle, and do not return the first image unchanged."
     : "";
 
-  const body = JSON.stringify({
-    contents: [{ role: "user", parts: [{ inlineData: { mimeType: "image/jpeg", data: b.image } }, ...refParts, { text: photoPrompt(b.opts) + consistency }] }],
-    generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: nearestRatio(+b.w! || 4, +b.h! || 3), imageSize: "2K" } },
-  });
-
-  let last = "failed";
+  const parts = [{ inlineData: { mimeType: "image/jpeg", data: b.image } }, ...refParts, { text: photoPrompt(b.opts) + consistency }];
   // "pro": the stronger model first, for precise fixes (costs more per photo)
-  const models = b.quality === "pro" ? ["gemini-3-pro-image", ...MODELS.filter((m) => m !== "gemini-3-pro-image")] : MODELS;
-  for (const model of models) {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
-      body,
-    }).catch(() => null);
-    if (!res) continue;
-    const j = (await res.json().catch(() => ({}))) as GenResponse;
-    const msg = j.error?.message || "";
-    if (res.status === 404 || (res.status === 400 && /not supported|not found|imageSize|image_size/i.test(msg))) continue;
-    if (res.status === 400 && /API key/i.test(msg)) return NextResponse.json({ error: "bad-key" }, { status: 400 });
-    if (res.status === 403) return NextResponse.json({ error: /billing/i.test(msg) ? "billing" : "bad-key" }, { status: 400 });
-    if (res.status === 429) { last = /billing|free tier|limit: 0/i.test(msg) ? "billing" : "quota"; continue; }
-    if (!res.ok) { console.error("photo", model, res.status, msg); continue; }
-    if (j.promptFeedback?.blockReason) return NextResponse.json({ error: "blocked" }, { status: 422 });
-    const img = j.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)?.inlineData;
-    if (!img) { last = j.candidates?.[0]?.finishReason && j.candidates[0].finishReason !== "STOP" ? "blocked" : "no-image"; continue; }
-    const image = await asJpeg(img.data, img.mimeType);
-    // Every made photo is kept at once: it was paid for, and a reload or a closed screen must not lose it.
-    const kept = await keepDraft(image, b.opts).catch((e) => { console.error("keep draft failed", e); return null; });
-    return NextResponse.json({ image, model, kept });
-  }
-  return NextResponse.json({ error: last }, { status: 502 });
+  const r = await generateImage(geminiKey, parts, nearestRatio(+b.w! || 4, +b.h! || 3), b.quality === "pro");
+  if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.error === "blocked" ? 422 : r.error === "bad-key" || r.error === "billing" ? 400 : 502 });
+  // Every made photo is kept at once: it was paid for, and a reload or a closed screen must not lose it.
+  const kept = await keepDraft(r.image, b.opts).catch((e) => { console.error("keep draft failed", e); return null; });
+  return NextResponse.json({ image: r.image, model: r.model, kept });
 }
 
 /** The photos made lately, newest first. */
@@ -94,16 +65,4 @@ async function keepDraft(image: string, opts: PhotoOpts) {
   await sanity.createIfNotExists({ _id: DRAFTS_ID, _type: "nq_photodrafts" });
   await sanity.patch(DRAFTS_ID).setIfMissing({ items: [] }).append("items", [d]).commit();
   return d.url;
-}
-
-/** The model answers with a large PNG; a JPEG keeps the reply under Vercel's 4.5MB limit. */
-async function asJpeg(data: string, mime: string) {
-  try {
-    const sharp = (await import("sharp")).default;
-    const out = await sharp(Buffer.from(data, "base64")).jpeg({ quality: 90, mozjpeg: true }).toBuffer();
-    return `data:image/jpeg;base64,${out.toString("base64")}`;
-  } catch (e) {
-    console.error("jpeg convert failed", e);
-    return `data:${mime};base64,${data}`;
-  }
 }

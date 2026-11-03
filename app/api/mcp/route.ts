@@ -563,7 +563,8 @@ const handler = createMcpHandler(
       kind: z.enum(["doors", "drawers", "sink", "cooktop", "oven", "dishwasher", "fridge", "tall", "tall_oven", "corner", "gap"]),
       w: z.number().describe("רוחב בס״מ"),
       n: z.number().optional().describe("מספר דלתות/מגירות (ב-tall_oven: מספר המגירות מתחת לתנור, 30 ס״מ כל אחת). ריק = ברירת מחדל"),
-      color: z.string().optional().describe("צבע משלו לארון או למכשיר, למשל מקרר שחור: black או #hex. ריק = כמו שאר המטבח (מקרר: נירוסטה)"),
+      color: z.string().optional().describe("צבע משלו לארון או למכשיר: גוון בלורן bl:CODE (למשל bl:ZA02SM, מצא עם bluran_colors), או black/#hex למקרר. ריק = כמו שאר המטבח (מקרר: נירוסטה)"),
+      fronts: z.array(z.string()).optional().describe("צבע לכל דלת/מגירה בארון בנפרד (דלתות משמאל לימין, מגירות מלמעלה למטה), למשל [\"\", \"bl:ZA03SM\"] = רק הדלת השנייה בצבע אחר. ריק = כמו הארון"),
     });
     const upperUnit = z.object({
       kind: z.enum(["doors", "lift", "open", "hood", "corner", "gap"]),
@@ -572,7 +573,24 @@ const handler = createMcpHandler(
       d: z.number().optional().describe("עומק הארון בס״מ, רק אם שונה מברירת המחדל של השורה (35 בעליונים, 60 בשורה העליונה)"),
       h: z.number().optional().describe("גובה הארון בס״מ, רק אם שונה מהשורה"),
       y: z.number().optional().describe("גובה תחתית הארון מהרצפה בס״מ, רק אם שונה מהשורה"),
+      color: z.string().optional().describe("גוון בלורן משלו לארון העליון: bl:CODE. ריק = כמו העליונים"),
+      fronts: z.array(z.string()).optional().describe("גוון לכל דלת/קלפה בנפרד: bl:CODE לכל אחת, ריק = כמו הארון"),
     });
+    server.registerTool(
+      "bluran_colors",
+      {
+        title: "מניפת הגוונים של בלורן",
+        description: "גווני החזיתות של בלורן (אקריל PURE, HPL, PL איטליה, ננו, PET, פולימר, פורניר, למיטקס, זכוכית): שם, קוד וקולקציה. חיפוש לפי שם, קוד או קולקציה (למשל שנהב, ZA02, אלון, פורניר). בתכנון משתמשים בערך bl:CODE.",
+        inputSchema: { search: z.string().default("") },
+      },
+      async ({ search }) => {
+        const { BLURAN } = await import("@/lib/quotes/bluran");
+        const t = search.trim();
+        const rows = BLURAN.filter((x) => !t || `${x.name} ${x.code} ${x.group}`.includes(t)).slice(0, 80);
+        if (!rows.length) return { content: [{ type: "text" as const, text: "לא נמצא גוון כזה בבלורן" }] };
+        return { content: [{ type: "text" as const, text: rows.map((x) => `bl:${x.code} · ${x.name} · ${x.group}`).join("\n") }] };
+      }
+    );
     server.registerTool(
       "list_plans",
       {
@@ -618,7 +636,7 @@ const handler = createMcpHandler(
           "סוגים בתחתון: doors דלתות, drawers מגירות, sink כיור, cooktop כיריים (עם מגירות), oven תנור מתחת למשטח, dishwasher מדיח, fridge מקרר, tall ארון גבוה, tall_oven ארון גבוה עם תנור ומיקרו, corner, gap. " +
           "בעליון: doors, lift קלפה, open מדפים פתוחים, hood קולט אדים, corner, gap (למשל חלון). " +
           "שתי שורות עליונים: upper היא השורה הרגילה (מ-145, גובה 70, עומק 35), ו-top היא שורה שנייה מעליה ועד התקרה (עומק 60). לכל ארון עליון אפשר לתת d (עומק), h (גובה) ו-y (תחתית מהרצפה) משלו, למשל קלפה בעומק 30 מתחת לשורה בעומק 60. " +
-          "צבעים: front/upper אחד מ-white cream light_grey grey anthracite black oak walnut sage olive navy או #hex; counter אחד מ-white_stone beige_stone grey_stone black_stone wood או #hex. " +
+          "צבעים: front/upper הם גווני בלורן בלבד: bl:CODE (חפש עם bluran_colors), אפשר גם לכל ארון color ולכל דלת fronts; counter אחד מ-white_stone beige_stone grey_stone black_stone wood או #hex. ידיות: handles bar = ידית חיצונית (ברירת מחדל), integral = ידית אינטגרלית (חריץ בחזית), none = בלי ידיות. " +
           "גבהים (h) רק אם שונים מהרגיל: משטח 90, תחתית עליונים 145, גובה עליונים 70, ארון גבוה 220, תקרה 260. " +
           "אחרי השמירה הצג לארז את הסיכום ואת האזהרות אם יש, ותן את הקישור לבדיקה.",
         inputSchema: z.object({
@@ -635,7 +653,7 @@ const handler = createMcpHandler(
             base: z.number().optional(), upperFrom: z.number().optional(), upper: z.number().optional(), tall: z.number().optional(),
             ceiling: z.number().optional(), depth: z.number().optional(), upperDepth: z.number().optional(), topDepth: z.number().optional(),
           }).optional(),
-          colors: z.object({ front: z.string().optional(), upper: z.string().optional(), counter: z.string().optional(), handles: z.enum(["bar", "none"]).optional() }).optional(),
+          colors: z.object({ front: z.string().optional(), upper: z.string().optional(), counter: z.string().optional(), handles: z.enum(["bar", "integral", "none"]).optional() }).optional(),
         }),
       },
       async ({ plan_id, client_name, client_phone, title, ...raw }) => {
@@ -663,7 +681,7 @@ const handler = createMcpHandler(
     );
   },
   {
-    serverInfo: { name: "noya-quotes", version: "1.9.0" },
+    serverInfo: { name: "noya-quotes", version: "1.10.0" },
     instructions:
       "מערכת הצעות המחיר של נויה מטבחים (ארז). תהליך: 1) search_catalog כדי למצוא את הפריטים. " +
       "2) אם חסרה כמות לרכיב כלשהו (למשל ידית לחזיתות), או שיש כמה פריטים אפשריים, שאל את ארז שאלה אחת מרוכזת עם כל החסרים — לפני שבונים. " +

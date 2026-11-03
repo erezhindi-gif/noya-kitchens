@@ -8,15 +8,17 @@
 // Upper cabinets can come in two rows: the usual one, and a top row above it up to the ceiling
 // (by default as deep as the base cabinets). Any upper cabinet may set its own depth, height and
 // bottom, e.g. a 30 cm deep lift-up under a 60 cm deep top row.
+import { bluranOf } from "./bluran";
 
 export type BaseKind = "doors" | "drawers" | "sink" | "cooktop" | "oven" | "dishwasher" | "fridge" | "tall" | "tall_oven" | "corner" | "gap";
 export type UpperKind = "doors" | "lift" | "open" | "hood" | "corner" | "gap";
 
 /** n = number of doors, drawers, flaps or shelves (each kind has a sensible default);
- *  color = the unit's own color (e.g. a black fridge), any FRONT_COLORS name or #hex */
-export type BaseUnit = { kind: BaseKind; w: number; n?: number; color?: string };
+ *  color = the unit's own color (e.g. a black fridge): a Bluran shade "bl:CODE", a FRONT_COLORS name or #hex;
+ *  fronts = a color per door/drawer of the unit (left to right, top to bottom), empty = the unit's color */
+export type BaseUnit = { kind: BaseKind; w: number; n?: number; color?: string; fronts?: string[] };
 /** d = depth, h = height, y = bottom above the floor; each falls back to its row's default */
-export type UpperUnit = { kind: UpperKind; w: number; n?: number; d?: number; h?: number; y?: number };
+export type UpperUnit = { kind: UpperKind; w: number; n?: number; d?: number; h?: number; y?: number; color?: string; fronts?: string[] };
 export type LayoutWall = { length: number; base: BaseUnit[]; upper: UpperUnit[]; /** second row, above the uppers up to the ceiling */ top?: UpperUnit[] };
 
 export type LayoutHeights = {
@@ -37,7 +39,8 @@ export type KitchenLayout = {
   /** An island facing the main wall, with cabinets on the side toward it */
   island?: { w: number; d: number; gap: number; base: BaseUnit[] };
   h?: Partial<LayoutHeights>;
-  colors?: { front?: string; upper?: string; counter?: string; handles?: "bar" | "none" };
+  /** handles: "bar" a handle on every front, "integral" a grip groove cut into the front's edge, "none" push-open */
+  colors?: { front?: string; upper?: string; counter?: string; handles?: "bar" | "integral" | "none" };
 };
 
 export const BASE_LABEL: Record<BaseKind, string> = {
@@ -87,9 +90,17 @@ export const COUNTER_COLORS: Record<string, { name: string; hex: string }> = {
 };
 
 const HEX = /^#[0-9a-f]{6}$/i;
+/** A front color as Erez says it: "בלורן אקריל PURE שנהב ZA02SM", "לבן", or the hex itself */
+export const colorName = (v?: string) => {
+  const bl = bluranOf(v);
+  if (bl) return `בלורן ${bl.group} ${bl.name} ${bl.code}`;
+  return FRONT_COLORS[v || "white"]?.name || v || "";
+};
 export const colorOf = (v: string | undefined, table: Record<string, { hex: string }>, fallback: string) => {
   const s = (v || "").trim();
   if (HEX.test(s)) return s;
+  const bl = bluranOf(s);
+  if (bl) return bl.hex;
   return table[s]?.hex || fallback;
 };
 
@@ -124,6 +135,7 @@ export function normalizeLayout(raw: unknown): KitchenLayout | null {
       .map((u) => ({
         kind: u.kind as K, w: num(u.w, 5, 400, 60), ...(u.n ? { n: num(u.n, 1, 8, 1) } : {}),
         ...(typeof u.color === "string" && u.color.trim() ? { color: u.color.trim().slice(0, 30) } : {}),
+        ...(Array.isArray(u.fronts) && u.fronts.some((f: unknown) => typeof f === "string" && f) ? { fronts: (u.fronts as unknown[]).slice(0, 8).map((f) => (typeof f === "string" ? f.slice(0, 30) : "")) } : {}),
         ...(u.d ? { d: num(u.d, 5, 120, 35) } : {}), ...(u.h ? { h: num(u.h, 5, 300, 70) } : {}),
         ...(u.y !== undefined && u.y !== null && u.y !== "" ? { y: num(u.y, 0, 400, 145) } : {}),
       }))
@@ -153,7 +165,7 @@ export function normalizeLayout(raw: unknown): KitchenLayout | null {
       ...(str(c.front) ? { front: str(c.front) } : {}),
       ...(str(c.upper) ? { upper: str(c.upper) } : {}),
       ...(str(c.counter) ? { counter: str(c.counter) } : {}),
-      ...(c.handles === "none" ? { handles: "none" as const } : {}),
+      ...(c.handles === "none" || c.handles === "integral" ? { handles: c.handles } : {}),
     };
   }
   return out;
@@ -183,16 +195,15 @@ export function layoutWarnings(l: KitchenLayout) {
 /** Plain-text summary for Claude. */
 export function describeLayout(l: KitchenLayout) {
   const h = heightsOf(l);
-  const u = (x: { kind: string; w: number; n?: number; d?: number; h?: number; y?: number }, lab: Record<string, string>) =>
-    `${lab[x.kind]} ${x.w}${x.n ? ` (${x.n})` : ""}${x.d ? ` עומק ${x.d}` : ""}${x.h ? ` גובה ${x.h}` : ""}${x.y !== undefined ? ` מ-${x.y}` : ""}`;
+  const u = (x: { kind: string; w: number; n?: number; d?: number; h?: number; y?: number; color?: string; fronts?: string[] }, lab: Record<string, string>) =>
+    `${lab[x.kind]} ${x.w}${x.n ? ` (${x.n})` : ""}${x.d ? ` עומק ${x.d}` : ""}${x.h ? ` גובה ${x.h}` : ""}${x.y !== undefined ? ` מ-${x.y}` : ""}${x.color ? ` [${colorName(x.color)}]` : ""}${x.fronts?.some(Boolean) ? ` [חזיתות: ${x.fronts.map((f, i) => (f ? `${i + 1}=${colorName(f)}` : "")).filter(Boolean).join(", ")}]` : ""}`;
   const lines = l.walls.map((w, i) =>
     `${wallName(l, i)} ${w.length} ס״מ\n  תחתון: ${w.base.map((x) => u(x, BASE_LABEL)).join(" | ") || "—"}\n  עליון: ${w.upper.map((x) => u(x, UPPER_LABEL)).join(" | ") || "—"}${w.top?.length ? `
   שורה עליונה: ${w.top.map((x) => u(x, UPPER_LABEL)).join(" | ")}` : ""}`);
   if (l.island) lines.push(`אי ${l.island.w}×${l.island.d}, מרחק ${l.island.gap} מהארונות: ${l.island.base.map((x) => u(x, BASE_LABEL)).join(" | ") || "—"}`);
   lines.push(`גבהים: משטח ${h.base}, עליונים מ-${h.upperFrom} בגובה ${h.upper} ועומק ${h.upperDepth}, שורה עליונה בעומק ${h.topDepth}, ארון גבוה ${h.tall}, תקרה ${h.ceiling}`);
   const c = l.colors || {};
-  const fn = (v?: string) => FRONT_COLORS[v || "white"]?.name || v;
-  lines.push(`צבעים: חזיתות ${fn(c.front)}${c.upper ? `, עליונים ${fn(c.upper)}` : ""}, משטח ${COUNTER_COLORS[c.counter || "white_stone"]?.name || c.counter}${c.handles === "none" ? ", בלי ידיות" : ""}`);
+  lines.push(`צבעים: חזיתות ${colorName(c.front)}${c.upper ? `, עליונים ${colorName(c.upper)}` : ""}, משטח ${COUNTER_COLORS[c.counter || "white_stone"]?.name || c.counter}${c.handles === "none" ? ", בלי ידיות" : c.handles === "integral" ? ", ידית אינטגרלית" : ""}`);
   return lines.join("\n");
 }
 

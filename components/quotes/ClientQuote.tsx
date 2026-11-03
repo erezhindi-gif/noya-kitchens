@@ -11,7 +11,7 @@ const Kitchen3D = dynamic(() => import("./Kitchen3D"), { ssr: false, loading: ()
 
 /** The client's view of their quote: the sheet, a PDF download and the approve form.
  *  `quote` arrives already stripped of prices; the sheet itself is rendered on the server. */
-export default function ClientQuote({ quote: q, settings, doc, layout }: { quote: Quote; settings: Settings; doc: React.ReactNode; layout?: KitchenLayout }) {
+export default function ClientQuote({ quote: q, settings, doc, layout, render }: { quote: Quote; settings: Settings; doc: React.ReactNode; layout?: KitchenLayout; render?: string }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [sending, setSending] = useState(false);
@@ -48,6 +48,8 @@ export default function ClientQuote({ quote: q, settings, doc, layout }: { quote
         {layout && (
           <section className="nq-card nqp-client">
             <h2>תכנון המטבח</h2>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {render && <img className="nqp-render" src={`${render}?w=1600`} alt="הדמיה של המטבח" />}
             <div className="sub">בקנה מידה, לפי המידות שבהצעה. {view === "3d" ? "אפשר לסובב ולהתקרב עם האצבע." : "כל המידות בס״מ."}</div>
             <div className="nqp-tabs" role="tablist">
               <button type="button" role="tab" aria-selected={view === "3d"} className="nq-chip" aria-pressed={view === "3d"} onClick={() => setView("3d")}>תלת-ממד</button>

@@ -7,9 +7,10 @@ import {
   COUNTER_COLORS, FRONT_COLORS, colorOf, cornerPart, counterSpans, heightsOf, islandBox, mainWallIndex, partsOf, placed, tallOvenParts, upperBox, wallGeometry,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
+import { bluranImg, bluranOf } from "@/lib/quotes/bluran";
 
 type Three = typeof import("three");
-type Mats = Record<"front" | "upper" | "carcass" | "upperCarcass" | "counter" | "plinth" | "steel" | "glass" | "handle" | "wall" | "floor" | "shelf" | "sink", T.Material>;
+type Mats = Record<"front" | "upper" | "carcass" | "upperCarcass" | "counter" | "plinth" | "steel" | "glass" | "handle" | "wall" | "floor" | "shelf" | "sink" | "grip" | "black" | "zone" | "display" | "inox", T.Material>;
 
 const M = 0.01; // cm → m
 
@@ -24,12 +25,33 @@ function buildKitchen(three: Three, l: KitchenLayout) {
   const front = colorOf(l.colors?.front, FRONT_COLORS, FRONT_COLORS.white.hex);
   const upper = colorOf(l.colors?.upper || l.colors?.front, FRONT_COLORS, front);
   const counter = colorOf(l.colors?.counter, COUNTER_COLORS, COUNTER_COLORS.white_stone.hex);
-  const handles = l.colors?.handles !== "none";
+  const handles = !l.colors?.handles || l.colors.handles === "bar";
+  const grip = l.colors?.handles === "integral";
   const std = (color: T.ColorRepresentation, rough = 0.6, metal = 0, extra: Partial<T.MeshStandardMaterialParameters> = {}) =>
     new three.MeshStandardMaterial({ color, roughness: rough, metalness: metal, ...extra });
+  // Bluran shades: the swatch photo laid on the doors (wood, stone, concrete…), or its color; high gloss shines.
+  // The PDF waits for every swatch to load before it takes its picture.
+  const loading: Promise<unknown>[] = [];
+  const cache = new Map<string, T.Material>();
+  const matOf = (v: string | undefined, fallback: T.Material) => {
+    if (!v) return fallback;
+    const hit = cache.get(v);
+    if (hit) return hit;
+    const bl = bluranOf(v);
+    let m: T.Material;
+    if (bl && bl.tex) {
+      const mat = std("#ffffff", bl.gloss ? 0.18 : 0.6);
+      loading.push(new Promise((ok) => {
+        new three.TextureLoader().load(bluranImg(bl), (t) => { t.colorSpace = three.SRGBColorSpace; mat.map = t; mat.needsUpdate = true; ok(t); }, undefined, () => { mat.color.set(bl.hex); ok(null); });
+      }));
+      m = mat;
+    } else m = std(colorOf(v, FRONT_COLORS, "#f2f1ec"), bl?.gloss || bl?.group === "זכוכית" ? 0.15 : 0.55);
+    cache.set(v, m);
+    return m;
+  };
   const mats: Mats = {
-    front: std(front, 0.55),
-    upper: std(upper, 0.55),
+    front: matOf(l.colors?.front, std(front, 0.55)),
+    upper: matOf(l.colors?.upper || l.colors?.front, std(upper, 0.55)),
     carcass: std(shade(three, front, 0.55), 0.8),
     upperCarcass: std(shade(three, upper, 0.55), 0.8),
     counter: std(counter, 0.35),
@@ -41,6 +63,16 @@ function buildKitchen(three: Three, l: KitchenLayout) {
     floor: std("#d6cdbf", 0.85),
     shelf: std("#e3ddd2", 0.7),
     sink: std("#b4babe", 0.3, 0.35),
+    grip: std("#2b2724", 0.85),
+    black: std("#141414", 0.4, 0.2),
+    zone: std("#3a3a3c", 0.25, 0.1),
+    display: std("#0b1a22", 0.2, 0.1, { emissive: new three.Color("#16384a"), emissiveIntensity: 0.6 }),
+    inox: std("#c9ccce", 0.28, 0.75),
+  };
+  /** a unit's own material, and one per door/drawer (index as in the drawing: left to right, top to bottom) */
+  const unitMats = (u: { color?: string; fronts?: string[] }, base: T.Material) => {
+    const own = matOf(u.color, base);
+    return (i: number) => matOf(u.fronts?.[i] || undefined, own);
   };
   const root = new three.Group();
 
@@ -56,10 +88,57 @@ function buildKitchen(three: Three, l: KitchenLayout) {
   /** A door or drawer front with its handle; (x0,y0) is its lower-left corner on the run's face at depth z. */
   const frontPanel = (p: T.Object3D, mat: T.Material, x0: number, y0: number, w: number, hh: number, z: number, handle?: "top" | "bottom" | "mid") => {
     box(p, mat, w - 0.4, hh - 0.4, 1.8, x0 + w / 2, y0 + hh / 2, z + 0.9);
+    if (grip && handle) {
+      // integral handle: a grip groove milled into the edge of the front
+      if (handle === "mid") box(p, mats.grip, 1.6, hh - 0.4, 0.5, x0 + 1.2, y0 + hh / 2, z + 1.6);
+      else box(p, mats.grip, w - 0.4, 1.6, 0.5, x0 + w / 2, handle === "top" ? y0 + hh - 1.2 : y0 + 1.2, z + 1.6);
+      return;
+    }
     if (!handles || !handle) return;
     const hy = handle === "top" ? y0 + hh - 4 : handle === "bottom" ? y0 + 4 : y0 + hh / 2;
     if (handle === "mid") box(p, mats.handle, 1.2, Math.min(30, hh * 0.3), 1.6, x0 + 5, hy, z + 2.6);
     else box(p, mats.handle, Math.min(16, w * 0.45), 1.2, 1.6, x0 + w / 2, hy, z + 2.6);
+  };
+
+  /** A built-in oven: black glass door in a steel frame, a control strip with a display and knobs, a bar handle. */
+  const oven = (p: T.Object3D, x: number, y0: number, w: number, hh: number, z: number) => {
+    box(p, mats.inox, w - 0.4, hh - 0.4, 1.6, x + w / 2, y0 + hh / 2, z + 0.8);
+    const strip = Math.min(9, hh * 0.16), sy = y0 + hh - strip / 2 - 0.6;
+    box(p, mats.black, w - 2.4, strip - 1.2, 0.4, x + w / 2, sy, z + 1.8);
+    box(p, mats.display, Math.min(10, w * 0.18), strip * 0.45, 0.3, x + w / 2, sy, z + 2.05);
+    for (const dx of [-0.32, 0.32]) {
+      const knob = new three.Mesh(new three.CylinderGeometry(1.5 * M, 1.5 * M, 1.6 * M, 20), mats.inox);
+      knob.rotation.x = Math.PI / 2;
+      knob.position.set((x + w / 2 + dx * w) * M, sy * M, (z + 2.4) * M);
+      p.add(knob);
+    }
+    box(p, mats.glass, w - 4, hh - strip - 3.5, 0.5, x + w / 2, y0 + (hh - strip) / 2 + 0.8, z + 1.85);
+    box(p, mats.inox, w - 10, 1.4, 1.6, x + w / 2, y0 + hh - strip - 3.2, z + 3.2);
+  };
+  /** An induction hob flush in the counter: black glass with four cooking zones and a touch strip. */
+  const cooktop = (p: T.Object3D, cx: number, y: number, cz: number, w: number) => {
+    const d = 51;
+    box(p, mats.glass, w, 0.5, d, cx, y + 0.25, cz);
+    for (const [ox, oz, r] of [[-0.25, -0.22, 9], [0.25, -0.22, 7.5], [-0.25, 0.2, 7.5], [0.25, 0.2, 9]] as const) {
+      const ring = new three.Mesh(new three.RingGeometry((r - 0.5) * M, r * M, 40), mats.zone);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set((cx + ox * w) * M, (y + 0.52) * M, (cz + oz * d) * M);
+      p.add(ring);
+    }
+    box(p, mats.zone, w * 0.5, 0.05, 2.4, cx, y + 0.53, cz + d / 2 - 3);
+  };
+  /** A modern faucet: a column with a curved spout over the basin. */
+  const faucet = (p: T.Object3D, cx: number, y: number, z: number) => {
+    const col = new three.Mesh(new three.CylinderGeometry(1.5 * M, 1.8 * M, 28 * M, 20), mats.inox);
+    col.position.set(cx * M, (y + 14) * M, z * M);
+    col.castShadow = true;
+    p.add(col);
+    const arc = new three.Mesh(new three.TorusGeometry(9 * M, 1.3 * M, 12, 24, Math.PI), mats.inox);
+    arc.rotation.y = Math.PI / 2;
+    arc.position.set(cx * M, (y + 28) * M, (z + 9) * M);
+    arc.castShadow = true;
+    p.add(arc);
+    box(p, mats.inox, 1.2, 4, 1.2, cx + 2.2, y + 22, z);
   };
 
   /** One run of base cabinets along local x, backs at z=0, fronts facing +z. */
@@ -78,67 +157,70 @@ function buildKitchen(three: Three, l: KitchenLayout) {
           box(p, mats.plinth, c.w, f0, depth - 6, x + c.a + c.w / 2, f0 / 2, (depth - 6) / 2);
           box(p, mats.carcass, c.w, f1 - f0, z, x + c.a + c.w / 2, f0 + (f1 - f0) / 2, z / 2);
         }
-        if (c.filler.w > 0.01) frontPanel(p, mats.front, x + c.filler.a, f0, c.filler.w + 0.4, fh, z);
+        if (c.filler.w > 0.01) frontPanel(p, matOf(u.color, mats.front), x + c.filler.a, f0, c.filler.w + 0.4, fh, z);
         continue;
       }
       if (u.kind === "fridge") {
-        const body = u.color ? std(colorOf(u.color, FRONT_COLORS, "#d4d7da"), 0.3, 0.2) : mats.steel;
-        box(p, body, w - 0.6, hs.tall, depth, x + w / 2, hs.tall / 2, depth / 2);
-        const fz = hs.tall * 0.36;
-        box(p, mats.plinth, w - 0.4, 0.6, 0.4, x + w / 2, fz, depth + 0.1);
-        if (handles) {
-          box(p, mats.handle, 1.4, 35, 2, x + 5, fz + 30, depth + 1.5);
-          box(p, mats.handle, 1.4, 25, 2, x + 5, fz - 22, depth + 1.5);
+        const body = u.color ? std(colorOf(u.color, FRONT_COLORS, "#d4d7da"), 0.32, 0.35) : mats.inox;
+        // a real fridge: one or two columns (a wide one is two), freezer below, bar handles, a small display
+        const cols = w >= 100 ? 2 : 1, cw = (w - 0.6) / cols, fz = hs.tall * 0.36;
+        box(p, mats.black, w - 0.6, hs.tall - 1, depth - 4, x + w / 2, (hs.tall - 1) / 2, (depth - 4) / 2);
+        for (let k = 0; k < cols; k++) {
+          const cx = x + 0.3 + cw * k + cw / 2;
+          box(p, body, cw - 0.5, hs.tall - fz - 1.2, 3, cx, fz + (hs.tall - fz) / 2, depth - 1.5);
+          box(p, body, cw - 0.5, fz - 2, 3, cx, 1 + (fz - 2) / 2, depth - 1.5);
+          const hx = cols === 2 ? (k === 0 ? cx + cw / 2 - 5 : cx - cw / 2 + 5) : x + 5;
+          box(p, mats.inox, 1.6, 45, 2.4, hx, fz + 40, depth + 1);
+          box(p, mats.inox, 1.6, 30, 2.4, hx, fz - 22, depth + 1);
+          box(p, mats.display, 6, 9, 0.3, cx, fz + (hs.tall - fz) * 0.62, depth + 0.1);
         }
         continue;
       }
       const tall = u.kind === "tall" || u.kind === "tall_oven";
       const top = tall ? hs.tall : f1;
+      const fm = unitMats(u, mats.front);
       box(p, mats.plinth, w, f0, depth - 6, x + w / 2, f0 / 2, (depth - 6) / 2);
       box(p, mats.carcass, w - 0.2, top - f0, z, x + w / 2, f0 + (top - f0) / 2, z / 2);
       switch (u.kind) {
         case "doors":
         case "sink":
-          for (let i = 0; i < n; i++) frontPanel(p, mats.front, x + (i * w) / n, f0, w / n, fh, z, "top");
+          for (let i = 0; i < n; i++) frontPanel(p, fm(i), x + (i * w) / n, f0, w / n, fh, z, "top");
           break;
         case "drawers":
         case "cooktop":
-          for (let i = 0; i < n; i++) frontPanel(p, mats.front, x, f0 + (i * fh) / n, w, fh / n, z, "top");
+          for (let i = 0; i < n; i++) frontPanel(p, fm(n - 1 - i), x, f0 + (i * fh) / n, w, fh / n, z, "top");
           break;
         case "dishwasher":
-          frontPanel(p, mats.front, x, f0, w, fh, z, "top");
+          frontPanel(p, fm(0), x, f0, w, fh, z, "top");
           break;
         case "oven": {
           const dr = Math.min(18, fh * 0.25);
-          frontPanel(p, mats.front, x, f0, w, dr, z, "top");
-          frontPanel(p, mats.glass, x, f0 + dr, w, fh - dr, z);
-          box(p, mats.handle, w - 12, 1.2, 1.6, x + w / 2, f1 - 5, z + 2.6);
+          frontPanel(p, fm(0), x, f0, w, dr, z, "top");
+          oven(p, x, f0 + dr, w, fh - dr, z);
           break;
         }
         case "tall":
-          for (let i = 0; i < n; i++) frontPanel(p, mats.front, x, f0 + (i * (top - f0)) / n, w, (top - f0) / n, z, "mid");
+          for (let i = 0; i < n; i++) frontPanel(p, fm(n - 1 - i), x, f0 + (i * (top - f0)) / n, w, (top - f0) / n, z, "mid");
           break;
         case "tall_oven": {
           const t = tallOvenParts(u, hs);
           const dh = (t.d1 - t.d0) / t.drawers;
-          for (let i = 0; i < t.drawers; i++) frontPanel(p, mats.front, x, t.d0 + i * dh, w, dh, z, "top");
-          frontPanel(p, mats.glass, x, t.d1, w, t.o1 - t.d1, z);
-          box(p, mats.handle, w - 12, 1.2, 1.6, x + w / 2, t.o1 - 5, z + 2.6);
-          if (t.m1 > t.o1 + 2) frontPanel(p, mats.front, x, t.o1, w, t.m1 - t.o1, z, "bottom");
-          if (t.rest) frontPanel(p, mats.front, x, t.m1, w, top - t.m1, z, "bottom");
+          const own = matOf(u.color, mats.front);
+          for (let i = 0; i < t.drawers; i++) frontPanel(p, fm(t.drawers - 1 - i), x, t.d0 + i * dh, w, dh, z, "top");
+          oven(p, x, t.d1, w, t.o1 - t.d1, z);
+          if (t.m1 > t.o1 + 2) frontPanel(p, own, x, t.o1, w, t.m1 - t.o1, z, "bottom");
+          if (t.rest) frontPanel(p, own, x, t.m1, w, top - t.m1, z, "bottom");
           break;
         }
       }
       if (u.kind === "sink") {
-        const sw = Math.min(w - 14, 55);
-        box(p, mats.sink, sw, 0.5, 40, x + w / 2, hs.base + 0.1, depth / 2 + 2);
-        const tap = new three.Mesh(new three.CylinderGeometry(1.4 * M, 1.4 * M, 30 * M, 16), mats.steel);
-        tap.position.set((x + w / 2) * M, (hs.base + 15) * M, 8 * M);
-        tap.castShadow = true;
-        p.add(tap);
-        box(p, mats.steel, 2.6, 2.6, 20, x + w / 2, hs.base + 29, 17);
+        // an undermount basin (the bowl seen in the counter) and a curved faucet
+        const sw = Math.min(w - 14, 55), sd = 40, cz = depth / 2 + 2;
+        box(p, mats.sink, sw, 0.3, sd, x + w / 2, hs.base + 0.05, cz);
+        box(p, std("#8f969b", 0.3, 0.4), sw - 3, 0.3, sd - 3, x + w / 2, hs.base + 0.12, cz);
+        faucet(p, x + w / 2, hs.base, 8);
       }
-      if (u.kind === "cooktop") box(p, mats.glass, Math.min(w - 8, 60), 0.6, 51, x + w / 2, hs.base + 0.3, depth / 2 + 1);
+      if (u.kind === "cooktop") cooktop(p, x + w / 2, hs.base, depth / 2 + 1, Math.min(w - 8, 60));
     }
     if (withCounter) for (const s of counterSpans(units, depth)) box(p, mats.counter, s.w, hs.counter, depth + 2, s.a + s.w / 2, hs.base - hs.counter / 2, (depth + 2) / 2);
   };
@@ -164,8 +246,9 @@ function buildKitchen(three: Three, l: KitchenLayout) {
         continue;
       }
       box(p, mats.upperCarcass, w - 0.2, uh, d - 2, x + w / 2, y0 + uh / 2, (d - 2) / 2);
-      if (u.kind === "doors") for (let i = 0; i < n; i++) frontPanel(p, mats.upper, x + (i * w) / n, y0, w / n, uh, d - 2, "bottom");
-      else for (let i = 0; i < n; i++) frontPanel(p, mats.upper, x, y0 + (i * uh) / n, w, uh / n, d - 2, "bottom");
+      const um = unitMats(u, mats.upper);
+      if (u.kind === "doors") for (let i = 0; i < n; i++) frontPanel(p, um(i), x + (i * w) / n, y0, w / n, uh, d - 2, "bottom");
+      else for (let i = 0; i < n; i++) frontPanel(p, um(n - 1 - i), x, y0 + (i * uh) / n, w, uh / n, d - 2, "bottom");
     }
   };
 
@@ -207,10 +290,11 @@ function buildKitchen(three: Three, l: KitchenLayout) {
   floor.position.set((bb.min.x + bb.max.x) / 2, 0, (bb.min.z + bb.max.z) / 2 + 0.5);
   floor.receiveShadow = true;
   root.add(floor);
-  return { root, box: bb };
+  return { root, box: bb, ready: Promise.all(loading) };
 }
 
-export default function Kitchen3D({ layout, still = false, height = 420 }: { layout: KitchenLayout; still?: boolean; height?: number }) {
+/** onShot (still mode): gets the picture once it is taken, e.g. to send it for a photorealistic render */
+export default function Kitchen3D({ layout, still = false, height = 420, onShot }: { layout: KitchenLayout; still?: boolean; height?: number; onShot?: (jpeg: string) => void }) {
   const host = useRef<HTMLDivElement>(null);
   const [img, setImg] = useState("");
   const [failed, setFailed] = useState(false);
@@ -242,7 +326,7 @@ export default function Kitchen3D({ layout, still = false, height = 420 }: { lay
 
       const scene = new three.Scene();
       scene.background = new three.Color("#f4f1ec");
-      const { root, box } = buildKitchen(three, JSON.parse(key));
+      const { root, box, ready } = buildKitchen(three, JSON.parse(key));
       scene.add(root);
 
       const center = new three.Vector3((box.min.x + box.max.x) / 2, 1.0, (box.min.z + box.max.z) / 2);
@@ -270,8 +354,12 @@ export default function Kitchen3D({ layout, still = false, height = 420 }: { lay
 
       const render = () => renderer.render(scene, cam);
       if (still) {
+        await ready; // the Bluran swatches must be on the doors before the picture is taken
+        if (disposed) return;
         render();
-        setImg(renderer.domElement.toDataURL("image/jpeg", 0.9));
+        const shot = renderer.domElement.toDataURL("image/jpeg", 0.9);
+        setImg(shot);
+        onShot?.(shot);
         renderer.domElement.remove();
         renderer.dispose();
         return;

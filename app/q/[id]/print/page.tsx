@@ -22,6 +22,8 @@ export default async function PrintQuotePage({ params }: { params: { id: string 
         // the plan starts on its own page: the 3D picture, then the drawings with measurements
         <section className="nqp-print" dir="rtl">
           <h2>תכנון המטבח</h2>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {found.plan?.shownRender && <img className="nqp-render" src={`${found.plan.shownRender}?w=1600`} alt="הדמיה של המטבח" />}
           <Kitchen3D layout={layout} still height={430} />
           <KitchenPlan layout={layout} />
         </section>
