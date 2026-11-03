@@ -24,7 +24,8 @@ export async function GET(req: NextRequest) {
   const problem = syncProblem(await getSecrets());
   if (!due.length && !late.length && !problem) return NextResponse.json({ ok: true, due: 0, leads: 0 });
 
-  const origin = req.nextUrl.origin;
+  // the scheduler may call a deployment address; links in the mail always go to the site itself
+  const origin = "https://www.noya-k.co.il";
   const rows = due
     .sort((a, b) => (a.followUp || "").localeCompare(b.followUp || ""))
     .map((q) => {

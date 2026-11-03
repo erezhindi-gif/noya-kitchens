@@ -253,6 +253,7 @@ body:has(.nq-admin) [aria-label="פתח תפריט נגישות"] { display: non
 .nq-pills { display: flex; gap: 4px; flex-wrap: wrap; }
 .nq-pill.nq-due { background: #fdecc8; color: #8a5a00; }
 .nq-pill.nq-exp { background: var(--bad-bg); color: var(--bad); }
+.nq-pill.nq-followed { background: #e3efe6; color: #2f6b45; }
 .nq-due-k { font-size: 13px; font-weight: 700; color: #8a5a00; }
 .nq-chip.nq-chip-due { border-color: #e9c27a; color: #8a5a00; }
 .nq-chip.nq-chip-due[aria-pressed="true"] { background: #8a5a00; color: #fff; border-color: #8a5a00; }

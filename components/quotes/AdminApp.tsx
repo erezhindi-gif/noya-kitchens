@@ -582,8 +582,10 @@ function LeadsView({ data, onSave, onDelete, onQuote, onOpenQuote, onUpload, onR
   const rows = data.leads
     .map((l) => ({ l, s: leadStage(l, data.quotes) }))
     .sort((a, b) => b.l.createdAt.localeCompare(a.l.createdAt));
-  const count = { waiting: rows.filter((r) => r.s.stage === "waiting").length, open: rows.filter((r) => r.s.stage !== "closed").length, all: rows.length };
-  const shown = rows.filter((r) => filter === "all" || (filter === "waiting" ? r.s.stage === "waiting" : r.s.stage !== "closed"));
+  // "open" = still needs Erez: no quote yet, or a quote not sent yet. Once a quote went out it lives under "הצעות".
+  const isOpen = (stage: string) => stage === "waiting" || stage === "draft";
+  const count = { waiting: rows.filter((r) => r.s.stage === "waiting").length, open: rows.filter((r) => isOpen(r.s.stage)).length, all: rows.length };
+  const shown = rows.filter((r) => filter === "all" || (filter === "waiting" ? r.s.stage === "waiting" : isOpen(r.s.stage)));
   const blank = (): Lead => ({ id: uid(12), createdAt: new Date().toISOString(), source: "whatsapp", name: "", phone: "", email: "", text: "" });
 
   return (
@@ -770,6 +772,7 @@ function ListView({ data, onOpen, onNew, onDup, onDelete, onAgent, onFollowed }:
             <span className="nq-pills">
               <span className={`nq-pill nq-st-${q.status}`}>{STATUS_LABEL[q.status]}</span>
               {fs(q).due && <button type="button" className="nq-pill nq-due" title="הודעת מעקב בוואטסאפ" onClick={(e) => { e.stopPropagation(); setFollow(q); }}>לחזור ללקוח 💬</button>}
+              {!fs(q).due && q.status === "sent" && q.followedAt && <span className="nq-pill nq-followed" title="נשלחה ללקוח הודעת מעקב">תזכורת נשלחה {fdate(q.followedAt).slice(0, 5)}</span>}
               {fs(q).expired && <span className="nq-pill nq-exp">פג תוקף</span>}
             </span>
             <span className="acts" onClick={(e) => e.stopPropagation()}>
