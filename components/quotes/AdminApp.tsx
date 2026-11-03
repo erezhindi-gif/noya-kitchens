@@ -506,7 +506,7 @@ export default function AdminApp() {
         )}
         {view === "list" && <ListView data={data} onOpen={(id) => go("edit", id)} onNew={() => newQuote()} onDup={(q) => newQuote(q)} onDelete={removeQuote}
           onFollowed={(id) => updQuote(id, (x) => { x.followedAt = todayIL(); x.followUp = addDays(todayIL(), 5); })}
-          onStatus={(id, s) => updQuote(id, (x) => { x.status = s; }, 0)}
+          onStatus={(id, s) => updQuote(id, (x) => setStatus(x, s), 0)}
           onAgent={(d) => newQuote({ ...d, pros: [], commissions: defaultCommissions(data.settings), round: false } as unknown as Quote, "טיוטה מהסוכן נפתחה:")} />}
         {view === "plans" && <PlansView data={data} onOpen={(id) => go("plan", id)} onNew={() => go("plan", newPlan().id)} onQuote={quoteFromPlan} onOpenQuote={(id) => go("edit", id)} />}
         {view === "plan" && plan && (
@@ -717,6 +717,16 @@ function LeadForm({ lead, isNew, onClose, onSave }: { lead: Lead; isNew: boolean
 const claudeLink = (start: string) => `https://claude.ai/new?q=${encodeURIComponent(start)}`;
 
 /* =================== list =================== */
+/** The day a quote was closed or lost: marked by Erez, or approved by the client on its page. */
+const decidedOn = (q: Quote) =>
+  q.status === "approved" ? q.decidedAt || q.approvedAt?.slice(0, 10) : q.status === "rejected" ? q.decidedAt : undefined;
+/** Sets a status and keeps the date it was decided (closed / not closed); back to "sent" clears it. */
+const setStatus = (q: Quote, s: Status) => {
+  q.status = s;
+  if (s === "approved" || s === "rejected") q.decidedAt = todayIL();
+  else delete q.decidedAt;
+};
+
 function ListView({ data, onOpen, onNew, onDup, onDelete, onAgent, onFollowed, onStatus }: { data: AppData; onOpen: (id: string) => void; onNew: () => void; onDup: (q: Quote) => void; onDelete: (id: string) => void; onAgent: (d: AgentDraft) => void; onFollowed: (id: string) => void; onStatus: (id: string, s: Status) => void }) {
   const [follow, setFollow] = useState<Quote | null>(null);
   const [agentOpen, setAgentOpen] = useState(false);
@@ -769,10 +779,10 @@ function ListView({ data, onOpen, onNew, onDup, onDelete, onAgent, onFollowed, o
           <div key={q.id} className="nq-qrow" role="button" tabIndex={0} onClick={() => onOpen(q.id)} onKeyDown={(e) => e.key === "Enter" && onOpen(q.id)}>
             <span className="n num ltr" style={{ textAlign: "right" }}>{qnum(q)}</span>
             <span className="c"><b>{q.client.name || "ללא שם"}</b><span>{q.project}</span></span>
-            <span className="d sub num">{fdate(q.date)}</span>
+            <span className="d sub num">הצעה {fdate(q.date)}{q.sentAt && q.sentAt !== q.date ? <div>נשלחה {fdate(q.sentAt).slice(0, 5)}</div> : null}</span>
             <span className="t num">{money(c.price)}<div className="sub" style={{ fontWeight: 400 }}>לפני מע״מ</div></span>
             <span className="nq-pills">
-              <span className={`nq-pill nq-st-${q.status}`}>{STATUS_LABEL[q.status]}</span>
+              <span className={`nq-pill nq-st-${q.status}`}>{STATUS_LABEL[q.status]}{decidedOn(q) ? ` ${fdate(decidedOn(q)).slice(0, 5)}` : ""}</span>
               {fs(q).due && <button type="button" className="nq-pill nq-due" title="הודעת מעקב בוואטסאפ" onClick={(e) => { e.stopPropagation(); setFollow(q); }}>לחזור ללקוח 💬</button>}
               {!fs(q).due && q.status === "sent" && q.followedAt && <span className="nq-pill nq-followed" title="נשלחה ללקוח הודעת מעקב">תזכורת נשלחה {fdate(q.followedAt).slice(0, 5)}</span>}
               {fs(q).expired && <span className="nq-pill nq-exp">פג תוקף</span>}
@@ -878,7 +888,7 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash, planL
         </div>
         <label className="f" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           סטטוס
-          <select className="in" style={{ width: "auto" }} value={q.status} onChange={(e) => upd((x) => { const v = e.target.value as Status; if (v === "sent" && x.status === "draft") markSentFields(x); else x.status = v; }, 0)}>
+          <select className="in" style={{ width: "auto" }} value={q.status} onChange={(e) => upd((x) => { const v = e.target.value as Status; if (v === "sent" && x.status === "draft") markSentFields(x); else setStatus(x, v); }, 0)}>
             {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </label>

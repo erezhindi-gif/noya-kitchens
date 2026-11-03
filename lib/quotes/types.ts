@@ -80,6 +80,8 @@ export type Quote = {
   followUp?: string;
   /** When Erez last sent the follow-up message */
   followedAt?: string;
+  /** The day Erez marked it closed (approved) or not closed (rejected) */
+  decidedAt?: string;
   /** Notes only Erez sees */
   internalNotes?: string;
   /** The kitchen plan this quote was made from; its drawing and 3D view show with the quote */
