@@ -3,7 +3,7 @@
 // is in cm), so proportions are exact at any size. No hooks: renders on the server for the PDF too.
 import "./plan.css";
 import {
-  BASE_LABEL, COUNTER_COLORS, POINT_LABEL, beamHeight, openingBox, FRONT_COLORS, baseUnitTop, colorOf, corniceBoxes, columnParts, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, partsOf, placed, tvSize, tallOvenParts, upperBox, wallGeometry, wallName,
+  BASE_LABEL, COUNTER_COLORS, PART_LABEL, POINT_LABEL, beamHeight, handleOf, openingBox, FRONT_COLORS, baseUnitTop, colorOf, corniceBoxes, columnParts, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, partsOf, placed, tvSize, tallOvenParts, upperBox, wallGeometry, wallName,
   type BaseUnit, type LayoutWall, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 
@@ -14,7 +14,7 @@ const STEEL = "#cfd3d6";
 const GLASS = "#2c2c2c";
 const GAP = 0.5; // gap between fronts, cm
 
-type Ctx = { h: LayoutHeights; top: number; front: string; upper: string; counter: string; handles: boolean; grip: boolean; f: number; plinth: string };
+type Ctx = { hl: ReturnType<typeof handleOf>; h: LayoutHeights; top: number; front: string; upper: string; counter: string; handles: boolean; grip: boolean; f: number; plinth: string };
 
 /** Dark fronts (anthracite, black, walnut…) get light writing on them. */
 const isDark = (hex: string) => {
@@ -29,7 +29,7 @@ const Y = (c: Ctx, cm: number) => c.top - cm;
 function Front({ c, x, y0, w, h, fill, handle, r, glass }: { c: Ctx; x: number; y0: number; w: number; h: number; fill: string; handle?: "top" | "bottom" | "side-l" | "side-r" | "mid"; r?: string; glass?: string }) {
   const g = GAP / 2;
   const rx = x + g, ry = Y(c, y0 + h) + g, rw = Math.max(0.5, w - GAP), rh = Math.max(0.5, h - GAP);
-  const hl = Math.min(16, rw * 0.45);
+  const hl = Math.min(c.hl.length, rw * 0.9);
   let bar: React.ReactNode = null;
   if (c.grip && handle) {
     // integral handle: a dark grip groove along the front's edge (top for base units, bottom for uppers, the inner side for tall doors)
@@ -40,7 +40,9 @@ function Front({ c, x, y0, w, h, fill, handle, r, glass }: { c: Ctx; x: number; 
   } else if (c.handles && handle) {
     if (handle === "top" || handle === "bottom" || handle === "mid") {
       const hy = handle === "top" ? ry + 4 : handle === "bottom" ? ry + rh - 4 : ry + rh / 2;
-      bar = <line x1={rx + rw / 2 - hl / 2} x2={rx + rw / 2 + hl / 2} y1={hy} y2={hy} stroke={INK} strokeWidth={1.1} strokeLinecap="round" />;
+      bar = c.hl.style === "knob" ? <circle cx={rx + rw / 2} cy={hy} r={1.3} fill={c.hl.hex} />
+        : c.hl.style === "edge" ? <line x1={rx} x2={rx + rw} y1={handle === "top" ? ry + 0.8 : ry + rh - 0.8} y2={handle === "top" ? ry + 0.8 : ry + rh - 0.8} stroke={c.hl.hex} strokeWidth={1.2} />
+        : <line x1={rx + rw / 2 - hl / 2} x2={rx + rw / 2 + hl / 2} y1={hy} y2={hy} stroke={c.hl.hex} strokeWidth={1.1} strokeLinecap="round" />;
     } else {
       const hx = handle === "side-l" ? rx + 4 : rx + rw - 4;
       const vl = Math.min(30, rh * 0.4);
@@ -131,6 +133,7 @@ function BaseShape({ c, u, x, units, index, at }: { c: Ctx; u: BaseUnit; x: numb
           {plinth}
           {columnParts(u, h).map((p, i) => {
             if (p.kind === "niche") return <Niche key={i} c={c} x={x} y0={p.y0} w={u.w} h={p.h} frame={p.frame ?? 2} fill={fr} r={`${r}.-1`} n={p.n} label={`נישה ${cm(p.h)}`} tv={p.tv} tvGap={p.tvGap} />;
+            if (p.kind === "oven" || p.kind === "microwave" || p.kind === "coffee") return <g key={i}><Front c={c} x={x} y0={p.y0} w={u.w} h={p.h} fill={GLASS} /><Label c={c} x={mid} y={Y(c, p.y0 + p.h / 2)} t={PART_LABEL[p.kind]} light /></g>;
             if (p.kind === "panel") return <Front key={i} c={c} x={x} y0={p.y0} w={u.w} h={p.h} fill={pf[p.from] || fr} r={`${r}.${p.from}`} />;
             if (p.kind === "doors") return <g key={i}>{Array.from({ length: p.count }, (_, k) => <Front key={k} c={c} x={x + (k * u.w) / p.count} y0={p.y0} w={u.w / p.count} h={p.h} fill={pf[p.from + k] || fr} handle={p.y0 + p.h > 120 ? "bottom" : "top"} r={`${r}.${p.from + k}`} />)}</g>;
             return <g key={i}>{Array.from({ length: p.count }, (_, k) => <Front key={k} c={c} x={x} y0={p.y0 + p.h - ((k + 1) * p.h) / p.count} w={u.w} h={p.h / p.count} fill={pf[p.from + k] || fr} handle={p.y0 + p.h > 120 ? "bottom" : "top"} r={`${r}.${p.from + k}`} />)}</g>;
@@ -155,10 +158,10 @@ function BaseShape({ c, u, x, units, index, at }: { c: Ctx; u: BaseUnit; x: numb
     }
     case "doors":
     case "sink":
-      return <>{plinth}<Doors c={c} x={x} y0={by} w={u.w} h={bh} n={n} fill={fr} fills={pf} at="top" r={r} glass={u.glass} />{u.kind === "sink" && <Label c={c} x={mid} y={Y(c, by + bh / 2)} t="כיור" light={isDark(fr)} />}</>;
+      return <>{plinth}<Doors c={c} x={x} y0={by} w={u.w} h={bh} n={n} fill={fr} fills={pf} at="top" r={r} glass={u.glass} />{u.kind === "sink" && <Label c={c} x={mid} y={Y(c, by + bh / 2)} t={u.sink?.bowls === 2 ? "כיור כפול" : "כיור"} light={isDark(fr)} />}</>;
     case "drawers":
     case "cooktop":
-      return <>{plinth}<Stack c={c} x={x} y0={by} w={u.w} h={bh} n={n} fill={fr} fills={pf} r={r} />{u.kind === "cooktop" && <rect x={x + 4} y={Y(c, h.base) - 1.2} width={u.w - 8} height={1.2} fill={GLASS} />}</>;
+      return <>{plinth}<Stack c={c} x={x} y0={by} w={u.w} h={bh} n={n} fill={fr} fills={pf} r={r} />{u.kind === "cooktop" && <rect x={x + (u.w - Math.min(u.hobW || u.w - 8, u.w)) / 2} y={Y(c, h.base) - 1.2} width={Math.min(u.hobW || u.w - 8, u.w)} height={1.2} fill={GLASS} />}</>;
     case "dishwasher":
       return <>{plinth}<Front c={c} x={x} y0={f0} w={u.w} h={fh} fill={pf[0] || fr} handle="top" r={`${r}.0`} /><Label c={c} x={mid} y={Y(c, f0 + fh / 2)} t="מדיח" light={isDark(pf[0] || fr)} /></>;
     case "oven": {
@@ -175,7 +178,7 @@ function BaseShape({ c, u, x, units, index, at }: { c: Ctx; u: BaseUnit; x: numb
     }
     case "fridge": {
       const freezer = h.tall * 0.36;
-      const body = u.color ? colorOf(u.color, FRONT_COLORS, STEEL) : STEEL;
+      const body = u.fridgeType === "built" ? fr : u.color ? colorOf(u.color, FRONT_COLORS, STEEL) : STEEL;
       return (
         <>
           <rect data-front={`${r}.-1`} x={x + 0.3} y={Y(c, h.tall)} width={u.w - 0.6} height={h.tall} fill={body} stroke={LINE} strokeWidth={0.35} />
@@ -244,6 +247,7 @@ function upperFront(c: Ctx, u: UpperUnit, x: number, y0: number, uh: number, n: 
         </g>
       );
     case "hood": {
+      if (u.hoodType === "flat") return <rect x={x + 1} y={Y(c, y0 + 12)} width={u.w - 2} height={12} fill={STEEL} stroke={LINE} strokeWidth={0.35} />;
       const cw = Math.min(30, u.w * 0.4);
       const canopy = 14;
       return (
@@ -294,6 +298,7 @@ function ctxOf(l: KitchenLayout, length: number): Ctx {
     upper: colorOf(l.colors?.upper || l.colors?.front, FRONT_COLORS, front),
     counter: colorOf(l.colors?.counter, COUNTER_COLORS, COUNTER_COLORS.white_stone.hex),
     handles: !l.colors?.handles || l.colors.handles === "bar",
+    hl: handleOf(l),
     grip: l.colors?.handles === "integral",
     plinth: !l.colors?.plinth ? "#5b544d" : l.colors.plinth === "front" ? front : colorOf(l.colors.plinth, FRONT_COLORS, "#5b544d"),
     f: Math.min(11, Math.max(6, length * 0.024)),
@@ -357,6 +362,7 @@ export function Elevation({ layout, title, length, base, upper, top = [], island
           return [u.side === "left" || u.side === "both" ? u.a : null, u.side === "right" || u.side === "both" ? u.a + u.w - 1 : null].filter((v): v is number => v !== null)
             .map((sx) => <rect key={`sd${i}-${sx}`} x={sx} y={Y(c, y1)} width={1} height={y1 - y0} fill={fr} stroke={INK} strokeWidth={0.5} />);
         })}
+        {!island && layout.lighting?.underCabinet && pu.map((u, i) => (u.kind === "gap" || u.kind === "corner" || u.kind === "hood" ? null : <line key={"led" + i} x1={u.a + 1} x2={u.a + u.w - 1} y1={Y(c, upperBox(u, h, "upper").y0) + 0.8} y2={Y(c, upperBox(u, h, "upper").y0) + 0.8} stroke="#f2b632" strokeWidth={1.2} />))}
         {splash > 0 && spans.map((s, i) => <rect key={"sp" + i} x={s.a} y={Y(c, h.base + splash)} width={s.w} height={splash} fill={c.counter} stroke={LINE} strokeWidth={0.3} opacity={0.8} />)}
         {spans.map((s, i) => <rect key={"c" + i} x={s.a} y={Y(c, h.base)} width={s.w} height={h.counter} fill={c.counter} stroke={LINE} strokeWidth={0.4} />)}
         {spans.length > 0 && fallL && <rect x={spans[0].a - h.counter} y={Y(c, h.base)} width={h.counter} height={h.base} fill={c.counter} stroke={LINE} strokeWidth={0.4} />}
@@ -443,6 +449,7 @@ export function PlanView({ layout: l }: { layout: KitchenLayout }) {
                 return (
                   <g key={k}>
                     <polygon points={poly([P(g, u.a, 0), P(g, u.a + u.w, 0), P(g, u.a + u.w, dp), P(g, u.a, dp)])} fill={fill} stroke={LINE} strokeWidth={0.6} />
+                    {u.kind === "sink" && u.sink?.bowls === 2 && <line x1={c[0]} x2={c[0]} y1={c[1] - 20} y2={c[1] + 20} stroke={LINE} strokeWidth={0.8} transform={g.dz ? `rotate(90 ${c[0]} ${c[1]})` : undefined} />}
                     {u.kind === "sink" && <rect x={c[0] - Math.min(u.w - 14, 50) / 2} y={c[1] - 20} width={Math.min(u.w - 14, 50)} height={40} rx={5} fill="#b8bdc1" stroke={LINE} strokeWidth={0.5} transform={g.dz ? `rotate(90 ${c[0]} ${c[1]})` : undefined} />}
                     {u.kind === "cooktop" && [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz], j) => (
                       <circle key={j} cx={c[0] + sx * Math.min(14, u.w / 4.5)} cy={c[1] + sz * 12} r={7} fill="none" stroke={GLASS} strokeWidth={1.4} />

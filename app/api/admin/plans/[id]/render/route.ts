@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@sanity/client";
 import { generateImage } from "@/lib/marketing/gemini-image";
 import { getPlan, getSecrets, putPlan } from "@/lib/quotes/store";
-import { colorName, COUNTER_COLORS, heightsOf } from "@/lib/quotes/layout";
+import { applianceText, colorName, COUNTER_COLORS, handleOf, heightsOf } from "@/lib/quotes/layout";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -34,12 +34,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const l = plan.layout, c = l.colors || {}, h = heightsOf(l);
   const own = [...l.walls.flatMap((w) => [...w.base, ...w.upper, ...(w.top || [])]), ...(l.island?.base || [])]
     .flatMap((u) => [u.color, ...(u.fronts || [])]).filter(Boolean).map((v) => colorName(v)).filter((v, i, a) => a.indexOf(v) === i);
+  const hl = handleOf(l);
+  const appliances = [...l.walls.flatMap((w) => [...w.base, ...w.upper]), ...(l.island?.base || [])].map((u) => ({ fridge: u.kind === "fridge" && (u as { fridgeType?: string }).fridgeType === "built" ? "an integrated fridge hidden behind cabinet fronts" : "", gas: u.kind === "cooktop" && (u as { hob?: string }).hob === "gas" ? "a gas hob with black grates" : "", faucet: u.kind === "sink" && (u as { sink?: { faucet?: string } }).sink?.faucet ? `a ${(u as { sink?: { faucet?: string } }).sink?.faucet} faucet` : "", label: applianceText(u) })).flatMap((x) => [x.fridge, x.gas, x.faucet]).filter(Boolean);
+  const lights = [l.lighting?.underCabinet && "warm LED strips glowing under the wall cabinets", l.lighting?.spots && "recessed ceiling spots", l.lighting?.pendants && `${l.lighting.pendants} pendant lights over the island`].filter(Boolean);
   const prompt = [
     "Turn this 3D model of custom cabinetry (a kitchen or a wall unit) into a photorealistic interior photograph, as if the finished kitchen was photographed by a top architectural photographer.",
     "ABSOLUTE RULE: keep the kitchen exactly as modeled: the same layout, the same cabinets with the same widths, heights and positions, the same division into doors and drawers, the same colors of every front (a front with a different color in the model keeps that color), the same countertop outline, the same appliances in the same places, the same windows, doors, columns and beams, the same camera angle and framing. Do not add, remove or move any cabinet, door, drawer or appliance. Spaces between cabinets and walls stay exactly as modeled: never add extra wall, floor or empty space beside a cabinet, and never close a space that is modeled.",
     `The left end of the kitchen: ${endText(l.ends?.left)} The right end of the kitchen: ${endText(l.ends?.right)}`,
     "Make it real: real materials and textures for every surface, real built-in appliances (ovens, induction hob, fridge, sink and faucet, dishwasher) looking like modern premium brands, soft natural daylight with gentle shadows, a finished room (painted walls, a real floor, ceiling), a few minimal tasteful accessories at most.",
-    `Materials: fronts ${c.front ? colorName(c.front) : "matte white"}${c.upper ? `, wall cabinets ${colorName(c.upper)}` : ""}${own.length ? `, other fronts as colored in the model (${own.join("; ")})` : ""}; ${c.counter === "none" ? "no countertop at all" : `countertop ${COUNTER_COLORS[c.counter || "white_stone"]?.name || c.counter} ${h.counter} cm thick`}; ${HANDLES[c.handles || "bar"]}. The Bluran front names are real Israeli front materials: render them true to their color and finish (matte, gloss, wood veneer, stone look).`,
+    `Materials: fronts ${c.front ? colorName(c.front) : "matte white"}${c.upper ? `, wall cabinets ${colorName(c.upper)}` : ""}${own.length ? `, other fronts as colored in the model (${own.join("; ")})` : ""}; ${c.counter === "none" ? "no countertop at all" : `countertop ${COUNTER_COLORS[c.counter || "white_stone"]?.name || c.counter} ${h.counter} cm thick`}; ${c.handles === "integral" || c.handles === "none" ? HANDLES[c.handles] : `${hl.style === "knob" ? "small round knobs" : hl.style === "edge" ? "slim edge-pull profiles" : `bar handles ${hl.length} cm long`} in ${hl.name === "נירוסטה" ? "brushed steel" : hl.name === "שחור" ? "matte black" : hl.name === "זהב" ? "brushed gold" : "bronze"}`}.${appliances.length ? ` Appliances: ${appliances.join("; ")}.` : ""}${lights.length ? ` Lighting: ${lights.join("; ")}.` : ""} The Bluran front names are real Israeli front materials: render them true to their color and finish (matte, gloss, wood veneer, stone look).`,
     b.notes?.trim() && `Notes from the kitchen maker (Hebrew, follow them): ${b.notes.trim().slice(0, 800)}`,
     "It must look like a real photograph, not a render: real optics, natural light falloff, believable reflections. No text, no watermark, no brand names or logos on any appliance or anywhere else.",
   ].filter(Boolean).join("\n");

@@ -65,7 +65,7 @@ export default async function ShopPage({ params }: { params: { id: string } }) {
         <div>
           <h1>דפי ייצור · {p.title || "מטבח"}</h1>
           <div>{p.client.name}{p.client.phone ? ` · ${p.client.phone}` : ""}</div>
-          <div className="sh-rules">כללי בנייה בחישוב: לוח {rules.board}, גב {rules.back}, רווח חזיתות {rules.frontGap}, מדף קצר ב-{rules.shelfSetback}. משנים בהגדרות. המידות בס״מ.</div>
+          <div className="sh-rules">כללי בנייה בחישוב: לוח {rules.board}, גב {rules.back} על הגוף מבחוץ, עובי חזית {rules.frontThick}, רווח חזיתות {rules.frontGap}, מדף קצר ב-{rules.shelfSetback}. הדפנות חובקות את העליון והתחתון. משנים בהגדרות. המידות בס״מ.</div>
           <div className="sh-warn">החישוב אוטומטי. לבדוק מול הסטנדרט שלך לפני הזמנה וחיתוך.</div>
         </div>
         <PrintButton />
@@ -99,7 +99,16 @@ export default async function ShopPage({ params }: { params: { id: string } }) {
             <tbody>{t.hardware.map((x) => <tr key={x.name}><td>{x.name}</td><td className="n">{x.qty}</td><td>{x.of.join(", ")}</td></tr>)}</tbody>
           </table>
         ) : <p>אין בתכנון הזה.</p>}
-        <p className="sh-note">ציר מחושב לפי גובה הדלת: 2 עד 100 ס״מ, 3 עד 170, 4 מעל. דגמי המגירות והקלפות נבחרים בהצעה.</p>
+        <p className="sh-note">צירים: עד 60 ס״מ בין ציר לציר. דגמי המגירות והקלפות נבחרים בהצעה.</p>
+        {t.appliances.length > 0 && (
+          <>
+            <h2>מכשירים</h2>
+            <table className="sh-t">
+              <thead><tr><th>ארון</th><th>מכשיר</th></tr></thead>
+              <tbody>{t.appliances.map((x, i) => <tr key={i}><td>{x.of}</td><td>{x.text}</td></tr>)}</tbody>
+            </table>
+          </>
+        )}
       </section>
 
       <section className="sh-break">

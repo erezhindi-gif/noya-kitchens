@@ -5,7 +5,7 @@
 import { useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import {
-  BASE_LABEL, CORNER_LABEL, COUNTER_COLORS, DEFAULT_HEIGHTS, OBSTACLE_LABEL, OPENING_LABEL, POINT_LABEL, PART_LABEL, hasCounter, UPPER_LABEL, columnParts, endWallLen, heightsOf, layoutWarnings, leftGap, paintFront, partsOf, setLeftGap, wallName,
+  BASE_LABEL, CORNER_LABEL, COUNTER_COLORS, HANDLE_FINISH, SIZE_PRESETS, DEFAULT_HEIGHTS, OBSTACLE_LABEL, OPENING_LABEL, POINT_LABEL, PART_LABEL, hasCounter, UPPER_LABEL, columnParts, endWallLen, heightsOf, layoutWarnings, leftGap, paintFront, partsOf, setLeftGap, wallName,
   type BaseKind, type BaseUnit, type ColumnPart, type UnitExtras, type KitchenLayout, type LayoutWall, type Obstacle, type Opening, type RoomPoint, type LayoutHeights, type UpperKind, type UpperUnit,
 } from "@/lib/quotes/layout";
 import KitchenPlan from "./KitchenPlan";
@@ -84,14 +84,79 @@ function UnitRows<K extends string>({ units, labels, onChange, addKind, box }: {
             {frontScopes(u.kind, u.w, u.n, !!box, u).length > 0 && (
               <SwatchButton value={u.color || u.fronts?.find(Boolean)} empty={!u.color && !u.fronts?.some(Boolean)} label="צבע הארון והדלתות" onClick={() => setPaint(i)} />
             )}
-            {!["gap", "hood", "shelf", "fridge", "oven", "dishwasher", "panel"].includes(u.kind) && <button type="button" className="nq-btn sm ghost" aria-label="עוד אפשרויות לארון" aria-expanded={more === i} onClick={() => setMore(more === i ? null : i)}>⋯</button>}
+            {!["gap", "shelf", "panel"].includes(u.kind) && <button type="button" className="nq-btn sm ghost" aria-label="עוד אפשרויות לארון" aria-expanded={more === i} onClick={() => setMore(more === i ? null : i)}>⋯</button>}
             <button type="button" className="nq-btn sm ghost" disabled={i === 0} onClick={() => move(i, -1)} aria-label="הזז שמאלה">‹</button>
             <button type="button" className="nq-btn sm ghost" disabled={i === units.length - 1} onClick={() => move(i, 1)} aria-label="הזז ימינה">›</button>
             <button type="button" className="nq-btn sm ghost" onClick={() => onChange(units.filter((_, j) => j !== i))} aria-label="הסר">×</button>
           </span>
           {more === i && (
             <span className="nqp-box nqp-more">
-              {u.kind === "corner" ? (
+              {!!SIZE_PRESETS[u.kind as BaseKind]?.length && (
+                <label>רוחב רגיל
+                  <select className="in" style={{ width: "auto" }} value={SIZE_PRESETS[u.kind as BaseKind]!.includes(u.w) ? u.w : ""} onChange={(e) => e.target.value && set(i, { w: Number(e.target.value) })}>
+                    <option value="">אחר</option>
+                    {SIZE_PRESETS[u.kind as BaseKind]!.map((v) => <option key={v} value={v}>{v}</option>)}
+                  </select>
+                </label>
+              )}
+              {u.kind === "fridge" && (
+                <label>סוג
+                  <select className="in" style={{ width: "auto" }} value={u.fridgeType || "standing"} onChange={(e) => set(i, { fridgeType: e.target.value === "built" ? "built" : undefined })}>
+                    <option value="standing">עומד</option>
+                    <option value="built">אינטגרלי מאחורי חזיתות</option>
+                  </select>
+                </label>
+              )}
+              {u.kind === "cooktop" && (
+                <>
+                  <label>כיריים
+                    <select className="in" style={{ width: "auto" }} value={u.hob || "induction"} onChange={(e) => set(i, { hob: e.target.value === "gas" ? "gas" : undefined })}>
+                      <option value="induction">אינדוקציה</option>
+                      <option value="gas">גז</option>
+                    </select>
+                  </label>
+                  <label>רוחב כיריים<input className="in num" type="number" inputMode="decimal" placeholder="60" value={u.hobW ?? ""} onChange={(e) => set(i, { hobW: optNum(e.target.value) })} /></label>
+                </>
+              )}
+              {u.kind === "hood" && (
+                <label>קולט
+                  <select className="in" style={{ width: "auto" }} value={u.hoodType || "chimney"} onChange={(e) => set(i, { hoodType: e.target.value === "flat" ? "flat" : undefined })}>
+                    <option value="chimney">עם ארובה</option>
+                    <option value="flat">שטוח</option>
+                  </select>
+                </label>
+              )}
+              {u.kind === "sink" && (
+                <>
+                  <label>התקנה
+                    <select className="in" style={{ width: "auto" }} value={u.sink?.mount || "under"} onChange={(e) => set(i, { sink: { ...u.sink, mount: e.target.value === "top" ? "top" : undefined } })}>
+                      <option value="under">מתחת למשטח</option>
+                      <option value="top">על המשטח</option>
+                    </select>
+                  </label>
+                  <label>קערות
+                    <select className="in" style={{ width: "auto" }} value={u.sink?.bowls || 1} onChange={(e) => set(i, { sink: { ...u.sink, bowls: e.target.value === "2" ? 2 : undefined } })}>
+                      <option value={1}>בודד</option>
+                      <option value={2}>כפול</option>
+                    </select>
+                  </label>
+                  <label>צבע כיור
+                    <select className="in" style={{ width: "auto" }} value={u.sink?.color || "steel"} onChange={(e) => set(i, { sink: { ...u.sink, color: e.target.value === "steel" ? undefined : (e.target.value as "black" | "white") } })}>
+                      <option value="steel">נירוסטה</option>
+                      <option value="black">שחור</option>
+                      <option value="white">לבן</option>
+                    </select>
+                  </label>
+                  <label>ברז
+                    <select className="in" style={{ width: "auto" }} value={u.sink?.faucet || "steel"} onChange={(e) => set(i, { sink: { ...u.sink, faucet: e.target.value === "steel" ? undefined : (e.target.value as "black" | "gold") } })}>
+                      <option value="steel">נירוסטה</option>
+                      <option value="black">שחור</option>
+                      <option value="gold">זהב</option>
+                    </select>
+                  </label>
+                </>
+              )}
+              {["fridge", "oven", "dishwasher", "hood"].includes(u.kind) ? null : u.kind === "corner" ? (
                 <label>סוג פינה
                   <select className="in" style={{ width: "auto" }} value={u.cornerType || ""} onChange={(e) => set(i, { cornerType: (e.target.value || undefined) as UnitExtras["cornerType"] })}>
                     <option value="">סגורה עם פס</option>
@@ -390,6 +455,23 @@ export default function LayoutEditor({ layout, onChange, claudeHref, shotRef, vi
       <div className="nqp-box nqp-counter">
         <label>קרניז בגובה<input className="in num" type="number" inputMode="decimal" placeholder="בלי" value={layout.cornice?.h ?? ""} onChange={(e) => up((l) => { const h = Number(e.target.value) || undefined; l.cornice = h || l.cornice?.toCeiling ? { ...l.cornice, h } : undefined; })} /></label>
         <label><input type="checkbox" style={{ width: "auto" }} checked={!!layout.cornice?.toCeiling} onChange={(e) => up((l) => { l.cornice = e.target.checked ? { ...l.cornice, toCeiling: true } : l.cornice?.h ? { ...l.cornice, toCeiling: undefined } : undefined; })} /> קרניז עד התקרה</label>
+        <label>ידית
+          <select className="in" style={{ width: "auto" }} value={layout.handle?.style || "bar"} onChange={(e) => up((l) => { l.handle = { ...l.handle, style: e.target.value === "bar" ? undefined : (e.target.value as "knob" | "edge") }; })}>
+            <option value="bar">קשת</option>
+            <option value="knob">כפתור</option>
+            <option value="edge">פרופיל בקצה</option>
+          </select>
+        </label>
+        <label>אורך ידית<input className="in num" type="number" inputMode="decimal" placeholder="16" value={layout.handle?.length ?? ""} onChange={(e) => up((l) => { l.handle = { ...l.handle, length: Number(e.target.value) || undefined }; })} /></label>
+        <label>גמר ידית
+          <select className="in" style={{ width: "auto" }} value={layout.handle?.finish || "steel"} onChange={(e) => up((l) => { l.handle = { ...l.handle, finish: e.target.value === "steel" ? undefined : e.target.value }; })}>
+            {Object.entries(HANDLE_FINISH).map(([k, v]) => <option key={k} value={k}>{v.name}</option>)}
+          </select>
+        </label>
+        <label><input type="checkbox" style={{ width: "auto" }} checked={!!layout.lighting?.underCabinet} onChange={(e) => up((l) => { l.lighting = { ...l.lighting, underCabinet: e.target.checked || undefined }; })} /> לד מתחת לעליונים</label>
+        <label><input type="checkbox" style={{ width: "auto" }} checked={!!layout.lighting?.nicheLed} onChange={(e) => up((l) => { l.lighting = { ...l.lighting, nicheLed: e.target.checked || undefined }; })} /> לד בנישות</label>
+        <label>ספוטים<input className="in num" type="number" inputMode="numeric" placeholder="0" value={layout.lighting?.spots ?? ""} onChange={(e) => up((l) => { l.lighting = { ...l.lighting, spots: Number(e.target.value) || undefined }; })} /></label>
+        {!!layout.island && <label>תליונים מעל האי<input className="in num" type="number" inputMode="numeric" placeholder="0" value={layout.lighting?.pendants ?? ""} onChange={(e) => up((l) => { l.lighting = { ...l.lighting, pendants: Number(e.target.value) || undefined }; })} /></label>}
         <label>סוקל
           <select className="in" style={{ width: "auto" }} value={c.plinth === "front" ? "front" : ""} onChange={(e) => up((l) => { l.colors = { ...l.colors, plinth: e.target.value || undefined }; })}>
             <option value="">כהה</option>

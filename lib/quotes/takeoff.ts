@@ -2,7 +2,7 @@
 // hardware to buy, panels and quantities for the quote. Everything is worked out from the same centimeters
 // as the drawing. The building rules below are defaults Erez can change in the settings.
 import {
-  BASE_LABEL, UPPER_LABEL, baseUnitTop, colorName, columnParts, cornerPart, corniceBoxes, frontsFrom, hasCounter, heightsOf, panelHeights, partsOf, placed, tallOvenParts, tvSize, upperBox, wallName,
+  BASE_LABEL, PART_LABEL, UPPER_LABEL, applianceText, baseUnitTop, colorName, columnParts, cornerPart, corniceBoxes, frontsFrom, hasCounter, heightsOf, panelHeights, partsOf, placed, tallOvenParts, tvSize, upperBox, wallName,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperUnit,
 } from "./layout";
 
@@ -11,8 +11,9 @@ export type ShopRules = {
   /** back panel thickness */ back: number;
   /** gap between fronts */ frontGap: number;
   /** a shelf is this much shallower than the cabinet */ shelfSetback: number;
+  /** a cabinet's depth counts its front too */ frontThick: number;
 };
-export const DEFAULT_RULES: ShopRules = { board: 1.8, back: 0.5, frontGap: 0.3, shelfSetback: 2 };
+export const DEFAULT_RULES: ShopRules = { board: 1.8, back: 0.5, frontGap: 0.3, shelfSetback: 2, frontThick: 2 };
 
 export type Cabinet = { no: string; wall: string; row: string; kind: string; from: number; bottom: number; w: number; h: number; d: number; fronts: number; note: string };
 export type Piece = { of: string; name: string; w: number; h: number; qty: number; color?: string };
@@ -23,6 +24,7 @@ export type Takeoff = {
   carcass: Piece[];
   panels: Piece[];
   hardware: Hardware[];
+  appliances: { of: string; text: string }[];
   /** for the quote: running meters by row, square meters of fronts, per the kitchen or wall unit rule */
   meters: { base: number; upper: number; top: number; tall: number; fridge: number; corner: number; frontsArea: number; panelsArea: number; counter: number; plinth: number; cornice: number; splashArea: number };
   points: { wall: string; kind: string; from: number; height: number }[];
@@ -33,7 +35,7 @@ const LETTERS = ["א", "ב", "ג", "ד"];
 
 export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Takeoff {
   const h = heightsOf(l);
-  const out: Takeoff = { cabinets: [], fronts: [], carcass: [], panels: [], hardware: [], points: [], meters: { base: 0, upper: 0, top: 0, tall: 0, fridge: 0, corner: 0, frontsArea: 0, panelsArea: 0, counter: 0, plinth: 0, cornice: 0, splashArea: 0 } };
+  const out: Takeoff = { cabinets: [], fronts: [], carcass: [], panels: [], hardware: [], appliances: [], points: [], meters: { base: 0, upper: 0, top: 0, tall: 0, fridge: 0, corner: 0, frontsArea: 0, panelsArea: 0, counter: 0, plinth: 0, cornice: 0, splashArea: 0 } };
   const front = l.colors?.front, upperColor = l.colors?.upper || front;
 
   const hw = (name: string, qty: number, of: string) => {
@@ -49,10 +51,12 @@ export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Tak
     if (same) same.qty += qty; else out.fronts.push({ of, name, w: fw, h: fh, qty, color: col });
     out.meters.frontsArea += (fw * fh * qty) / 10000;
   };
-  const hinges = (hh: number) => (hh > 170 ? 4 : hh > 100 ? 3 : 2);
-  /** the box of one cabinet: two sides, top and bottom between them, a back and its shelves */
+  // Erez's rule: no more than 60 cm between hinges
+  const hinges = (hh: number) => Math.max(2, Math.ceil((hh - 10) / 60) + 1);
+  /** The box of one cabinet, as Erez builds it: the sides run the full height and hold the top and bottom between them;
+   *  the back sits on the outside of the body, so it takes the body's outer size and the rest are shorter by its thickness. */
   const box = (of: string, w: number, hh: number, d: number, shelves = 0) => {
-    const t = rules.board, inner = r1(w - 2 * t), deep = r1(d - rules.back);
+    const t = rules.board, inner = r1(w - 2 * t), deep = r1(d - rules.frontThick - rules.back);
     out.carcass.push({ of, name: "דופן", w: deep, h: r1(hh), qty: 2 });
     out.carcass.push({ of, name: "תחתית ותקרה", w: inner, h: deep, qty: 2 });
     out.carcass.push({ of, name: "גב", w: r1(w), h: r1(hh), qty: 1 });
@@ -71,6 +75,7 @@ export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Tak
     placed(units).forEach((u, i) => {
       if (u.kind === "gap") return;
       const no = `${letter}${++seq}`, by = u.y ?? f0, d = u.d ?? depth, top = baseUnitTop(u, h), label = BASE_LABEL[u.kind];
+      if (applianceText(u)) out.appliances.push({ of: no, text: applianceText(u) });
       const add = (hh: number, fronts: number, note = "") => out.cabinets.push({ no, wall, row: "תחתון", kind: label, from: u.a, bottom: by, w: u.w, h: r1(hh), d, fronts, note });
       if (u.kind === "corner") {
         const c = cornerPart(units, i, depth);
@@ -85,6 +90,13 @@ export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Tak
         if (u.cornerType === "carousel") hw("מנגנון קרוסלה", 1, no);
         if (u.cornerType === "pullout") hw("מנגנון פינה לאמנס", 1, no);
         if (u.cornerType) hw("ציר", hinges(fh), no);
+        return;
+      }
+      if (u.kind === "fridge" && u.fridgeType === "built") {
+        add(h.tall, 2, "מקרר אינטגרלי");
+        const fz = h.tall * 0.36;
+        addFront(no, "חזית מקרר עליונה", u.w, h.tall - fz, 1, u.color || front);
+        addFront(no, "חזית מקפיא", u.w, fz, 1, u.color || front);
         return;
       }
       if (u.kind === "fridge") return add(h.tall, 0, "מקום למקרר, בלי ארון");
@@ -107,6 +119,7 @@ export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Tak
           }
           box(ofp, u.w, p.h, pd);
           if (p.kind === "panel") return addFront(ofp, "חזית", u.w, p.h, 1, colorAt(u, p.from, front));
+          if (p.kind === "oven" || p.kind === "microwave" || p.kind === "coffee") return void out.appliances.push({ of: ofp, text: `${PART_LABEL[p.kind]} ${u.w}, פתח בגובה ${p.h}` });
           for (let n = 0; n < p.count; n++) {
             if (p.kind === "doors") addFront(ofp, "דלת", u.w / p.count, p.h, 1, colorAt(u, p.from + n, front));
             if (p.kind === "drawers") addFront(ofp, "מגירה", u.w, p.h / p.count, 1, colorAt(u, p.from + n, front));
@@ -181,6 +194,7 @@ export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Tak
   const doUpper = (units: UpperUnit[], row: "upper" | "top", letter: string, wall: string, start: number) => {
     let seq = start;
     for (const u of placed(units)) {
+      if (u.kind === "hood") out.appliances.push({ of: "עליון", text: applianceText(u) });
       if (["gap", "corner", "hood"].includes(u.kind)) continue;
       const no = `${letter}${++seq}`, b = upperBox(u, h, row), label = UPPER_LABEL[u.kind], rowName = row === "upper" ? "עליון" : "שורה עליונה";
       const n = partsOf(u.kind, u.w, u.n, true);
@@ -238,6 +252,15 @@ export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Tak
     doBase(l.island.base, "אי", "אי", l.island.d);
     out.meters.base += l.island.base.filter((u) => u.kind !== "gap").reduce((a, u) => a + u.w, 0) / 100;
     if (hasCounter(l)) out.meters.counter += l.island.w / 100;
+  }
+  // lights and handles count too
+  const ll = l.lighting;
+  if (ll?.underCabinet) hw("פס לד מתחת לעליונים, מטר", Math.ceil(out.meters.upper), "עליונים");
+  if (ll?.spots) hw("ספוט תקרה", ll.spots, "תקרה");
+  if (ll?.pendants) hw("מנורה תלויה", ll.pendants, "אי");
+  if (!l.colors?.handles || l.colors.handles === "bar") {
+    const doorsAndDrawers = out.fronts.filter((f) => !["חזית", "חזית מדיח"].includes(f.name)).reduce((a, f) => a + f.qty, 0);
+    if (l.handle?.style !== "edge") hw(l.handle?.style === "knob" ? "כפתור" : `ידית ${l.handle?.length || 16}`, doorsAndDrawers, "חזיתות");
   }
   const m = out.meters;
   m.panelsArea = out.panels.filter((p) => p.name === "חיפוי" || p.name === "פאנל צד").reduce((a, p) => a + (p.w * p.h * p.qty) / 10000, 0);

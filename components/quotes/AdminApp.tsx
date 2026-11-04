@@ -1436,7 +1436,7 @@ function SettingsView({ data, upd }: { data: AppData; upd: (fn: (s: Settings, pr
         <section className="nq-card">
           <h2 style={{ marginBottom: 12 }}>כללי בנייה לדפי הייצור (ס״מ)</h2>
           <div className="nq-fields">
-            {([["board", "עובי לוח", DEFAULT_RULES.board], ["back", "עובי גב", DEFAULT_RULES.back], ["frontGap", "רווח בין חזיתות", DEFAULT_RULES.frontGap], ["shelfSetback", "כמה מדף קצר מהארון", DEFAULT_RULES.shelfSetback]] as const).map(([k, label, dflt]) => (
+            {([["board", "עובי לוח", DEFAULT_RULES.board], ["back", "עובי גב", DEFAULT_RULES.back], ["frontGap", "רווח בין חזיתות", DEFAULT_RULES.frontGap], ["shelfSetback", "כמה מדף קצר מהארון", DEFAULT_RULES.shelfSetback], ["frontThick", "עובי חזית (נכלל בעומק הארון)", DEFAULT_RULES.frontThick]] as const).map(([k, label, dflt]) => (
               <label key={k} className="f">{label}
                 <input className="in num" type="number" step="0.1" inputMode="decimal" placeholder={String(dflt)} value={st.shopRules?.[k] ?? ""}
                   onChange={(e) => upd((s) => { s.shopRules = { ...s.shopRules, [k]: e.target.value === "" ? undefined : Number(e.target.value) }; })} />

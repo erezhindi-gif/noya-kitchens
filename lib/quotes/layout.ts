@@ -22,6 +22,10 @@ export type UnitExtras = {
   side?: "left" | "right" | "both";
   glass?: "clear" | "smoked";
   cornerType?: "carousel" | "pullout" | "door";
+  /** fridge: built = behind fronts like the cabinets */ fridgeType?: "standing" | "built";
+  /** cooktop */ hob?: "induction" | "gas"; hobW?: number;
+  /** sink */ sink?: { mount?: "under" | "top"; bowls?: 1 | 2; color?: "steel" | "black" | "white"; faucet?: "steel" | "black" | "gold" };
+  /** hood: flat = a slim box with no chimney */ hoodType?: "chimney" | "flat";
 };
 
 /** n = number of doors, drawers, flaps or shelves (each kind has a sensible default);
@@ -30,7 +34,7 @@ export type UnitExtras = {
  *  y = bottom above the floor, h = height, d = depth: each falls back to the row's;
  *  panel: a front with no cabinet, in the plane of the fronts; splits = its pieces' heights, bottom up (fronts in the same order);
  *  column: parts stacked bottom up in one width; fronts run over all its parts, bottom part first */
-export type ColumnPart = { kind: "doors" | "drawers" | "lift" | "panel" | "niche"; h: number; n?: number; d?: number; recess?: number; frame?: number; tv?: boolean; tvGap?: number };
+export type ColumnPart = { kind: "doors" | "drawers" | "lift" | "panel" | "niche" | "oven" | "microwave" | "coffee"; h: number; n?: number; d?: number; recess?: number; frame?: number; tv?: boolean; tvGap?: number };
 export type BaseUnit = UnitExtras & { kind: BaseKind; w: number; n?: number; color?: string; fronts?: string[]; y?: number; h?: number; d?: number; splits?: number[]; parts?: ColumnPart[]; recess?: number; frame?: number };
 /** d = depth, h = height, y = bottom above the floor; each falls back to its row's default;
  *  recess, frame (open only): a niche, its back recess cm behind a frame of that thickness in the plane of the fronts;
@@ -69,6 +73,10 @@ export type KitchenLayout = {
   /** the counter's edge: over = how far it comes past the fronts (default 2); fallLeft/fallRight = it runs down to the floor at the
    *  kitchen's free end; splash = height of the same stone on the wall above it, 0 or missing = none */
   counter?: { over?: number; fallLeft?: boolean; fallRight?: boolean; splash?: number };
+  /** handles: bar or knob, its length (bar), and finish steel/black/gold/bronze. Whether there are handles at all is colors.handles */
+  handle?: { style?: "bar" | "knob" | "edge"; length?: number; finish?: string };
+  /** lighting: underCabinet = LED strip under the uppers, nicheLed = LED in open cells and niches, spots = ceiling spots, pendants = hanging lights over the island */
+  lighting?: { underCabinet?: boolean; nicheLed?: boolean; spots?: number; pendants?: number };
   /** a cornice on top of the highest cabinets: h = its height, or up to the ceiling; over = how far it comes past the fronts */
   cornice?: { h?: number; toCeiling?: boolean; over?: number };
   /** the kitchen's two free ends: "wall" = a wall stands across that end (leftLen/rightLen = how far it runs into the room); missing = open */
@@ -92,7 +100,29 @@ export const POINT_LABEL: Record<RoomPoint["kind"], string> = { water: "מים",
 /** where an opening stands, with its defaults */
 export const openingBox = (o: Opening) => (o.kind === "door" ? { y: o.y ?? 0, h: o.h ?? 210 } : { y: o.y ?? 100, h: o.h ?? 120 });
 export const beamHeight = (o: Obstacle) => o.h ?? 30;
-export const PART_LABEL: Record<ColumnPart["kind"], string> = { doors: "דלתות", drawers: "מגירות", lift: "קלפה", panel: "חיפוי", niche: "נישה" };
+export const PART_LABEL: Record<ColumnPart["kind"], string> = { doors: "דלתות", drawers: "מגירות", lift: "קלפה", panel: "חיפוי", niche: "נישה", oven: "תנור", microwave: "מיקרו", coffee: "מכונת קפה" };
+/** Standard appliance widths, cm, offered in the editor */
+export const SIZE_PRESETS: Partial<Record<BaseKind | UpperKind, number[]>> = {
+  fridge: [60, 70, 75, 90, 95, 120], dishwasher: [45, 60], oven: [60, 90], tall_oven: [60], sink: [45, 60, 80, 90, 120], cooktop: [60, 75, 80, 90, 100, 120], hood: [60, 75, 90, 120],
+};
+export const HANDLE_FINISH: Record<string, { name: string; hex: string; metal: number }> = {
+  steel: { name: "נירוסטה", hex: "#8b8f93", metal: 0.6 }, black: { name: "שחור", hex: "#17171a", metal: 0.3 }, gold: { name: "זהב", hex: "#b08d4a", metal: 0.8 }, bronze: { name: "ברונזה", hex: "#6b4a2f", metal: 0.6 },
+};
+/** what's set for the handles, with defaults */
+export const handleOf = (l: KitchenLayout) => ({ style: l.handle?.style || "bar", length: l.handle?.length || 16, ...(HANDLE_FINISH[l.handle?.finish || "steel"] || HANDLE_FINISH.steel) });
+/** Standard widths and what each appliance is, in words */
+export const applianceText = (u: BaseUnit | UpperUnit) => {
+  switch (u.kind) {
+    case "fridge": return `מקרר ${u.w} ${u.fridgeType === "built" ? "אינטגרלי" : "עומד"}`;
+    case "cooktop": return `כיריים ${u.hob === "gas" ? "גז" : "אינדוקציה"} ${u.hobW || Math.min(u.w - 8, 60)}`;
+    case "oven": return `תנור ${u.w} מתחת למשטח`;
+    case "tall_oven": return `תנור ${u.w} ומיקרו בארון גבוה`;
+    case "dishwasher": return `מדיח ${u.w} אינטגרלי`;
+    case "hood": return `קולט ${u.w} ${u.hoodType === "flat" ? "שטוח" : "עם ארובה"}`;
+    case "sink": return `כיור ${u.sink?.bowls === 2 ? "כפול" : "בודד"} ${u.sink?.mount === "top" ? "על המשטח" : "מתחת למשטח"}${u.sink?.color && u.sink.color !== "steel" ? (u.sink.color === "black" ? " שחור" : " לבן") : ""}, ברז ${u.sink?.faucet === "black" ? "שחור" : u.sink?.faucet === "gold" ? "זהב" : "נירוסטה"}`;
+    default: return "";
+  }
+};
 export const UPPER_LABEL: Record<UpperKind, string> = {
   doors: "דלתות", lift: "קלפה", open: "מדפים פתוחים", shelf: "מדף צף", hood: "קולט אדים", corner: "פינה", gap: "פנוי",
 };
@@ -112,6 +142,9 @@ export function upperBox(u: UpperUnit, h: LayoutHeights, row: UpperRow) {
 export const upperTop = (w: LayoutWall, h: LayoutHeights) =>
   Math.max(0, ...w.upper.filter((u) => u.kind !== "gap").map((u) => { const b = upperBox(u, h, "upper"); return b.y0 + b.hh; }),
     ...(w.top || []).filter((u) => u.kind !== "gap").map((u) => { const b = upperBox(u, h, "top"); return b.y0 + b.hh; }));
+
+/** Erez's widest door */
+export const DOOR_MAX = 60;
 
 /** Named colors Erez and Claude can use; any #hex works too. */
 export const FRONT_COLORS: Record<string, { name: string; hex: string }> = {
@@ -166,7 +199,7 @@ export const panelHeights = (u: BaseUnit, h: LayoutHeights) => (u.splits?.length
 export function columnParts(u: BaseUnit, h: LayoutHeights) {
   let y = u.y ?? frontsFrom(h), from = 0;
   return (u.parts || []).map((p) => {
-    const count = p.kind === "niche" ? 0 : p.kind === "panel" ? 1 : partsOf(p.kind, u.w, p.n, p.kind === "lift");
+    const count = ["niche", "oven", "microwave", "coffee"].includes(p.kind) ? 0 : p.kind === "panel" ? 1 : partsOf(p.kind as "doors" | "drawers" | "lift", u.w, p.n, p.kind === "lift");
     const out = { ...p, y0: y, from, count };
     y += p.h;
     from += count;
@@ -220,6 +253,11 @@ export function normalizeLayout(raw: unknown): KitchenLayout | null {
         ...(u.tv ? { tv: true, ...(u.tvGap !== undefined ? { tvGap: num(u.tvGap, 0, 60, 4) } : {}) } : {}),
         ...(u.side === "left" || u.side === "right" || u.side === "both" ? { side: u.side as UnitExtras["side"] } : {}),
         ...(u.glass === "clear" || u.glass === "smoked" ? { glass: u.glass as UnitExtras["glass"] } : {}),
+        ...(u.fridgeType === "built" || u.fridgeType === "standing" ? { fridgeType: u.fridgeType as UnitExtras["fridgeType"] } : {}),
+        ...(u.hob === "gas" || u.hob === "induction" ? { hob: u.hob as UnitExtras["hob"] } : {}),
+        ...(u.hobW ? { hobW: num(u.hobW, 30, 200, 60) } : {}),
+        ...(u.hoodType === "flat" || u.hoodType === "chimney" ? { hoodType: u.hoodType as UnitExtras["hoodType"] } : {}),
+        ...(u.sink && typeof u.sink === "object" ? { sink: u.sink as UnitExtras["sink"] } : {}),
         ...(u.cornerType === "carousel" || u.cornerType === "pullout" || u.cornerType === "door" ? { cornerType: u.cornerType as UnitExtras["cornerType"] } : {}),
         ...(() => {
           const v = (u.inside || {}) as Record<string, unknown>;
@@ -274,6 +312,16 @@ export function normalizeLayout(raw: unknown): KitchenLayout | null {
       ...(c.handles === "none" || c.handles === "integral" ? { handles: c.handles } : {}),
       ...(str(c.plinth) ? { plinth: str(c.plinth) } : {}),
     };
+  }
+  const hd = r.handle as Record<string, unknown> | undefined;
+  if (hd && typeof hd === "object") {
+    const handle = { ...(hd.style === "bar" || hd.style === "knob" || hd.style === "edge" ? { style: hd.style as "bar" | "knob" | "edge" } : {}), ...(hd.length ? { length: num(hd.length, 3, 200, 16) } : {}), ...(typeof hd.finish === "string" && HANDLE_FINISH[hd.finish] ? { finish: hd.finish } : {}) };
+    if (Object.keys(handle).length) out.handle = handle;
+  }
+  const lg = r.lighting as Record<string, unknown> | undefined;
+  if (lg && typeof lg === "object") {
+    const lighting = { ...(lg.underCabinet ? { underCabinet: true } : {}), ...(lg.nicheLed ? { nicheLed: true } : {}), ...(lg.spots ? { spots: num(lg.spots, 1, 40, 6) } : {}), ...(lg.pendants ? { pendants: num(lg.pendants, 1, 8, 3) } : {}) };
+    if (Object.keys(lighting).length) out.lighting = lighting;
   }
   const cr = r.cornice as Record<string, unknown> | undefined;
   if (cr && (cr.h || cr.toCeiling)) out.cornice = { ...(cr.h ? { h: num(cr.h, 1, 100, 10) } : {}), ...(cr.toCeiling ? { toCeiling: true } : {}), ...(cr.over ? { over: num(cr.over, 0, 20, 2) } : {}) };
@@ -344,6 +392,8 @@ export function layoutWarnings(l: KitchenLayout) {
     const t = sum(w.top || []);
     if (t > w.length + 0.5) out.push(`${wallName(l, i)}: השורה העליונה (${t} ס״מ) ארוכה מהקיר (${w.length} ס״מ)`);
     if (upperTop(w, heightsOf(l)) > heightsOf(l).ceiling + 0.5) out.push(`${wallName(l, i)}: הארונות העליונים עוברים את התקרה`);
+    const wide = (x: BaseUnit | UpperUnit) => x.kind === "doors" || x.kind === "sink" ? x.w / partsOf(x.kind, x.w, x.n) > DOOR_MAX + 0.5 : x.kind === "tall" && x.w > DOOR_MAX + 0.5;
+    for (const x of [...w.base, ...w.upper, ...(w.top || [])]) if (wide(x)) out.push(`${wallName(l, i)}: דלת רחבה מ-${DOOR_MAX} ס״מ ב${x.kind === "tall" ? "ארון גבוה" : "ארון"} ${x.w}. צריך לחלק ליותר דלתות`);
     for (const x of w.base) if (x.kind === "corner" && x.cornerType && x.w - heightsOf(l).depth < 25) out.push(`${wallName(l, i)}: פינה עם דלת צריכה לפחות ${heightsOf(l).depth + 25} ס״מ, כדי שהדלת תיפתח (היום ${x.w})`);
     const hh = heightsOf(l);
     const hits = (a0: number, a1: number, b0: number, b1: number) => a0 < b1 - 0.5 && b0 < a1 - 0.5;
@@ -391,6 +441,10 @@ export function describeLayout(l: KitchenLayout) {
   if (l.island) lines.push(`אי ${l.island.w}×${l.island.d}, מרחק ${l.island.gap} מהארונות: ${l.island.base.map((x) => u(x, BASE_LABEL)).join(" | ") || "—"}`);
   lines.push(`גבהים: ${hasCounter(l) ? `משטח ${h.base}` : "בלי משטח"}${h.plinth !== DEFAULT_HEIGHTS.plinth ? `, סוקל ${h.plinth}` : ""}${h.floorGap ? `, ניתוק מהרצפה ${h.floorGap}` : ""}, עומק ${h.depth}, עליונים מ-${h.upperFrom} בגובה ${h.upper} ועומק ${h.upperDepth}, שורה עליונה בעומק ${h.topDepth}, ארון גבוה ${h.tall}, תקרה ${h.ceiling}`);
   for (const s of sinkCenters(l)) lines.push(`מרכז כיור: ${s.wall}, ${s.from} ס״מ מהקצה השמאלי של הקיר`);
+  const apps = [...l.walls.flatMap((w) => [...w.base, ...w.upper]), ...(l.island?.base || [])].map(applianceText).filter(Boolean);
+  if (apps.length) lines.push(`מכשירים: ${apps.join(", ")}`);
+  if (l.handle) lines.push(`ידית: ${l.handle.style === "knob" ? "כפתור" : l.handle.style === "edge" ? "פרופיל בקצה" : `קשת ${l.handle.length || 16}`} ${HANDLE_FINISH[l.handle.finish || "steel"]?.name}`);
+  if (l.lighting) lines.push(`תאורה: ${[l.lighting.underCabinet && "פס לד מתחת לעליונים", l.lighting.nicheLed && "לד בנישות", l.lighting.spots && `${l.lighting.spots} ספוטים`, l.lighting.pendants && `${l.lighting.pendants} תליונים`].filter(Boolean).join(", ")}`);
   if (l.cornice) lines.push(`קרניז: ${l.cornice.toCeiling ? "עד התקרה" : `גובה ${l.cornice.h}`}, בליטה ${l.cornice.over ?? 2}`);
   if (l.counter) lines.push(`משטח: בליטה ${l.counter.over ?? 2}${l.counter.fallLeft ? ", מפל משמאל" : ""}${l.counter.fallRight ? ", מפל מימין" : ""}${l.counter.splash ? `, חיפוי קיר בגובה ${l.counter.splash}` : ""}`);
   const c = l.colors || {};
