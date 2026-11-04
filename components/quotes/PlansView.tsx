@@ -14,9 +14,10 @@ const leadNamed = (leads: Lead[], name: string) =>
   name.trim() ? [...leads].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).find((l) => l.name && sameName(l.name, name)) : undefined;
 const quoteOf = (p: Plan, quotes: Quote[]) => quotes.find((q) => q.id === p.quoteId) || quotes.find((q) => q.planId === p.id);
 
-export function PlansView({ data, onOpen, onNew, onQuote, onOpenQuote }: {
-  data: AppData; onOpen: (id: string) => void; onNew: () => void; onQuote: (p: Plan) => void; onOpenQuote: (id: string) => void;
+export function PlansView({ data, onOpen, onNew, onQuote, onOpenQuote, onDelete }: {
+  data: AppData; onOpen: (id: string) => void; onNew: () => void; onQuote: (p: Plan) => void; onOpenQuote: (id: string) => void; onDelete: (id: string) => void;
 }) {
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const plans = [...data.plans].sort((a, b) => (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt));
   return (
     <>
@@ -53,6 +54,15 @@ export function PlansView({ data, onOpen, onNew, onQuote, onOpenQuote }: {
                 {q
                   ? <button className="nq-btn sm" onClick={() => onOpenQuote(q.id)}>פתח הצעה {qnum(q)}</button>
                   : <button className="nq-btn sm" onClick={() => onQuote(p)}>הצעת מחיר מהתכנון ›</button>}
+                {confirmDel === p.id ? (
+                  <span className="nq-confirm">
+                    למחוק את התכנון?{q ? ` ההצעה ${qnum(q)} תישאר, בלי השרטוט.` : ""}
+                    <button className="nq-btn sm danger" onClick={() => { setConfirmDel(null); onDelete(p.id); }}>כן, למחוק</button>
+                    <button className="nq-btn sm" onClick={() => setConfirmDel(null)}>ביטול</button>
+                  </span>
+                ) : (
+                  <button className="nq-btn sm ghost" onClick={() => setConfirmDel(p.id)}>מחיקה</button>
+                )}
               </div>
             </article>
           );

@@ -508,7 +508,7 @@ export default function AdminApp() {
           onFollowed={(id) => updQuote(id, (x) => { x.followedAt = todayIL(); x.followUp = addDays(todayIL(), 5); })}
           onStatus={(id, s) => updQuote(id, (x) => setStatus(x, s), 0)}
           onAgent={(d) => newQuote({ ...d, pros: [], commissions: defaultCommissions(data.settings), round: false } as unknown as Quote, "טיוטה מהסוכן נפתחה:")} />}
-        {view === "plans" && <PlansView data={data} onOpen={(id) => go("plan", id)} onNew={() => go("plan", newPlan().id)} onQuote={quoteFromPlan} onOpenQuote={(id) => go("edit", id)} />}
+        {view === "plans" && <PlansView data={data} onOpen={(id) => go("plan", id)} onNew={() => go("plan", newPlan().id)} onQuote={quoteFromPlan} onOpenQuote={(id) => go("edit", id)} onDelete={removePlan} />}
         {view === "plan" && plan && (
           <PlanScreen plan={plan} data={data} upd={(fn) => updPlan(plan.id, fn)} saveNow={() => api(`/api/admin/plans/${plan.id}`, "PUT", plan)} onBack={() => go("plans")}
             onQuote={quoteFromPlan} onOpenQuote={(id) => go("edit", id)} onDelete={() => removePlan(plan.id)} />

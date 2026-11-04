@@ -1,8 +1,8 @@
 "use client";
 // The kitchen in 3D, built from the same centimeters as the drawing, so the proportions match.
 // The client turns it with a finger. In `still` mode (the PDF) it renders one frame into an image.
-// Real materials, reflections and soft contact shadows: while it moves it draws fast, and the moment
-// it stops it draws once more in full quality. Erez paints fronts on it with a touch (`paint`).
+// It draws only when something changed and never swaps to another quality when it stops, so nothing jumps
+// and the graphics card stays free for the other windows. Erez paints fronts on it with a touch (`paint`).
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type * as T from "three";
 import {
@@ -434,11 +434,12 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
         return;
       }
       const W = el.clientWidth || 700, H = height;
-      const ratio = still ? 2 : Math.min(2, window.devicePixelRatio || 1);
+      const ratio = still ? 2 : Math.min(1.5, window.devicePixelRatio || 1);
       renderer.setPixelRatio(ratio);
       renderer.setSize(W, H);
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = three.PCFShadowMap;
+      renderer.shadowMap.autoUpdate = false; // the sun stands still: shadows are drawn again only when the kitchen changes
       renderer.toneMapping = three.NeutralToneMapping; // keeps the Bluran colors true
       renderer.toneMappingExposure = 1;
       el.appendChild(renderer.domElement);
@@ -461,13 +462,14 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
       sun.position.set(center.x - size * 0.7, 4.2, center.z + size * 1.3); // from the room's open side, on every wall of an L
       sun.target.position.copy(center);
       sun.castShadow = true;
-      sun.shadow.mapSize.set(still ? 2048 : 4096, still ? 2048 : 4096);
+      sun.shadow.mapSize.set(2048, 2048);
       sun.shadow.radius = 4;
       const sc = sun.shadow.camera;
       sc.left = -size; sc.right = size; sc.top = size; sc.bottom = -size; sc.near = 0.5; sc.far = 20;
       sun.shadow.bias = -0.0004;
       sun.shadow.normalBias = 0.01;
       scene.add(sun, sun.target);
+      renderer.shadowMap.needsUpdate = true;
       const fill = new three.DirectionalLight(0xffffff, 0.45); // the other way, so no wall stays grey
       fill.position.set(center.x + size, 2.5, center.z + size);
       fill.target.position.copy(center);
@@ -494,27 +496,6 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
         return;
       }
 
-      // Full quality (soft contact shadows between the cabinets) once the view stops; a phone stays with the fast picture.
-      let composer: import("three/examples/jsm/postprocessing/EffectComposer.js").EffectComposer | null = null;
-      if (!(navigator.maxTouchPoints > 0 && W < 700)) {
-        const [{ EffectComposer }, { RenderPass }, { GTAOPass }, { OutputPass }] = await Promise.all([
-          import("three/examples/jsm/postprocessing/EffectComposer.js"),
-          import("three/examples/jsm/postprocessing/RenderPass.js"),
-          import("three/examples/jsm/postprocessing/GTAOPass.js"),
-          import("three/examples/jsm/postprocessing/OutputPass.js"),
-        ]);
-        if (disposed) { renderer.dispose(); return; }
-        composer = new EffectComposer(renderer, new three.WebGLRenderTarget(W * ratio, H * ratio, { type: three.HalfFloatType, samples: 4 }));
-        composer.setPixelRatio(ratio);
-        composer.setSize(W, H);
-        composer.addPass(new RenderPass(scene, cam));
-        const ao = new GTAOPass(scene, cam, W, H);
-        ao.updateGtaoMaterial({ radius: 0.22, distanceExponent: 1.4, thickness: 1, scale: 1.1, samples: 16, distanceFallOff: 1, screenSpaceRadius: false });
-        ao.blendIntensity = 0.85;
-        composer.addPass(ao);
-        composer.addPass(new OutputPass());
-      }
-
       const controls = new OrbitControls(cam, renderer.domElement);
       controls.target.copy(center);
       controls.enableDamping = true;
@@ -530,11 +511,12 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
       hl.renderOrder = 10;
       scene.add(hl);
 
-      let dirty = true, fine = false, movedAt = 0;
+      let dirty = true;
       const invalidate = () => { dirty = true; };
       controls.addEventListener("change", invalidate);
 
-      kitchen.ready.then(invalidate);
+      const reshade = () => { renderer.shadowMap.needsUpdate = true; invalidate(); };
+      kitchen.ready.then(reshade);
 
       const dispose3D = (root: T.Object3D) => root.traverse((o) => {
         const m = o as T.Mesh;
@@ -551,23 +533,17 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
         kitchen = buildKitchen(three, JSON.parse(k));
         scene.add(kitchen.root);
         hl.visible = false;
-        kitchen.ready.then(invalidate);
-        invalidate();
+        kitchen.ready.then(reshade);
+        reshade();
       };
       swap.current(keyRef.current); // it may have changed while the 3D was loading
 
       let raf = 0;
       const loop = () => {
         controls.update();
-        const now = performance.now();
         if (dirty) {
           renderer.render(scene, cam);
           dirty = false;
-          fine = false;
-          movedAt = now;
-        } else if (!fine && composer && !paintRef.current && now - movedAt > 180) {
-          composer.render();
-          fine = true;
         }
         raf = requestAnimationFrame(loop);
       };
@@ -633,20 +609,12 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
         renderer.setSize(SW, SH, false);
         cam.aspect = SW / SH;
         cam.updateProjectionMatrix();
-        if (composer) {
-          composer.setPixelRatio(1);
-          composer.setSize(SW, SH);
-          composer.render();
-        } else renderer.render(scene, cam);
+        renderer.render(scene, cam);
         const jpeg = renderer.domElement.toDataURL("image/jpeg", 0.92);
         renderer.setPixelRatio(ratio);
         renderer.setSize(w, H);
         cam.aspect = w / H;
         cam.updateProjectionMatrix();
-        if (composer) {
-          composer.setPixelRatio(ratio);
-          composer.setSize(w, H);
-        }
         invalidate();
         return jpeg;
       };
@@ -655,7 +623,6 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
         const w = el.clientWidth;
         if (!w) return;
         renderer.setSize(w, H);
-        composer?.setSize(w, H);
         cam.aspect = w / H;
         cam.updateProjectionMatrix();
         invalidate();
@@ -671,7 +638,6 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
         if (shotRef) shotRef.current = null;
         controls.dispose();
         dispose3D(kitchen.root);
-        composer?.dispose();
         pmrem.dispose();
         envMap.dispose();
         renderer.forceContextLoss(); // gives the graphics card's memory back at once
