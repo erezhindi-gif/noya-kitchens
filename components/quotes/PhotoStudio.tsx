@@ -3,7 +3,6 @@
 // appliances, clears the mess and relights it like a studio shot. Erez checks the result before posting it.
 import { useState } from "react";
 import { COUNTERS, APPLIANCES, LIGHTS, type PhotoOpts } from "@/lib/marketing/photo-prompt";
-import { useHoldUpdates } from "./SiteImages";
 
 async function toJpeg(file: File, maxSide = 2048): Promise<{ data: string; w: number; h: number; url: string }> {
   const img = await createImageBitmap(file);
@@ -34,7 +33,6 @@ export default function PhotoStudio({ hasKey, onKeySaved, flash }: { hasKey: boo
   const [show, setShow] = useState<"after" | "before">("after");
   const [error, setError] = useState("");
 
-  useHoldUpdates(!!out || busy);
   if (!hasKey) return <KeyCard onSaved={onKeySaved} flash={flash} />;
 
   const pick = async (f?: File) => {

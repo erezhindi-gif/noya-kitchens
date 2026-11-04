@@ -221,7 +221,6 @@ function Editor({ item, items, flash, reload, onSaved, onRestored, onBack, onNex
     flash(ids.length ? "נשמר: התמונות מסומנות כאותו מטבח ✓" : "התמונה כבר לא מסומנת עם תמונות אחרות");
   };
 
-  useHoldUpdates(shots.length > 0 || busy === "make" || busy === "save" || !!batch);
   const shown = pick >= 0 ? shots[pick]?.url : item.original;
   if (batch) {
     const made = batch.filter((r) => r.after).length;
@@ -369,14 +368,4 @@ function Drafts() {
       </div>
     </section>
   );
-}
-
-/** While true, the admin does not reload itself into a new site version (see AdminApp). */
-export function useHoldUpdates(on: boolean) {
-  useEffect(() => {
-    if (!on) return;
-    const w = window as { nqHold?: number };
-    w.nqHold = (w.nqHold || 0) + 1;
-    return () => { w.nqHold = Math.max(0, (w.nqHold || 1) - 1); };
-  }, [on]);
 }

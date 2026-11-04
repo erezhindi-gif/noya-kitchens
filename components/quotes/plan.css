@@ -20,10 +20,14 @@
 .nqp-sub .bad { color: #b3261e; font-weight: 700; }
 .nqp-rows { display: grid; gap: 6px; }
 /* width and count fields wide enough for "319" / "100" with room to spare */
-.nqp-row { display: grid; grid-template-columns: 14px minmax(84px, 1fr) 72px 60px auto; align-items: center; gap: 5px; }
+.nqp-row { display: grid; grid-template-columns: 14px minmax(84px, 1fr) 76px 72px auto; align-items: center; gap: 5px; }
+@media (max-width: 560px) {
+  .nqp-row { grid-template-columns: 14px minmax(84px, 1fr) 76px 72px; }
+  .nqp-row .nqp-acts { grid-column: 2 / -1; justify-content: flex-end; }
+  .nqp-row-h > :last-child { display: none; }
+}
 .nqp-row .in { width: 100%; min-width: 0; padding-inline: 6px; }
-.nqp-row .in.num { text-align: center; -moz-appearance: textfield; }
-.nqp-row .in.num::-webkit-outer-spin-button, .nqp-row .in.num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.nqp-row .in.num { text-align: center; }
 .nqp-row-h { font-size: 12px; color: #8a7766; }
 .nqp-i { width: 18px; color: #8a7766; font-size: 13px; }
 .nqp-num { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: #6d655c; }
@@ -41,7 +45,7 @@
 .nqp-print .nqp-svg { max-height: 430px; }
 .nqp-box { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: #8a7766; margin-bottom: 4px; }
 .nqp-box label { display: inline-flex; align-items: center; gap: 4px; }
-.nqp-box .in { width: 56px; padding-inline: 6px; }
+.nq .nqp-box .in { width: 76px; padding-inline: 6px; }
 
 /* Bluran color fan */
 .nqb-btn { border: 0; background: none; padding: 0 3px; cursor: pointer; display: inline-flex; align-items: center; min-height: 32px; }
@@ -85,9 +89,9 @@
 /* a column's parts, bottom up */
 .nqp-parts { grid-column: 1 / -1; display: grid; gap: 4px; padding-inline-start: 18px; }
 .nqp-part { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: #6d655c; }
-.nqp-part select { width: auto; }
+.nq .nqp-part select.in { width: auto; min-width: 96px; flex: 0 0 auto; padding-block: 6px; }
 .nqp-part label { display: inline-flex; align-items: center; gap: 3px; }
-.nqp-part .in.num { width: 56px; }
+.nq .nqp-part .in.num { width: 76px; padding: 6px; }
 
 /* what the room has on a wall */
 .nqp-room { display: grid; gap: 4px; margin: 6px 0; }

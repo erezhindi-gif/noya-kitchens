@@ -79,7 +79,7 @@ export const BASE_LABEL: Record<BaseKind, string> = {
   doors: "דלתות", drawers: "מגירות", sink: "כיור", cooktop: "כיריים", oven: "תנור", dishwasher: "מדיח",
   fridge: "מקרר", tall: "ארון גבוה", tall_oven: "ארון גבוה עם תנור", corner: "פינה", gap: "פנוי", panel: "חיפוי", column: "עמודה", open: "תא פתוח",
 };
-export const CORNER_LABEL: Record<NonNullable<UnitExtras["cornerType"]>, string> = { carousel: "קרוסלה", pullout: "מגש נשלף", door: "דלת רגילה" };
+export const CORNER_LABEL: Record<NonNullable<UnitExtras["cornerType"]>, string> = { carousel: "קרוסלה", pullout: "לאמנס", door: "דלת רגילה" };
 /** the inside of a cabinet in words */
 export const insideText = (u: UnitExtras) => [
   u.inside?.shelves ? `${u.inside.shelves} מדפים` : "", u.inside?.drawers ? `${u.inside.drawers} מגירות פנימיות` : "",

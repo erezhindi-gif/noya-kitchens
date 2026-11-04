@@ -134,7 +134,7 @@ function Goal({ won, goal, monthly, onGoal }: { won: number; goal: number; month
         <h2>יעד: {target} מטבחים {monthly ? "בחודש" : "ב-3 חודשים"}</h2>
         {edit ? (
           <span className="nq-head-acts">
-            <input className="in num" style={{ width: 70 }} type="number" min={1} max={50} value={val} onChange={(e) => setVal(e.target.value)} aria-label="יעד מטבחים לחודש" />
+            <input className="in num" style={{ width: 84 }} type="number" min={1} max={50} value={val} onChange={(e) => setVal(e.target.value)} aria-label="יעד מטבחים לחודש" />
             <button className="nq-btn sm pri" onClick={() => { onGoal(+val); setEdit(false); }} disabled={!(+val >= 1 && +val <= 50)}>שמור</button>
             <button className="nq-btn sm" onClick={() => setEdit(false)}>ביטול</button>
           </span>

@@ -565,7 +565,7 @@ const handler = createMcpHandler(
       inside: z.object({ shelves: z.number().optional(), drawers: z.number().optional().describe("מגירות פנימיות"), pull: z.enum(["pantry", "trash"]).optional().describe("מזווה או פח נשלף") }).optional().describe("מה יש בתוך הארון"),
       side: z.enum(["left", "right", "both"]).optional().describe("פאנל גמר בצד גלוי"),
       glass: z.enum(["clear", "smoked"]).optional().describe("doors: ויטרינה, דלתות זכוכית במסגרת"),
-      cornerType: z.enum(["carousel", "pullout", "door"]).optional().describe("corner: דלת על הפס עם קרוסלה, מגש נשלף או דלת רגילה, במקום פינה סגורה. הפינה צריכה לפחות עומק ועוד 25"),
+      cornerType: z.enum(["carousel", "pullout", "door"]).optional().describe("corner: דלת על הפס עם קרוסלה, מנגנון לאמנס (pullout) או דלת רגילה, במקום פינה סגורה. הפינה צריכה לפחות עומק ועוד 25"),
       w: z.number().describe("רוחב בס״מ"),
       y: z.number().optional().describe("גובה תחתית הארון מהרצפה בס״מ, רק אם שונה מהשורה"),
       h: z.number().optional().describe("גובה הארון בס״מ, רק אם שונה מהשורה"),

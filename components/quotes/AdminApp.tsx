@@ -65,6 +65,7 @@ export default function AdminApp() {
   const [curId, setCurId] = useState<string | null>(null);
   const [save, setSave] = useState<SaveState>("idle");
   const [toast, setToast] = useState("");
+  const [newVersion, setNewVersion] = useState(false);
   // The quote Erez was working on, so the catalog and settings screens can send him straight back to it.
   const [openId, setOpenId] = useState<string | null>(null);
   // Set when bringing in requests from Gmail fails or the scheduled check stopped running.
@@ -199,17 +200,12 @@ export default function AdminApp() {
       if (newlyApproved.length)
         flash(newlyApproved.map((q) => `✓ ${qnum(q)} אושרה על ידי ${q.approvedBy}`).join(" · "));
     };
-    // On the phone the app stays open for days. When a new version is on the site, reload into it
-    // (nothing unsaved is lost: only when no save is waiting, and the screen comes back as it was).
+    // On the phone the app stays open for days. A new version on the site only shows a button: the screen
+    // never reloads by itself, because a form being filled in would be lost.
     const update = async () => {
-      // also not while a photo screen holds versions that were made but not saved (they cost money to make again)
-      if (document.hidden || pending.current > 0 || BUILD === "dev" || (window as { nqHold?: number }).nqHold) return;
+      if (document.hidden || BUILD === "dev") return;
       const v = await fetch("/api/admin/version", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-      if (!v?.build || v.build === "dev" || v.build === BUILD || pending.current > 0) return;
-      // once per version, so a mismatch that a reload doesn't fix can't loop
-      let tried = "";
-      try { tried = sessionStorage.getItem("nq-reloaded-for") || ""; sessionStorage.setItem("nq-reloaded-for", v.build); } catch {}
-      if (tried !== v.build) location.reload();
+      if (v?.build && v.build !== "dev" && v.build !== BUILD) setNewVersion(true);
     };
     update();
     const t = setInterval(() => { update(); pull(); }, 60_000);
@@ -496,6 +492,12 @@ export default function AdminApp() {
         </div>
       </header>
 
+      {newVersion && (
+        <div className="nq-update" role="status">
+          <span>יש גרסה חדשה של המערכת. כשתסיים מה שאתה עושה:</span>
+          <button className="nq-btn sm" onClick={() => location.reload()}>לעדכן</button>
+        </div>
+      )}
       <main className="nq-wrap">
         {(view === "leads" || view === "list") && syncWarn && <div className="nq-back nq-warn" role="alert"><span>⚠️ {syncWarn}</span></div>}
         {view === "leads" && <LeadsView data={data} onSave={saveLead} onDelete={removeLead} onQuote={quoteFromLead} onOpenQuote={(id) => go("edit", id)} onUpload={uploadLeadFiles} onRemoveFile={removeLeadFile} />}
