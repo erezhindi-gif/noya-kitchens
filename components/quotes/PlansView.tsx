@@ -153,6 +153,7 @@ export function PlanScreen({ plan: p, data, upd, saveNow, onBack, onQuote, onOpe
           <button className="nq-btn wa" onClick={onWhatsApp}>שליחה בוואטסאפ</button>
           {pdfError && <span className="hint">יצירת ה-PDF נכשלה. נסה שוב</span>}
           {sentNote && <span className="hint">{sentNote}</span>}
+          <a className="nq-btn" href={`/admin/shop/${p.id}`} target="_blank" rel="noopener" onClick={() => { saveNow(); }}>📐 דפי ייצור</a>
           {!q && <a className="nq-btn" href={claudeLink(`הצעת מחיר במערכת נויה מהתכנון של ${who} (תכנון ${p.id}), לפי המחירון והקטלוג: `)} target="_blank" rel="noopener">✨ הצעה בקלוד</a>}
           {q
             ? <button className="nq-btn pri" onClick={() => onOpenQuote(q.id)}>פתח הצעה {qnum(q)} ›</button>

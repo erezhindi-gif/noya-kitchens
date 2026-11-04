@@ -1,0 +1,29 @@
+/* The workshop's sheets for a plan (admin only), for the screen and for A4 */
+.sh { max-width: 900px; margin: 0 auto; padding: 20px 16px 40px; background: #fff; color: #2b2622; font-size: 14px; line-height: 1.45; }
+.sh h1 { font-size: 24px; margin: 0 0 4px; }
+.sh h2 { font-size: 18px; margin: 20px 0 8px; border-bottom: 2px solid #d8c5a4; padding-bottom: 4px; }
+.sh h3 { font-size: 15px; margin: 0 0 4px; }
+.sh-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.sh-rules { color: #6f6459; font-size: 13px; margin-top: 4px; }
+.sh-warn { color: #b3261e; font-weight: 700; font-size: 13px; margin-top: 2px; }
+.sh-print { border: 1px solid #a8834f; background: #fff; color: #2b2622; border-radius: 999px; padding: 8px 16px; font: inherit; cursor: pointer; }
+.sh-t { width: 100%; border-collapse: collapse; font-size: 13px; }
+.sh-t th, .sh-t td { border: 1px solid #e0d8cb; padding: 4px 8px; text-align: start; }
+.sh-t th { background: #faf7f2; }
+.sh-t .n { text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sh-note { color: #6f6459; font-size: 12px; }
+.sh-wall { margin-bottom: 18px; break-inside: avoid; }
+.sh-secs { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.sh-sec { margin: 0; border: 1px solid #e0d8cb; border-radius: 8px; padding: 8px; break-inside: avoid; }
+.sh-sec figcaption { font-weight: 700; margin-bottom: 4px; }
+.sh-sec svg { width: 100%; height: auto; max-height: 380px; display: block; }
+.sh-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.sh-card { border: 1px solid #e0d8cb; border-radius: 8px; padding: 8px 10px; font-size: 13px; break-inside: avoid; }
+@media print {
+  .sh { max-width: none; padding: 0; }
+  .sh-print { display: none; }
+  .sh-break { break-before: auto; }
+}
+
+/* the workshop's sheets are Erez's own: no site widgets on the page or in print */
+body:has(.sh) .skip-link, body:has(.sh) [aria-label="פתח תפריט נגישות"], body:has(.sh) [class*="elfsight"], body:has(.sh) [class*="eapps"] { display: none; }

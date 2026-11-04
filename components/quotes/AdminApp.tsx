@@ -7,6 +7,7 @@ import {
 import type { AppData, CatNode, Lead, LeadFile, LeadSource, Plan, Line, LineType, Pro, Quote, Settings, Status } from "@/lib/quotes/types";
 import { STARTER_LAYOUT } from "./LayoutEditor";
 import { PlanScreen, PlansView, QuotePlanLink } from "./PlansView";
+import { DEFAULT_RULES } from "@/lib/quotes/takeoff";
 import { FILE_TYPE_OK, MAX_UPLOAD, SOURCE_LABEL, STAGE_LABEL, ago, findPhone, gmailLink, leadStage, waitingLeads, type LeadStage } from "@/lib/quotes/leads";
 import QuoteDoc from "./QuoteDoc";
 import MarketingView from "./MarketingView";
@@ -1430,6 +1431,17 @@ function SettingsView({ data, upd }: { data: AppData; upd: (fn: (s: Settings, pr
             <label className="f full">הודעת חזרה ללקוח שלא ענה על הצעה ({"{שם}"} שם הלקוח, {"{פרויקט}"}, {"{מספר}"} מספר ההצעה, {"{קישור}"} הקישור להצעה, {"{בעלים}"} השם שלך)
               <textarea className="in" rows={6} value={st.followUpText || ""} onChange={(e) => upd((s) => { s.followUpText = e.target.value; })} />
             </label>
+          </div>
+        </section>
+        <section className="nq-card">
+          <h2 style={{ marginBottom: 12 }}>כללי בנייה לדפי הייצור (ס״מ)</h2>
+          <div className="nq-fields">
+            {([["board", "עובי לוח", DEFAULT_RULES.board], ["back", "עובי גב", DEFAULT_RULES.back], ["frontGap", "רווח בין חזיתות", DEFAULT_RULES.frontGap], ["shelfSetback", "כמה מדף קצר מהארון", DEFAULT_RULES.shelfSetback]] as const).map(([k, label, dflt]) => (
+              <label key={k} className="f">{label}
+                <input className="in num" type="number" step="0.1" inputMode="decimal" placeholder={String(dflt)} value={st.shopRules?.[k] ?? ""}
+                  onChange={(e) => upd((s) => { s.shopRules = { ...s.shopRules, [k]: e.target.value === "" ? undefined : Number(e.target.value) }; })} />
+              </label>
+            ))}
           </div>
         </section>
         <section className="nq-card">
