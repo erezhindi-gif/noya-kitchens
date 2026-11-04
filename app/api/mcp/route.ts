@@ -574,6 +574,8 @@ const handler = createMcpHandler(
         d: z.number().optional().describe("עומק החלק, רק אם שונה מהעמודה"),
         recess: z.number().optional().describe("niche: עומק פנימי מהמסגרת עד הגב, ברירת מחדל 10"),
         frame: z.number().optional().describe("niche: עובי המסגרת, ברירת מחדל 2"),
+        tv: z.boolean().optional().describe("niche: מסך טלוויזיה שחור על גב הנישה. הגודל מחושב לבד: הפתח הפנימי פחות tvGap מכל צד"),
+        tvGap: z.number().optional().describe("niche: רווח בין המסך למסגרת מכל צד, ברירת מחדל 4"),
       })).optional().describe("column: החלקים מלמטה למעלה; fronts רץ על כל החזיתות של העמודה, מהחלק התחתון"),
       n: z.number().optional().describe("מספר דלתות/מגירות (ב-tall_oven: מספר המגירות מתחת לתנור, 30 ס״מ כל אחת). ריק = ברירת מחדל"),
       color: z.string().optional().describe("צבע משלו לארון או למכשיר: גוון בלורן bl:CODE (למשל bl:ZA02SM, מצא עם bluran_colors), או black/#hex למקרר. ריק = כמו שאר המטבח (מקרר: נירוסטה)"),
@@ -590,6 +592,8 @@ const handler = createMcpHandler(
       fronts: z.array(z.string()).optional().describe("גוון לכל דלת/קלפה בנפרד: bl:CODE לכל אחת, ריק = כמו הארון"),
       recess: z.number().optional().describe("open: נישה, עומק פנימי מהמסגרת עד הגב"),
       frame: z.number().optional().describe("open: נישה, עובי המסגרת"),
+      tv: z.boolean().optional().describe("open: מסך טלוויזיה שחור על גב הנישה, בגודל הפתח הפנימי פחות tvGap מכל צד"),
+      tvGap: z.number().optional().describe("open: רווח בין המסך למסגרת מכל צד, ברירת מחדל 4"),
     });
     server.registerTool(
       "bluran_colors",
@@ -710,7 +714,7 @@ const handler = createMcpHandler(
     );
   },
   {
-    serverInfo: { name: "noya-quotes", version: "1.12.0" },
+    serverInfo: { name: "noya-quotes", version: "1.13.0" },
     instructions:
       "מערכת הצעות המחיר של נויה מטבחים (ארז). תהליך: 1) search_catalog כדי למצוא את הפריטים. " +
       "2) אם חסרה כמות לרכיב כלשהו (למשל ידית לחזיתות), או שיש כמה פריטים אפשריים, שאל את ארז שאלה אחת מרוכזת עם כל החסרים — לפני שבונים. " +

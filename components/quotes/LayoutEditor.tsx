@@ -30,7 +30,7 @@ const HEIGHT_LABEL: Record<keyof LayoutHeights, string> = {
 const sumW = (us: { w: number }[]) => us.reduce((a, u) => a + u.w, 0);
 const clone = (l: KitchenLayout): KitchenLayout => JSON.parse(JSON.stringify(l));
 
-type Row<K> = { kind: K; w: number; n?: number; d?: number; h?: number; y?: number; color?: string; fronts?: string[]; recess?: number; frame?: number; splits?: number[]; parts?: ColumnPart[] };
+type Row<K> = { kind: K; w: number; n?: number; d?: number; h?: number; y?: number; color?: string; fronts?: string[]; recess?: number; frame?: number; tv?: boolean; tvGap?: number; splits?: number[]; parts?: ColumnPart[] };
 
 /** What a cabinet's color can be set for: the whole cabinet, then each of its fronts (doors left to right,
  *  drawers top to bottom). Units without fronts of their own get none; a fridge only its own color. */
@@ -111,6 +111,8 @@ function UnitRows<K extends string>({ units, labels, onChange, addKind, box }: {
                     <label>כמות<input className="in num" type="number" inputMode="numeric" placeholder="אוטו׳" value={p.n ?? ""} onChange={(e) => setPart({ n: optNum(e.target.value) })} /></label>
                     {p.kind === "niche" && <label>עומק פנימי<input className="in num" type="number" inputMode="decimal" placeholder="10" value={p.recess ?? ""} onChange={(e) => setPart({ recess: optNum(e.target.value) })} /></label>}
                     {p.kind === "niche" && <label>מסגרת<input className="in num" type="number" inputMode="decimal" placeholder="2" value={p.frame ?? ""} onChange={(e) => setPart({ frame: optNum(e.target.value) })} /></label>}
+                    {p.kind === "niche" && <label><input type="checkbox" checked={!!p.tv} onChange={(e) => setPart({ tv: e.target.checked || undefined })} /> טלוויזיה</label>}
+                    {p.kind === "niche" && p.tv && <label>רווח מהמסגרת<input className="in num" type="number" inputMode="decimal" placeholder="4" value={p.tvGap ?? ""} onChange={(e) => setPart({ tvGap: optNum(e.target.value) })} /></label>}
                     <button type="button" className="nq-btn sm ghost" aria-label="הסר חלק" onClick={() => set(i, { parts: (u.parts || []).filter((_, j) => j !== k) })}>×</button>
                   </span>
                 );
@@ -122,6 +124,8 @@ function UnitRows<K extends string>({ units, labels, onChange, addKind, box }: {
             <span className="nqp-box">
               <label>עומק פנימי<input className="in num" type="number" inputMode="decimal" value={u.recess ?? ""} onChange={(e) => set(i, { recess: optNum(e.target.value) })} /></label>
               <label>מסגרת<input className="in num" type="number" inputMode="decimal" value={u.frame ?? ""} onChange={(e) => set(i, { frame: optNum(e.target.value) })} /></label>
+              <label><input type="checkbox" checked={!!u.tv} style={{ width: "auto" }} onChange={(e) => set(i, { tv: e.target.checked || undefined })} /> טלוויזיה</label>
+              {u.tv && <label>רווח מהמסגרת<input className="in num" type="number" inputMode="decimal" placeholder="4" value={u.tvGap ?? ""} onChange={(e) => set(i, { tvGap: optNum(e.target.value) })} /></label>}
             </span>
           )}
           {box && u.kind !== "gap" && u.kind !== "corner" && (

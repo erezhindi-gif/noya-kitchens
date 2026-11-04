@@ -21,11 +21,12 @@ export type UpperKind = "doors" | "lift" | "open" | "hood" | "corner" | "gap";
  *  y = bottom above the floor, h = height, d = depth: each falls back to the row's;
  *  panel: a front with no cabinet, in the plane of the fronts; splits = its pieces' heights, bottom up (fronts in the same order);
  *  column: parts stacked bottom up in one width; fronts run over all its parts, bottom part first */
-export type ColumnPart = { kind: "doors" | "drawers" | "lift" | "panel" | "niche"; h: number; n?: number; d?: number; recess?: number; frame?: number };
+export type ColumnPart = { kind: "doors" | "drawers" | "lift" | "panel" | "niche"; h: number; n?: number; d?: number; recess?: number; frame?: number; tv?: boolean; tvGap?: number };
 export type BaseUnit = { kind: BaseKind; w: number; n?: number; color?: string; fronts?: string[]; y?: number; h?: number; d?: number; splits?: number[]; parts?: ColumnPart[] };
 /** d = depth, h = height, y = bottom above the floor; each falls back to its row's default;
- *  recess, frame (open only): a niche, its back recess cm behind a frame of that thickness in the plane of the fronts */
-export type UpperUnit = { kind: UpperKind; w: number; n?: number; d?: number; h?: number; y?: number; color?: string; fronts?: string[]; recess?: number; frame?: number };
+ *  recess, frame (open only): a niche, its back recess cm behind a frame of that thickness in the plane of the fronts;
+ *  tv, tvGap (niches): a black screen on the niche's back, tvGap cm from the frame on all four sides */
+export type UpperUnit = { kind: UpperKind; w: number; n?: number; d?: number; h?: number; y?: number; color?: string; fronts?: string[]; recess?: number; frame?: number; tv?: boolean; tvGap?: number };
 export type LayoutWall = { length: number; base: BaseUnit[]; upper: UpperUnit[]; /** second row, above the uppers up to the ceiling */ top?: UpperUnit[] };
 
 export type LayoutHeights = {
@@ -118,6 +119,9 @@ export const colorOf = (v: string | undefined, table: Record<string, { hex: stri
 
 export const hasCounter = (l: KitchenLayout) => l.colors?.counter !== "none";
 export const heightsOf = (l: KitchenLayout): LayoutHeights => ({ ...DEFAULT_HEIGHTS, ...(l.h || {}), ...(hasCounter(l) ? {} : { counter: 0 }) });
+/** the screen in a niche: its opening inside the frame, less the gap on each side */
+export const tvSize = (w: number, h: number, frame = 2, gap = 4) => ({ w: Math.max(1, w - 2 * frame - 2 * gap), h: Math.max(1, h - 2 * frame - 2 * gap) });
+
 /** where the fronts start */
 export const frontsFrom = (h: LayoutHeights) => h.plinth + h.floorGap;
 
@@ -178,10 +182,12 @@ export function normalizeLayout(raw: unknown): KitchenLayout | null {
         ...(u.d ? { d: num(u.d, 5, 120, 35) } : {}), ...(u.h ? { h: num(u.h, 5, 300, 70) } : {}),
         ...(u.y !== undefined && u.y !== null && u.y !== "" ? { y: num(u.y, 0, 400, 145) } : {}),
         ...(u.recess ? { recess: num(u.recess, 0.5, 120, 10) } : {}), ...(u.frame ? { frame: num(u.frame, 0.5, 30, 2) } : {}),
+        ...(u.tv ? { tv: true, ...(u.tvGap !== undefined ? { tvGap: num(u.tvGap, 0, 60, 4) } : {}) } : {}),
         ...(Array.isArray(u.splits) && u.splits.length ? { splits: (u.splits as unknown[]).slice(0, 12).map((v) => num(v, 1, 400, 50)) } : {}),
         ...(Array.isArray(u.parts) && u.parts.length ? { parts: (u.parts as Record<string, unknown>[]).slice(0, 12).filter((p) => p && (Object.keys(PART_LABEL) as string[]).includes(p.kind as string)).map((p) => ({
           kind: p.kind as ColumnPart["kind"], h: num(p.h, 1, 400, 70), ...(p.n ? { n: num(p.n, 1, 8, 1) } : {}), ...(p.d ? { d: num(p.d, 5, 120, 40) } : {}),
           ...(p.recess ? { recess: num(p.recess, 0.5, 120, 10) } : {}), ...(p.frame ? { frame: num(p.frame, 0.5, 30, 2) } : {}),
+          ...(p.tv ? { tv: true, ...(p.tvGap !== undefined ? { tvGap: num(p.tvGap, 0, 60, 4) } : {}) } : {}),
         })) } : {}),
       }))
       .slice(0, 30);
@@ -288,8 +294,8 @@ export function sinkCenters(l: KitchenLayout) {
 /** Plain-text summary for Claude. */
 export function describeLayout(l: KitchenLayout) {
   const h = heightsOf(l);
-  const u = (x: { kind: string; w: number; n?: number; d?: number; h?: number; y?: number; color?: string; fronts?: string[]; recess?: number; frame?: number; splits?: number[]; parts?: ColumnPart[] }, lab: Record<string, string>) =>
-    `${lab[x.kind]} ${x.w}${x.n !== undefined ? ` (${x.n})` : ""}${x.d ? ` עומק ${x.d}` : ""}${x.h ? ` גובה ${x.h}` : ""}${x.y !== undefined ? ` מ-${x.y}` : ""}${x.recess ? ` עומק פנימי ${x.recess}` : ""}${x.frame ? ` מסגרת ${x.frame}` : ""}${x.splits?.length ? ` חלוקה מלמטה ${x.splits.join(", ")}` : ""}${x.parts?.length ? ` מלמטה למעלה: ${x.parts.map((p) => `${PART_LABEL[p.kind]} ${p.h}${p.n ? ` (${p.n})` : ""}${p.recess ? ` עומק פנימי ${p.recess}` : ""}${p.frame ? ` מסגרת ${p.frame}` : ""}`).join(", ")}` : ""}${x.color ? ` [${colorName(x.color)}]` : ""}${x.fronts?.some(Boolean) ? ` [חזיתות: ${x.fronts.map((f, i) => (f ? `${i + 1}=${colorName(f)}` : "")).filter(Boolean).join(", ")}]` : ""}`;
+  const u = (x: { kind: string; w: number; n?: number; d?: number; h?: number; y?: number; color?: string; fronts?: string[]; recess?: number; frame?: number; tv?: boolean; tvGap?: number; splits?: number[]; parts?: ColumnPart[] }, lab: Record<string, string>) =>
+    `${lab[x.kind]} ${x.w}${x.n !== undefined ? ` (${x.n})` : ""}${x.d ? ` עומק ${x.d}` : ""}${x.h ? ` גובה ${x.h}` : ""}${x.y !== undefined ? ` מ-${x.y}` : ""}${x.recess ? ` עומק פנימי ${x.recess}` : ""}${x.frame ? ` מסגרת ${x.frame}` : ""}${x.tv && x.h ? ` טלוויזיה ${tvSize(x.w, x.h, x.frame, x.tvGap).w}×${tvSize(x.w, x.h, x.frame, x.tvGap).h}` : x.tv ? " טלוויזיה" : ""}${x.splits?.length ? ` חלוקה מלמטה ${x.splits.join(", ")}` : ""}${x.parts?.length ? ` מלמטה למעלה: ${x.parts.map((p) => `${PART_LABEL[p.kind]} ${p.h}${p.n ? ` (${p.n})` : ""}${p.recess ? ` עומק פנימי ${p.recess}` : ""}${p.frame ? ` מסגרת ${p.frame}` : ""}${p.tv ? ` טלוויזיה ${tvSize(x.w, p.h, p.frame, p.tvGap).w}×${tvSize(x.w, p.h, p.frame, p.tvGap).h}` : ""}`).join(", ")}` : ""}${x.color ? ` [${colorName(x.color)}]` : ""}${x.fronts?.some(Boolean) ? ` [חזיתות: ${x.fronts.map((f, i) => (f ? `${i + 1}=${colorName(f)}` : "")).filter(Boolean).join(", ")}]` : ""}`;
   const lines = l.walls.map((w, i) =>
     `${wallName(l, i)} ${w.length} ס״מ\n  תחתון: ${w.base.map((x) => u(x, BASE_LABEL)).join(" | ") || "—"}\n  עליון: ${w.upper.map((x) => u(x, UPPER_LABEL)).join(" | ") || "—"}${w.top?.length ? `
   שורה עליונה: ${w.top.map((x) => u(x, UPPER_LABEL)).join(" | ")}` : ""}`);

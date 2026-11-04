@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type * as T from "three";
 import {
-  COUNTER_COLORS, FRONT_COLORS, colorOf, columnParts, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, mainWallIndex, partsOf, placed, tallOvenParts, upperBox, wallGeometry,
+  COUNTER_COLORS, FRONT_COLORS, colorOf, columnParts, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, tvSize, mainWallIndex, partsOf, placed, tallOvenParts, upperBox, wallGeometry,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 import { bluranImg, bluranOf } from "@/lib/quotes/bluran";
@@ -230,8 +230,14 @@ function buildKitchen(three: Three, l: KitchenLayout) {
   };
 
   /** A niche: a frame in the plane of the fronts, its back `recess` behind it. */
-  const niche = (p: T.Object3D, mat: T.Material, x: number, y0: number, w: number, hh: number, front: number, recess: number, frame: number, shelves: number, ref?: string) => {
+  const niche = (p: T.Object3D, mat: T.Material, x: number, y0: number, w: number, hh: number, front: number, recess: number, frame: number, shelves: number, ref?: string, tv?: boolean, tvGap?: number) => {
     const back = Math.max(0.1, front - recess);
+    if (tv) {
+      // a thin screen against the back of the niche
+      const s = tvSize(w, hh, frame, tvGap);
+      box(p, mats.black, s.w, s.h, 2.5, x + w / 2, y0 + hh / 2, back + 1.25);
+      box(p, mats.glass, s.w - 1, s.h - 1, 0.2, x + w / 2, y0 + hh / 2, back + 2.6);
+    }
     tag(box(p, mat, w, hh, back, x + w / 2, y0 + hh / 2, back / 2), ref);
     const mid = front - recess / 2;
     tag(box(p, mat, frame, hh, recess, x + frame / 2, y0 + hh / 2, mid), ref);
@@ -296,7 +302,7 @@ function buildKitchen(three: Three, l: KitchenLayout) {
           const pz = (c.d ?? dd) - 2;
           const at = c.y0 + c.h > 120 ? "bottom" : "top";
           if (c.kind === "niche") {
-            niche(p, matOf(u.color, mats.front), x, c.y0, w, c.h, pz + 1.8, c.recess ?? 10, c.frame ?? 2, c.n ?? 0, r(-1));
+            niche(p, matOf(u.color, mats.front), x, c.y0, w, c.h, pz + 1.8, c.recess ?? 10, c.frame ?? 2, c.n ?? 0, r(-1), c.tv, c.tvGap);
             continue;
           }
           box(p, mats.carcass, w - 0.2, c.h, pz, x + w / 2, c.y0 + c.h / 2, pz / 2);
@@ -368,7 +374,7 @@ function buildKitchen(three: Three, l: KitchenLayout) {
         continue;
       }
       if (u.kind === "open" && (u.recess || u.frame)) {
-        niche(p, matOf(u.color, mats.upper), x, y0, w, uh, d, u.recess ?? d, u.frame ?? 2, n, r(-1));
+        niche(p, matOf(u.color, mats.upper), x, y0, w, uh, d, u.recess ?? d, u.frame ?? 2, n, r(-1), u.tv, u.tvGap);
         continue;
       }
       if (u.kind === "open") {

@@ -3,7 +3,7 @@
 // is in cm), so proportions are exact at any size. No hooks: renders on the server for the PDF too.
 import "./plan.css";
 import {
-  BASE_LABEL, COUNTER_COLORS, FRONT_COLORS, baseUnitTop, colorOf, columnParts, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, partsOf, placed, tallOvenParts, upperBox, wallGeometry, wallName,
+  BASE_LABEL, COUNTER_COLORS, FRONT_COLORS, baseUnitTop, colorOf, columnParts, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, partsOf, placed, tvSize, tallOvenParts, upperBox, wallGeometry, wallName,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 
@@ -81,7 +81,8 @@ function Stack({ c, x, y0, w, h, n, fill, fills = [], handle = "top", r }: { c: 
 }
 
 /** A niche seen from the front: the frame around a recessed back */
-function Niche({ c, x, y0, w, h, frame, fill, r, n = 0, label }: { c: Ctx; x: number; y0: number; w: number; h: number; frame: number; fill: string; r: string; n?: number; label: string }) {
+function Niche({ c, x, y0, w, h, frame, fill, r, n = 0, label, tv, tvGap }: { c: Ctx; x: number; y0: number; w: number; h: number; frame: number; fill: string; r: string; n?: number; label: string; tv?: boolean; tvGap?: number }) {
+  const screen = tv ? tvSize(w, h, frame, tvGap) : null;
   return (
     <g data-front={r}>
       <rect x={x} y={Y(c, y0 + h)} width={w} height={h} fill={fill} stroke={LINE} strokeWidth={0.35} />
@@ -90,7 +91,8 @@ function Niche({ c, x, y0, w, h, frame, fill, r, n = 0, label }: { c: Ctx; x: nu
         const yy = Y(c, y0 + (h * (i + 1)) / (n + 1));
         return <line key={i} x1={x + frame} x2={x + w - frame} y1={yy} y2={yy} stroke={LINE} strokeWidth={0.8} />;
       })}
-      <Label c={c} x={x + w / 2} y={Y(c, y0 + h / 2)} t={label} />
+      {screen && <rect x={x + (w - screen.w) / 2} y={Y(c, y0 + h / 2) - screen.h / 2} width={screen.w} height={screen.h} fill="#111" />}
+      <Label c={c} x={x + w / 2} y={Y(c, y0 + h / 2)} t={screen ? `טלוויזיה ${cm(screen.w)} על ${cm(screen.h)}` : label} light={!!screen} />
     </g>
   );
 }
@@ -125,7 +127,7 @@ function BaseShape({ c, u, x, units, index, at }: { c: Ctx; u: BaseUnit; x: numb
         <>
           {plinth}
           {columnParts(u, h).map((p, i) => {
-            if (p.kind === "niche") return <Niche key={i} c={c} x={x} y0={p.y0} w={u.w} h={p.h} frame={p.frame ?? 2} fill={fr} r={`${r}.-1`} n={p.n} label={`נישה ${cm(p.h)}`} />;
+            if (p.kind === "niche") return <Niche key={i} c={c} x={x} y0={p.y0} w={u.w} h={p.h} frame={p.frame ?? 2} fill={fr} r={`${r}.-1`} n={p.n} label={`נישה ${cm(p.h)}`} tv={p.tv} tvGap={p.tvGap} />;
             if (p.kind === "panel") return <Front key={i} c={c} x={x} y0={p.y0} w={u.w} h={p.h} fill={pf[p.from] || fr} r={`${r}.${p.from}`} />;
             if (p.kind === "doors") return <g key={i}>{Array.from({ length: p.count }, (_, k) => <Front key={k} c={c} x={x + (k * u.w) / p.count} y0={p.y0} w={u.w / p.count} h={p.h} fill={pf[p.from + k] || fr} handle={p.y0 + p.h > 120 ? "bottom" : "top"} r={`${r}.${p.from + k}`} />)}</g>;
             return <g key={i}>{Array.from({ length: p.count }, (_, k) => <Front key={k} c={c} x={x} y0={p.y0 + p.h - ((k + 1) * p.h) / p.count} w={u.w} h={p.h / p.count} fill={pf[p.from + k] || fr} handle={p.y0 + p.h > 120 ? "bottom" : "top"} r={`${r}.${p.from + k}`} />)}</g>;
@@ -226,7 +228,7 @@ function upperFront(c: Ctx, u: UpperUnit, x: number, y0: number, uh: number, n: 
     case "lift":
       return <Stack c={c} x={x} y0={y0} w={u.w} h={uh} n={n} fill={fu} fills={pf} handle="bottom" r={r} />;
     case "open":
-      if (u.recess || u.frame) return <Niche c={c} x={x} y0={y0} w={u.w} h={uh} frame={u.frame ?? 2} fill={fu} r={`${r}.-1`} n={n} label={`נישה ${cm(uh)}`} />;
+      if (u.recess || u.frame) return <Niche c={c} x={x} y0={y0} w={u.w} h={uh} frame={u.frame ?? 2} fill={fu} r={`${r}.-1`} n={n} label={`נישה ${cm(uh)}`} tv={u.tv} tvGap={u.tvGap} />;
       return (
         <g>
           <rect x={x + 0.3} y={Y(c, y0 + uh)} width={u.w - 0.6} height={uh} fill="#e9e4da" stroke={LINE} strokeWidth={0.6} />
