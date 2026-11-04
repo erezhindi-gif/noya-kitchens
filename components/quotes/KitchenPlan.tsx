@@ -3,7 +3,7 @@
 // is in cm), so proportions are exact at any size. No hooks: renders on the server for the PDF too.
 import "./plan.css";
 import {
-  BASE_LABEL, COUNTER_COLORS, FRONT_COLORS, colorOf, cornerPart, counterSpans, heightsOf, islandBox, partsOf, placed, tallOvenParts, upperBox, wallGeometry, wallName,
+  BASE_LABEL, COUNTER_COLORS, FRONT_COLORS, colorOf, cornerPart, counterSpans, endWallLen, heightsOf, islandBox, partsOf, placed, tallOvenParts, upperBox, wallGeometry, wallName,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 
@@ -339,8 +339,8 @@ export function PlanView({ layout: l }: { layout: KitchenLayout }) {
           return (
             <g key={i}>
               <polygon points={poly([P(g, 0, 0), P(g, w.length, 0), P(g, w.length, -8), P(g, 0, -8)])} fill="#5b544d" />
-              {i === 0 && l.ends?.left && <polygon points={poly([P(g, -8, -8), P(g, 0, -8), P(g, 0, h.depth + 60), P(g, -8, h.depth + 60)])} fill="#5b544d" />}
-              {i === geo.length - 1 && l.ends?.right && <polygon points={poly([P(g, w.length, -8), P(g, w.length + 8, -8), P(g, w.length + 8, h.depth + 60), P(g, w.length, h.depth + 60)])} fill="#5b544d" />}
+              {i === 0 && l.ends?.left && <polygon points={poly([P(g, -8, -8), P(g, 0, -8), P(g, 0, endWallLen(l, "left")), P(g, -8, endWallLen(l, "left"))])} fill="#5b544d" />}
+              {i === geo.length - 1 && l.ends?.right && <polygon points={poly([P(g, w.length, -8), P(g, w.length + 8, -8), P(g, w.length + 8, endWallLen(l, "right")), P(g, w.length, endWallLen(l, "right"))])} fill="#5b544d" />}
               {placed(w.base).map((u, k) => {
                 if (u.kind === "gap") return null;
                 if (u.kind === "corner") {

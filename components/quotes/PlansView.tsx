@@ -75,6 +75,10 @@ export function PlanScreen({ plan: p, data, upd, saveNow, onBack, onQuote, onOpe
   const [renderNote, setRenderNote] = useState("");
   const [renderErr, setRenderErr] = useState("");
   const shotRef = useRef<(() => string) | null>(null);
+  // The free render: light is calculated on the 3D model itself in this computer's browser, from any angle.
+  const [trace, setTrace] = useState(false);
+  const [samples, setSamples] = useState(-1);
+  const traced = useRef(false); // the first time on a computer takes minutes; after that it starts at once
   // A picture of the 3D view from the angle on screen: kept as it is (free), or sent to the image model
   // for a photorealistic render (paid, about half a shekel to a shekel). Either way it is kept on the plan.
   const capture = async (kind: "photo" | "ai") => {
@@ -169,12 +173,20 @@ export function PlanScreen({ plan: p, data, upd, saveNow, onBack, onQuote, onOpe
           claudeHref={claudeLink(`תיקון התכנון של ${who} במערכת נויה (תכנון ${p.id}): `)}
           onChange={(l) => upd((x) => { x.layout = l; })}
           shotRef={shotRef}
+          trace={trace}
+          onTrace={(n) => { if (n > 0) traced.current = true; setSamples(n); }}
           viewTools={
             <div className="nqr-tools">
-              <div className="hint">מסובבים עם העכבר, מתקרבים בגלגלת, ומצלמים מכל זווית</div>
+              <div className="hint">
+                {!trace ? "מדליקים רינדור, מסובבים לזווית שרוצים, עוצרים, והתמונה מתחדדת לבד. הכל על המחשב שלך, בחינם"
+                  : samples <= 0 && !traced.current ? "מכין את הרינדור… בפעם הראשונה במחשב הזה זה יכול לקחת כמה דקות, ואחר כך זה מיידי"
+                  : samples <= 0 ? "מרנדר… עוצרים במקום והתמונה מתחדדת"
+                  : `מרנדר · איכות ${samples} · ככל שמחכים התמונה נקייה יותר, אפשר לסובב ולהמשיך`}
+              </div>
               <div className="nq-head-acts">
-                <button className="nq-btn" disabled={render !== "idle"} onClick={() => capture("photo")}>{render === "photo" ? "שומר…" : "📷 צילום מהזווית הזו (חינם)"}</button>
-                <button className="nq-btn pri" disabled={render !== "idle"} onClick={() => capture("ai")}>{render === "ai" ? "מרנדר… (כחצי דקה)" : "✨ רינדור מהזווית הזו (חצי שקל עד שקל)"}</button>
+                <button className={`nq-btn ${trace ? "" : "pri"}`} onClick={() => { setSamples(-1); setTrace(!trace); }}>{trace ? "■ כיבוי הרינדור" : "🎬 רינדור על התלת-ממד (חינם)"}</button>
+                <button className={`nq-btn ${trace ? "pri" : ""}`} disabled={render !== "idle"} onClick={() => capture("photo")}>{render === "photo" ? "שומר…" : "📷 צילום מהזווית הזו (חינם)"}</button>
+                <button className="nq-btn" disabled={render !== "idle"} onClick={() => capture("ai")}>{render === "ai" ? "מרנדר… (כחצי דקה)" : "✨ תמונה מגוגל מהזווית הזו (חצי שקל עד שקל)"}</button>
                 {renderErr && <span className="hint">{renderErr}</span>}
               </div>
               <label className="f">הערות לרינדור (לא חובה)<input className="in" value={renderNote} placeholder="למשל: אור ערב חם, פרקט אלון בהיר, עציץ ליד החלון" onChange={(e) => setRenderNote(e.target.value)} /></label>

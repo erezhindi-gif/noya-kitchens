@@ -5,7 +5,7 @@
 import { useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import {
-  BASE_LABEL, COUNTER_COLORS, DEFAULT_HEIGHTS, UPPER_LABEL, heightsOf, layoutWarnings, leftGap, paintFront, partsOf, setLeftGap, wallName,
+  BASE_LABEL, COUNTER_COLORS, DEFAULT_HEIGHTS, UPPER_LABEL, endWallLen, heightsOf, layoutWarnings, leftGap, paintFront, partsOf, setLeftGap, wallName,
   type BaseKind, type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperKind, type UpperUnit,
 } from "@/lib/quotes/layout";
 import KitchenPlan from "./KitchenPlan";
@@ -119,8 +119,9 @@ function colorLabel(v: string | undefined, empty: string) {
 }
 
 /** shotRef and viewTools: the picture from the angle on screen, and what is done with it (only under the 3D view) */
-export default function LayoutEditor({ layout, onChange, claudeHref, shotRef, viewTools }: {
+export default function LayoutEditor({ layout, onChange, claudeHref, shotRef, viewTools, trace, onTrace }: {
   layout: KitchenLayout; onChange: (l: KitchenLayout) => void; claudeHref: string; shotRef?: MutableRefObject<(() => string) | null>; viewTools?: ReactNode;
+  /** the free render on the 3D itself; it pauses while painting */ trace?: boolean; onTrace?: (samples: number) => void;
 }) {
   const [tab, setTab] = useState<"3d" | "plan">("3d");
   const [showH, setShowH] = useState(false);
@@ -195,7 +196,7 @@ export default function LayoutEditor({ layout, onChange, claudeHref, shotRef, vi
         />
       )}
       {tab === "3d"
-        ? <><Kitchen3D layout={layout} height={460} shotRef={shotRef} paint={brush ? paintOn : undefined} />{viewTools}</>
+        ? <><Kitchen3D layout={layout} height={460} shotRef={shotRef} paint={brush ? paintOn : undefined} trace={!!trace && !brush} onTrace={onTrace} />{viewTools}</>
         : <div className={brush ? "nqp-paint" : undefined} onPointerDown={drawingPaint} onPointerOver={drawingPaint}><KitchenPlan layout={layout} /></div>}
       {warns.length > 0 && <div className="nq-back nq-warn" role="alert" style={{ marginTop: 10 }}><span>⚠️ {warns.join(" · ")}</span></div>}
 
@@ -209,6 +210,23 @@ export default function LayoutEditor({ layout, onChange, claudeHref, shotRef, vi
             {SHAPES.map(([t, n]) => <option key={n} value={n}>{t}</option>)}
           </select>
         </label>
+        <label className="f">תיחום הקירות
+          <select className="in" value={`${layout.ends?.left ? 1 : 0}${layout.ends?.right ? 1 : 0}`} onChange={(e) => up((l) => {
+            const a = e.target.value[0], b = e.target.value[1];
+            l.ends = { ...(a === "1" ? { left: "wall" as const, leftLen: l.ends?.leftLen } : {}), ...(b === "1" ? { right: "wall" as const, rightLen: l.ends?.rightLen } : {}) };
+          })}>
+            <option value="11">בין שני קירות</option>
+            <option value="10">קיר משמאל, פתוח מימין</option>
+            <option value="01">פתוח משמאל, קיר מימין</option>
+            <option value="00">פתוח משני הצדדים</option>
+          </select>
+        </label>
+        {layout.ends?.left && (
+          <label className="f">אורך הקיר משמאל<input className="in num" type="number" inputMode="decimal" value={endWallLen(layout, "left")} onChange={(e) => up((l) => { l.ends = { ...l.ends, leftLen: Number(e.target.value) || undefined }; })} /></label>
+        )}
+        {layout.ends?.right && (
+          <label className="f">אורך הקיר מימין<input className="in num" type="number" inputMode="decimal" value={endWallLen(layout, "right")} onChange={(e) => up((l) => { l.ends = { ...l.ends, rightLen: Number(e.target.value) || undefined }; })} /></label>
+        )}
         <div className="f">חזיתות (בלורן)
           <button type="button" className="in nqb-field" onClick={() => setPaintAll("front")}><span className="nqb-dot" style={swatchStyle(c.front)} />{colorLabel(c.front, "לבן")}</button>
         </div>
@@ -249,22 +267,6 @@ export default function LayoutEditor({ layout, onChange, claudeHref, shotRef, vi
             )}
             {w.base[w.base.length - 1]?.kind !== "corner" && (
               <label className="nqp-num">רווח מימין לארון<input className="in num" type="number" inputMode="decimal" placeholder="0" value={Math.max(0, Math.round((w.length - sumW(w.base)) * 10) / 10) || ""} onChange={(e) => up((l) => { l.walls[i].length = sumW(l.walls[i].base) + Math.max(0, Number(e.target.value) || 0); })} /></label>
-            )}
-            {i === 0 && (
-              <label className="nqp-num">בקצה השמאלי
-                <select className="in" value={layout.ends?.left || ""} onChange={(e) => up((l) => { l.ends = { ...l.ends, left: e.target.value ? "wall" : undefined }; })}>
-                  <option value="">הקיר נגמר</option>
-                  <option value="wall">קיר ניצב</option>
-                </select>
-              </label>
-            )}
-            {i === layout.walls.length - 1 && (
-              <label className="nqp-num">בקצה הימני
-                <select className="in" value={layout.ends?.right || ""} onChange={(e) => up((l) => { l.ends = { ...l.ends, right: e.target.value ? "wall" : undefined }; })}>
-                  <option value="">הקיר נגמר</option>
-                  <option value="wall">קיר ניצב</option>
-                </select>
-              </label>
             )}
           </div>
           <div className="nqp-sub">ארונות תחתונים · <span className={sumW(w.base) > w.length ? "bad" : ""}>{sumW(w.base)} מתוך {w.length}</span></div>

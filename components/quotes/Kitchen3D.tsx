@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type * as T from "three";
 import {
-  COUNTER_COLORS, FRONT_COLORS, colorOf, cornerPart, counterSpans, heightsOf, islandBox, mainWallIndex, partsOf, placed, tallOvenParts, upperBox, wallGeometry,
+  COUNTER_COLORS, FRONT_COLORS, colorOf, cornerPart, counterSpans, endWallLen, heightsOf, islandBox, mainWallIndex, partsOf, placed, tallOvenParts, upperBox, wallGeometry,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 import { bluranImg, bluranOf } from "@/lib/quotes/bluran";
@@ -132,7 +132,7 @@ function buildKitchen(three: Three, l: KitchenLayout) {
     counter: std(counter, 0.35),
     plinth: std("#4a4642", 0.9),
     steel: std("#d4d7da", 0.35, 0.25),
-    glass: std("#1b1b1c", 0.12, 0.3),
+    glass: std("#0c0c0d", 0.12, 0),
     handle: std("#7d8185", 0.35, 0.4),
     wall: std("#f4f1eb", 0.92, 0, { side: three.FrontSide }),
     floor: std("#ffffff", 0.5, 0, { map: drawnTexture(three, "oak", oakFloor) }),
@@ -354,16 +354,15 @@ function buildKitchen(three: Three, l: KitchenLayout) {
     wall.receiveShadow = true;
     grp.add(wall);
     // a wall standing across the kitchen's free end, if there is one
-    const cross = (x: number, facing: 1 | -1) => {
-      const len = h.depth + 150;
+    const cross = (x: number, facing: 1 | -1, len: number) => {
       const side = new three.Mesh(new three.PlaneGeometry(len * M, h.ceiling * M), mats.wall);
       side.position.set(x * M, (h.ceiling / 2) * M, (len / 2) * M);
       side.rotation.y = (facing * Math.PI) / 2;
       side.receiveShadow = true;
       grp.add(side);
     };
-    if (i === 0 && l.ends?.left) cross(0, 1);
-    if (i === geo.length - 1 && l.ends?.right) cross(w.length, -1);
+    if (i === 0 && l.ends?.left) cross(0, 1, endWallLen(l, "left"));
+    if (i === geo.length - 1 && l.ends?.right) cross(w.length, -1, endWallLen(l, "right"));
     baseRun(grp, w.base, h.depth, h, String(i));
     upperRun(grp, w.upper, "upper", String(i));
     upperRun(grp, w.top || [], "top", String(i));
@@ -404,9 +403,11 @@ function buildKitchen(three: Three, l: KitchenLayout) {
   return { root, box: bb, ready: Promise.all(loading) };
 }
 
-/** shotRef: takes a 16:9 picture from the angle now on screen. paint: while set, a touch on a front paints it. */
-export default function Kitchen3D({ layout, still = false, height = 420, shotRef, paint }: {
+/** shotRef: takes a picture from the angle now on screen. paint: while set, a touch on a front paints it.
+ *  trace: the free render, light calculated on this very model in the browser; onTrace reports how far it got (-1 = preparing). */
+export default function Kitchen3D({ layout, still = false, height = 420, shotRef, paint, trace = false, onTrace }: {
   layout: KitchenLayout; still?: boolean; height?: number; shotRef?: MutableRefObject<(() => string) | null>; paint?: (ref: string) => void;
+  trace?: boolean; onTrace?: (samples: number) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [img, setImg] = useState("");
@@ -417,6 +418,11 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
   const paintRef = useRef(paint);
   paintRef.current = paint;
   const swap = useRef<((k: string) => void) | null>(null);
+  const setTrace = useRef<((on: boolean) => void) | null>(null);
+  const traceOn = useRef(trace);
+  traceOn.current = trace;
+  const onTraceRef = useRef(onTrace);
+  onTraceRef.current = onTrace;
 
   useEffect(() => {
     let disposed = false;
@@ -534,6 +540,58 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
       let dirty = true, fine = false, movedAt = 0;
       const invalidate = () => { dirty = true; };
       controls.addEventListener("change", invalidate);
+
+      // The free render: a path tracer on the same model, so nothing is invented and every angle is free.
+      // Daylight comes in from the sky through the room's open sides, and it gets cleaner the longer the view stays still.
+      let tracer: import("three-gpu-pathtracer").WebGLPathTracer | null = null;
+      let traceSky: T.Texture | null = null;
+      let tracedSamples = -2;
+      const MAX_SAMPLES = 1000;
+      const loadTrace = () => {
+        if (!tracer) return;
+        scene.remove(hl);
+        tracer.setScene(scene, cam);
+        tracedSamples = -2;
+      };
+      const stopTrace = () => {
+        try { tracer?.dispose(); } catch { /* the library's dispose can fail; the renderer below stays usable */ }
+        tracer = null;
+        scene.environment = envMap;
+        scene.environmentIntensity = 0.95;
+        sun.intensity = 1.25;
+        fill.intensity = 0.45;
+        scene.add(hl);
+        invalidate();
+      };
+      const startTrace = async () => {
+        onTraceRef.current?.(-1);
+        const { WebGLPathTracer, GradientEquirectTexture } = await import("three-gpu-pathtracer");
+        if (disposed || !traceOn.current || tracer) return;
+        const sky = new GradientEquirectTexture();
+        sky.topColor.set("#ffffff");
+        sky.bottomColor.set("#f1ece4");
+        sky.update();
+        traceSky = sky;
+        scene.environment = sky;
+        scene.environmentIntensity = 1.7;
+        sun.intensity = 0.5;
+        fill.intensity = 0;
+        const pt = new WebGLPathTracer(renderer);
+        pt.tiles.set(2, 2);
+        pt.bounces = 6;
+        pt.filterGlossyFactor = 0.5;
+        pt.minSamples = 2;
+        pt.fadeDuration = 200;
+        pt.renderScale = Math.min(1, 1.25 / ratio);
+        await kitchen.ready;
+        if (disposed || !traceOn.current) return;
+        tracer = pt;
+        loadTrace();
+      };
+      setTrace.current = (on) => {
+        if (on && !tracer) startTrace().catch(() => { tracer = null; onTraceRef.current?.(-1); });
+        else if (!on && tracer) stopTrace();
+      };
       kitchen.ready.then(invalidate);
 
       const dispose3D = (root: T.Object3D) => root.traverse((o) => {
@@ -551,16 +609,28 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
         kitchen = buildKitchen(three, JSON.parse(k));
         scene.add(kitchen.root);
         hl.visible = false;
-        kitchen.ready.then(invalidate);
+        kitchen.ready.then(() => { invalidate(); loadTrace(); });
         invalidate();
       };
       swap.current(keyRef.current); // it may have changed while the 3D was loading
+      setTrace.current(traceOn.current);
 
       let raf = 0;
       const loop = () => {
         controls.update();
         const now = performance.now();
-        if (dirty) {
+        if (tracer) {
+          if (dirty) {
+            tracer.updateCamera();
+            dirty = false;
+          }
+          if (tracer.samples < MAX_SAMPLES) tracer.renderSample();
+          const n = Math.floor(tracer.samples);
+          if (n !== tracedSamples) {
+            tracedSamples = n;
+            onTraceRef.current?.(n);
+          }
+        } else if (dirty) {
           renderer.render(scene, cam);
           dirty = false;
           fine = false;
@@ -626,6 +696,11 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
       window.addEventListener("pointerup", onUp);
 
       if (shotRef) shotRef.current = () => {
+        if (tracer) {
+          // the render as it stands now, at the size of the view
+          tracer.renderSample();
+          return renderer.domElement.toDataURL("image/jpeg", 0.92);
+        }
         const w = el.clientWidth;
         const SW = 1920, SH = 1080;
         hl.visible = false;
@@ -668,6 +743,9 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
         el.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
         swap.current = null;
+        setTrace.current = null;
+        try { tracer?.dispose(); } catch { /* see stopTrace */ }
+        traceSky?.dispose();
         if (shotRef) shotRef.current = null;
         controls.dispose();
         dispose3D(kitchen.root);
@@ -685,6 +763,9 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
   useEffect(() => {
     if (!still) swap.current?.(key);
   }, [key, still]);
+  useEffect(() => {
+    setTrace.current?.(trace);
+  }, [trace]);
 
   if (failed && still) return <div className="nqp-3d still" data-ready="1" />; // the PDF goes out with the drawings only
   if (failed) return <div className="nqp-3d-fail">התצוגה בתלת-ממד לא נתמכת בדפדפן הזה. השרטוט עם המידות מופיע למטה.</div>;

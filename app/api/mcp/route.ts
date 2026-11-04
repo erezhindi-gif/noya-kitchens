@@ -654,7 +654,7 @@ const handler = createMcpHandler(
             ceiling: z.number().optional(), depth: z.number().optional(), upperDepth: z.number().optional(), topDepth: z.number().optional(),
           }).optional(),
           colors: z.object({ front: z.string().optional(), upper: z.string().optional(), counter: z.string().optional(), handles: z.enum(["bar", "integral", "none"]).optional() }).optional(),
-          ends: z.object({ left: z.literal("wall").optional(), right: z.literal("wall").optional() }).optional().describe("קיר ניצב בקצה החופשי של המטבח (שמאל של הקיר הראשון, ימין של האחרון). בלי זה הקיר פשוט נגמר. רווח בין ארון לקיר: gap בתחילת השורה או קיר ארוך מסכום הארונות"),
+          ends: z.object({ left: z.literal("wall").optional(), right: z.literal("wall").optional(), leftLen: z.number().optional(), rightLen: z.number().optional() }).optional().describe("תיחום: קיר ניצב בקצה החופשי של המטבח (שמאל של הקיר הראשון, ימין של האחרון), leftLen/rightLen = אורכו בס״מ. בלי זה הקצה פתוח. רווח בין ארון לקיר: gap בתחילת השורה או קיר ארוך מסכום הארונות"),
         }),
       },
       async ({ plan_id, client_name, client_phone, title, ...raw }) => {
@@ -682,7 +682,7 @@ const handler = createMcpHandler(
     );
   },
   {
-    serverInfo: { name: "noya-quotes", version: "1.10.1" },
+    serverInfo: { name: "noya-quotes", version: "1.10.2" },
     instructions:
       "מערכת הצעות המחיר של נויה מטבחים (ארז). תהליך: 1) search_catalog כדי למצוא את הפריטים. " +
       "2) אם חסרה כמות לרכיב כלשהו (למשל ידית לחזיתות), או שיש כמה פריטים אפשריים, שאל את ארז שאלה אחת מרוכזת עם כל החסרים — לפני שבונים. " +

@@ -41,8 +41,8 @@ export type KitchenLayout = {
   h?: Partial<LayoutHeights>;
   /** handles: "bar" a handle on every front, "integral" a grip groove cut into the front's edge, "none" push-open */
   colors?: { front?: string; upper?: string; counter?: string; handles?: "bar" | "integral" | "none" };
-  /** the kitchen's two free ends: "wall" = a wall stands across that end; missing = the wall simply stops there */
-  ends?: { left?: "wall"; right?: "wall" };
+  /** the kitchen's two free ends: "wall" = a wall stands across that end (leftLen/rightLen = how far it runs into the room); missing = open */
+  ends?: { left?: "wall"; right?: "wall"; leftLen?: number; rightLen?: number };
 };
 
 export const BASE_LABEL: Record<BaseKind, string> = {
@@ -171,9 +171,16 @@ export function normalizeLayout(raw: unknown): KitchenLayout | null {
     };
   }
   const e = r.ends as Record<string, unknown> | undefined;
-  if (e && (e.left === "wall" || e.right === "wall")) out.ends = { ...(e.left === "wall" ? { left: "wall" as const } : {}), ...(e.right === "wall" ? { right: "wall" as const } : {}) };
+  if (e && (e.left === "wall" || e.right === "wall")) out.ends = {
+    ...(e.left === "wall" ? { left: "wall" as const, ...(e.leftLen ? { leftLen: num(e.leftLen, 10, 1500, 210) } : {}) } : {}),
+    ...(e.right === "wall" ? { right: "wall" as const, ...(e.rightLen ? { rightLen: num(e.rightLen, 10, 1500, 210) } : {}) } : {}),
+  };
   return out;
 }
+
+/** How far the wall across a free end runs into the room, in cm */
+export const endWallLen = (l: KitchenLayout, side: "left" | "right") =>
+  (side === "left" ? l.ends?.leftLen : l.ends?.rightLen) || heightsOf(l).depth + 150;
 
 /** Paints one front. ref = "<wall index or island>.<base|upper|top>.<unit>.<part>"; part -1 is the unit's own color. */
 export function paintFront(l: KitchenLayout, ref: string, color: string | undefined) {
@@ -240,7 +247,7 @@ export function describeLayout(l: KitchenLayout) {
   lines.push(`גבהים: משטח ${h.base}, עליונים מ-${h.upperFrom} בגובה ${h.upper} ועומק ${h.upperDepth}, שורה עליונה בעומק ${h.topDepth}, ארון גבוה ${h.tall}, תקרה ${h.ceiling}`);
   const c = l.colors || {};
   lines.push(`צבעים: חזיתות ${colorName(c.front)}${c.upper ? `, עליונים ${colorName(c.upper)}` : ""}, משטח ${COUNTER_COLORS[c.counter || "white_stone"]?.name || c.counter}${c.handles === "none" ? ", בלי ידיות" : c.handles === "integral" ? ", ידית אינטגרלית" : ""}`);
-  if (l.ends?.left || l.ends?.right) lines.push(`קיר ניצב בקצה: ${[l.ends.left && "שמאל", l.ends.right && "ימין"].filter(Boolean).join(" ו")}`);
+  if (l.ends?.left || l.ends?.right) lines.push(`קיר ניצב בקצה: ${[l.ends.left && `שמאל ${endWallLen(l, "left")}`, l.ends.right && `ימין ${endWallLen(l, "right")}`].filter(Boolean).join(", ")}`);
   return lines.join("\n");
 }
 
