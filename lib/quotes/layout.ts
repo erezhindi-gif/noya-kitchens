@@ -8,17 +8,24 @@
 // Upper cabinets can come in two rows: the usual one, and a top row above it up to the ceiling
 // (by default as deep as the base cabinets). Any upper cabinet may set its own depth, height and
 // bottom, e.g. a 30 cm deep lift-up under a 60 cm deep top row.
+// Not only kitchens: a TV wall or wall unit is a run with no counter (colors.counter "none"), no plinth
+// (h.plinth 0), maybe lifted off the floor (h.floorGap), made of panels and columns of free heights.
 import { bluranOf } from "./bluran";
 
-export type BaseKind = "doors" | "drawers" | "sink" | "cooktop" | "oven" | "dishwasher" | "fridge" | "tall" | "tall_oven" | "corner" | "gap";
+export type BaseKind = "doors" | "drawers" | "sink" | "cooktop" | "oven" | "dishwasher" | "fridge" | "tall" | "tall_oven" | "corner" | "gap" | "panel" | "column";
 export type UpperKind = "doors" | "lift" | "open" | "hood" | "corner" | "gap";
 
 /** n = number of doors, drawers, flaps or shelves (each kind has a sensible default);
  *  color = the unit's own color (e.g. a black fridge): a Bluran shade "bl:CODE", a FRONT_COLORS name or #hex;
- *  fronts = a color per door/drawer of the unit (left to right, top to bottom), empty = the unit's color */
-export type BaseUnit = { kind: BaseKind; w: number; n?: number; color?: string; fronts?: string[] };
-/** d = depth, h = height, y = bottom above the floor; each falls back to its row's default */
-export type UpperUnit = { kind: UpperKind; w: number; n?: number; d?: number; h?: number; y?: number; color?: string; fronts?: string[] };
+ *  fronts = a color per door/drawer of the unit (left to right, top to bottom), empty = the unit's color;
+ *  y = bottom above the floor, h = height, d = depth: each falls back to the row's;
+ *  panel: a front with no cabinet, in the plane of the fronts; splits = its pieces' heights, bottom up (fronts in the same order);
+ *  column: parts stacked bottom up in one width; fronts run over all its parts, bottom part first */
+export type ColumnPart = { kind: "doors" | "drawers" | "lift" | "panel" | "niche"; h: number; n?: number; d?: number; recess?: number; frame?: number };
+export type BaseUnit = { kind: BaseKind; w: number; n?: number; color?: string; fronts?: string[]; y?: number; h?: number; d?: number; splits?: number[]; parts?: ColumnPart[] };
+/** d = depth, h = height, y = bottom above the floor; each falls back to its row's default;
+ *  recess, frame (open only): a niche, its back recess cm behind a frame of that thickness in the plane of the fronts */
+export type UpperUnit = { kind: UpperKind; w: number; n?: number; d?: number; h?: number; y?: number; color?: string; fronts?: string[]; recess?: number; frame?: number };
 export type LayoutWall = { length: number; base: BaseUnit[]; upper: UpperUnit[]; /** second row, above the uppers up to the ceiling */ top?: UpperUnit[] };
 
 export type LayoutHeights = {
@@ -32,6 +39,7 @@ export type LayoutHeights = {
   depth: number;
   upperDepth: number;
   /** depth of the top row */ topDepth: number;
+  /** cabinets lifted off the floor, cm */ floorGap: number;
 };
 
 export type KitchenLayout = {
@@ -47,14 +55,15 @@ export type KitchenLayout = {
 
 export const BASE_LABEL: Record<BaseKind, string> = {
   doors: "דלתות", drawers: "מגירות", sink: "כיור", cooktop: "כיריים", oven: "תנור", dishwasher: "מדיח",
-  fridge: "מקרר", tall: "ארון גבוה", tall_oven: "ארון גבוה עם תנור", corner: "פינה", gap: "פנוי",
+  fridge: "מקרר", tall: "ארון גבוה", tall_oven: "ארון גבוה עם תנור", corner: "פינה", gap: "פנוי", panel: "חיפוי", column: "עמודה",
 };
+export const PART_LABEL: Record<ColumnPart["kind"], string> = { doors: "דלתות", drawers: "מגירות", lift: "קלפה", panel: "חיפוי", niche: "נישה" };
 export const UPPER_LABEL: Record<UpperKind, string> = {
   doors: "דלתות", lift: "קלפה", open: "מדפים פתוחים", hood: "קולט אדים", corner: "פינה", gap: "פנוי",
 };
 
 export const DEFAULT_HEIGHTS: LayoutHeights = {
-  base: 90, plinth: 10, counter: 4, upperFrom: 145, upper: 70, tall: 220, ceiling: 260, depth: 60, upperDepth: 35, topDepth: 60,
+  base: 90, plinth: 10, counter: 4, upperFrom: 145, upper: 70, tall: 220, ceiling: 260, depth: 60, upperDepth: 35, topDepth: 60, floorGap: 0,
 };
 
 export type UpperRow = "upper" | "top";
@@ -84,6 +93,7 @@ export const FRONT_COLORS: Record<string, { name: string; hex: string }> = {
   navy: { name: "כחול כהה", hex: "#2e3d55" },
 };
 export const COUNTER_COLORS: Record<string, { name: string; hex: string }> = {
+  none: { name: "בלי משטח", hex: "#f3f2ee" },
   white_stone: { name: "אבן לבנה", hex: "#f3f2ee" },
   beige_stone: { name: "אבן בז׳", hex: "#e2dccf" },
   grey_stone: { name: "אבן אפורה", hex: "#9b9993" },
@@ -106,10 +116,37 @@ export const colorOf = (v: string | undefined, table: Record<string, { hex: stri
   return table[s]?.hex || fallback;
 };
 
-export const heightsOf = (l: KitchenLayout): LayoutHeights => ({ ...DEFAULT_HEIGHTS, ...(l.h || {}) });
+export const hasCounter = (l: KitchenLayout) => l.colors?.counter !== "none";
+export const heightsOf = (l: KitchenLayout): LayoutHeights => ({ ...DEFAULT_HEIGHTS, ...(l.h || {}), ...(hasCounter(l) ? {} : { counter: 0 }) });
+/** where the fronts start */
+export const frontsFrom = (h: LayoutHeights) => h.plinth + h.floorGap;
+
+const total = (a: number[]) => a.reduce((x, y) => x + y, 0);
+/** the pieces of a panel, bottom up */
+export const panelHeights = (u: BaseUnit, h: LayoutHeights) => (u.splits?.length ? u.splits : [u.h ?? h.tall - frontsFrom(h)]);
+/** the parts of a column bottom up: where each sits, and which of the column's fronts are its own */
+export function columnParts(u: BaseUnit, h: LayoutHeights) {
+  let y = u.y ?? frontsFrom(h), from = 0;
+  return (u.parts || []).map((p) => {
+    const count = p.kind === "niche" ? 0 : p.kind === "panel" ? 1 : partsOf(p.kind, u.w, p.n, p.kind === "lift");
+    const out = { ...p, y0: y, from, count };
+    y += p.h;
+    from += count;
+    return out;
+  });
+}
+/** how high a base unit reaches */
+export function baseUnitTop(u: BaseUnit, h: LayoutHeights) {
+  const y0 = u.y ?? frontsFrom(h);
+  if (u.kind === "panel") return y0 + total(panelHeights(u, h));
+  if (u.kind === "column") return y0 + total((u.parts || []).map((p) => p.h));
+  if (u.h !== undefined) return y0 + u.h;
+  return ["fridge", "tall", "tall_oven"].includes(u.kind) ? h.tall : h.base;
+}
 
 /** How many doors / drawers / flaps / shelves a unit shows. */
 export function partsOf(kind: BaseKind | UpperKind, w: number, n?: number, upper = false) {
+  if (n === 0 && kind === "open") return 0; // a niche with no shelves
   if (n && n > 0) return Math.min(8, Math.round(n));
   if (kind === "drawers" || kind === "cooktop") return 3;
   if (kind === "tall_oven") return 2;
@@ -135,11 +172,17 @@ export function normalizeLayout(raw: unknown): KitchenLayout | null {
       .map((u) => u as Record<string, unknown>)
       .filter((u) => u && kinds.includes(u.kind as K))
       .map((u) => ({
-        kind: u.kind as K, w: num(u.w, 5, 400, 60), ...(u.n ? { n: num(u.n, 1, 8, 1) } : {}),
+        kind: u.kind as K, w: num(u.w, 5, 400, 60), ...(u.n ? { n: num(u.n, 1, 8, 1) } : u.n === 0 && u.kind === "open" ? { n: 0 } : {}),
         ...(typeof u.color === "string" && u.color.trim() ? { color: u.color.trim().slice(0, 30) } : {}),
         ...(Array.isArray(u.fronts) && u.fronts.some((f: unknown) => typeof f === "string" && f) ? { fronts: (u.fronts as unknown[]).slice(0, 8).map((f) => (typeof f === "string" ? f.slice(0, 30) : "")) } : {}),
         ...(u.d ? { d: num(u.d, 5, 120, 35) } : {}), ...(u.h ? { h: num(u.h, 5, 300, 70) } : {}),
         ...(u.y !== undefined && u.y !== null && u.y !== "" ? { y: num(u.y, 0, 400, 145) } : {}),
+        ...(u.recess ? { recess: num(u.recess, 0.5, 120, 10) } : {}), ...(u.frame ? { frame: num(u.frame, 0.5, 30, 2) } : {}),
+        ...(Array.isArray(u.splits) && u.splits.length ? { splits: (u.splits as unknown[]).slice(0, 12).map((v) => num(v, 1, 400, 50)) } : {}),
+        ...(Array.isArray(u.parts) && u.parts.length ? { parts: (u.parts as Record<string, unknown>[]).slice(0, 12).filter((p) => p && (Object.keys(PART_LABEL) as string[]).includes(p.kind as string)).map((p) => ({
+          kind: p.kind as ColumnPart["kind"], h: num(p.h, 1, 400, 70), ...(p.n ? { n: num(p.n, 1, 8, 1) } : {}), ...(p.d ? { d: num(p.d, 5, 120, 40) } : {}),
+          ...(p.recess ? { recess: num(p.recess, 0.5, 120, 10) } : {}), ...(p.frame ? { frame: num(p.frame, 0.5, 30, 2) } : {}),
+        })) } : {}),
       }))
       .slice(0, 30);
   const walls = (Array.isArray(r.walls) ? r.walls : []).slice(0, 3).map((w) => {
@@ -228,6 +271,8 @@ export function layoutWarnings(l: KitchenLayout) {
     const t = sum(w.top || []);
     if (t > w.length + 0.5) out.push(`${wallName(l, i)}: השורה העליונה (${t} ס״מ) ארוכה מהקיר (${w.length} ס״מ)`);
     if (upperTop(w, heightsOf(l)) > heightsOf(l).ceiling + 0.5) out.push(`${wallName(l, i)}: הארונות העליונים עוברים את התקרה`);
+    const reach = Math.max(0, ...w.base.map((x) => baseUnitTop(x, heightsOf(l))));
+    if (reach > heightsOf(l).ceiling + 0.5) out.push(`${wallName(l, i)}: הארונות מגיעים ל-${reach} ס״מ, מעל התקרה (${heightsOf(l).ceiling} ס״מ)`);
   });
   if (l.island && sum(l.island.base) > l.island.w + 0.5) out.push(`אי: הארונות (${sum(l.island.base)} ס״מ) ארוכים מהאי (${l.island.w} ס״מ)`);
   const h = heightsOf(l);
@@ -243,16 +288,16 @@ export function sinkCenters(l: KitchenLayout) {
 /** Plain-text summary for Claude. */
 export function describeLayout(l: KitchenLayout) {
   const h = heightsOf(l);
-  const u = (x: { kind: string; w: number; n?: number; d?: number; h?: number; y?: number; color?: string; fronts?: string[] }, lab: Record<string, string>) =>
-    `${lab[x.kind]} ${x.w}${x.n ? ` (${x.n})` : ""}${x.d ? ` עומק ${x.d}` : ""}${x.h ? ` גובה ${x.h}` : ""}${x.y !== undefined ? ` מ-${x.y}` : ""}${x.color ? ` [${colorName(x.color)}]` : ""}${x.fronts?.some(Boolean) ? ` [חזיתות: ${x.fronts.map((f, i) => (f ? `${i + 1}=${colorName(f)}` : "")).filter(Boolean).join(", ")}]` : ""}`;
+  const u = (x: { kind: string; w: number; n?: number; d?: number; h?: number; y?: number; color?: string; fronts?: string[]; recess?: number; frame?: number; splits?: number[]; parts?: ColumnPart[] }, lab: Record<string, string>) =>
+    `${lab[x.kind]} ${x.w}${x.n !== undefined ? ` (${x.n})` : ""}${x.d ? ` עומק ${x.d}` : ""}${x.h ? ` גובה ${x.h}` : ""}${x.y !== undefined ? ` מ-${x.y}` : ""}${x.recess ? ` עומק פנימי ${x.recess}` : ""}${x.frame ? ` מסגרת ${x.frame}` : ""}${x.splits?.length ? ` חלוקה מלמטה ${x.splits.join(", ")}` : ""}${x.parts?.length ? ` מלמטה למעלה: ${x.parts.map((p) => `${PART_LABEL[p.kind]} ${p.h}${p.n ? ` (${p.n})` : ""}${p.recess ? ` עומק פנימי ${p.recess}` : ""}${p.frame ? ` מסגרת ${p.frame}` : ""}`).join(", ")}` : ""}${x.color ? ` [${colorName(x.color)}]` : ""}${x.fronts?.some(Boolean) ? ` [חזיתות: ${x.fronts.map((f, i) => (f ? `${i + 1}=${colorName(f)}` : "")).filter(Boolean).join(", ")}]` : ""}`;
   const lines = l.walls.map((w, i) =>
     `${wallName(l, i)} ${w.length} ס״מ\n  תחתון: ${w.base.map((x) => u(x, BASE_LABEL)).join(" | ") || "—"}\n  עליון: ${w.upper.map((x) => u(x, UPPER_LABEL)).join(" | ") || "—"}${w.top?.length ? `
   שורה עליונה: ${w.top.map((x) => u(x, UPPER_LABEL)).join(" | ")}` : ""}`);
   if (l.island) lines.push(`אי ${l.island.w}×${l.island.d}, מרחק ${l.island.gap} מהארונות: ${l.island.base.map((x) => u(x, BASE_LABEL)).join(" | ") || "—"}`);
-  lines.push(`גבהים: משטח ${h.base}, עליונים מ-${h.upperFrom} בגובה ${h.upper} ועומק ${h.upperDepth}, שורה עליונה בעומק ${h.topDepth}, ארון גבוה ${h.tall}, תקרה ${h.ceiling}`);
+  lines.push(`גבהים: ${hasCounter(l) ? `משטח ${h.base}` : "בלי משטח"}${h.plinth !== DEFAULT_HEIGHTS.plinth ? `, סוקל ${h.plinth}` : ""}${h.floorGap ? `, ניתוק מהרצפה ${h.floorGap}` : ""}, עומק ${h.depth}, עליונים מ-${h.upperFrom} בגובה ${h.upper} ועומק ${h.upperDepth}, שורה עליונה בעומק ${h.topDepth}, ארון גבוה ${h.tall}, תקרה ${h.ceiling}`);
   for (const s of sinkCenters(l)) lines.push(`מרכז כיור: ${s.wall}, ${s.from} ס״מ מהקצה השמאלי של הקיר`);
   const c = l.colors || {};
-  lines.push(`צבעים: חזיתות ${colorName(c.front)}${c.upper ? `, עליונים ${colorName(c.upper)}` : ""}, משטח ${COUNTER_COLORS[c.counter || "white_stone"]?.name || c.counter}${c.handles === "none" ? ", בלי ידיות" : c.handles === "integral" ? ", ידית אינטגרלית" : ""}`);
+  lines.push(`צבעים: חזיתות ${colorName(c.front)}${c.upper ? `, עליונים ${colorName(c.upper)}` : ""}${hasCounter(l) ? `, משטח ${COUNTER_COLORS[c.counter || "white_stone"]?.name || c.counter}` : ", בלי משטח"}${c.handles === "none" ? ", בלי ידיות" : c.handles === "integral" ? ", ידית אינטגרלית" : ""}`);
   if (l.ends?.left || l.ends?.right) lines.push(`קיר ניצב בקצה: ${[l.ends.left && `שמאל ${endWallLen(l, "left")}`, l.ends.right && `ימין ${endWallLen(l, "right")}`].filter(Boolean).join(", ")}`);
   return lines.join("\n");
 }
@@ -316,7 +361,7 @@ export function cornerPart(units: BaseUnit[], index: number, depth: number) {
 export function counterSpans(us: BaseUnit[], depth = DEFAULT_HEIGHTS.depth) {
   const spans: { a: number; w: number }[] = [];
   placed(us).forEach((u, i) => {
-    if (["fridge", "tall", "tall_oven", "gap"].includes(u.kind)) return;
+    if (["fridge", "tall", "tall_oven", "gap", "panel", "column"].includes(u.kind) || u.y !== undefined || u.h !== undefined) return;
     let a = u.a, w = u.w;
     if (u.kind === "corner") {
       const c = cornerPart(us, i, depth);
@@ -335,6 +380,6 @@ export function counterSpans(us: BaseUnit[], depth = DEFAULT_HEIGHTS.depth) {
  *  the microwave (60, handle at its bottom), and whatever is left up to the top as one more door. */
 export function tallOvenParts(u: BaseUnit, h: LayoutHeights) {
   const drawers = partsOf("tall_oven", u.w, u.n);
-  const d1 = h.plinth + drawers * 30, o1 = d1 + 60, m1 = Math.min(h.tall, o1 + 60);
-  return { drawers, d0: h.plinth, d1, o1, m1, rest: h.tall - m1 > 2 };
+  const d0 = frontsFrom(h), d1 = d0 + drawers * 30, o1 = d1 + 60, m1 = Math.min(h.tall, o1 + 60);
+  return { drawers, d0, d1, o1, m1, rest: h.tall - m1 > 2 };
 }

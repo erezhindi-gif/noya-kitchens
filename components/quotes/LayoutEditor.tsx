@@ -5,8 +5,8 @@
 import { useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import {
-  BASE_LABEL, COUNTER_COLORS, DEFAULT_HEIGHTS, UPPER_LABEL, endWallLen, heightsOf, layoutWarnings, leftGap, paintFront, partsOf, setLeftGap, wallName,
-  type BaseKind, type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperKind, type UpperUnit,
+  BASE_LABEL, COUNTER_COLORS, DEFAULT_HEIGHTS, PART_LABEL, UPPER_LABEL, columnParts, endWallLen, heightsOf, layoutWarnings, leftGap, paintFront, partsOf, setLeftGap, wallName,
+  type BaseKind, type BaseUnit, type ColumnPart, type KitchenLayout, type LayoutHeights, type UpperKind, type UpperUnit,
 } from "@/lib/quotes/layout";
 import KitchenPlan from "./KitchenPlan";
 import { BluranSheet, SwatchButton, swatchStyle } from "./BluranPicker";
@@ -25,16 +25,18 @@ const STARTER: KitchenLayout = {
 const SHAPES = [["קיר אחד", 1], ["ר׳ (L)", 2], ["ח׳ (U)", 3]] as const;
 const HEIGHT_LABEL: Record<keyof LayoutHeights, string> = {
   base: "גובה משטח", plinth: "סוקל", counter: "עובי משטח", upperFrom: "תחתית עליונים", upper: "גובה עליונים",
-  tall: "ארון גבוה", ceiling: "תקרה", depth: "עומק תחתון", upperDepth: "עומק עליון", topDepth: "עומק שורה עליונה",
+  tall: "ארון גבוה", ceiling: "תקרה", depth: "עומק תחתון", upperDepth: "עומק עליון", topDepth: "עומק שורה עליונה", floorGap: "ניתוק מהרצפה",
 };
 const sumW = (us: { w: number }[]) => us.reduce((a, u) => a + u.w, 0);
 const clone = (l: KitchenLayout): KitchenLayout => JSON.parse(JSON.stringify(l));
 
-type Row<K> = { kind: K; w: number; n?: number; d?: number; h?: number; y?: number; color?: string; fronts?: string[] };
+type Row<K> = { kind: K; w: number; n?: number; d?: number; h?: number; y?: number; color?: string; fronts?: string[]; recess?: number; frame?: number; splits?: number[]; parts?: ColumnPart[] };
 
 /** What a cabinet's color can be set for: the whole cabinet, then each of its fronts (doors left to right,
  *  drawers top to bottom). Units without fronts of their own get none; a fridge only its own color. */
-function frontScopes(kind: string, w: number, n: number | undefined, upper: boolean): string[] {
+function frontScopes(kind: string, w: number, n: number | undefined, upper: boolean, u?: Row<string>): string[] {
+  if (kind === "panel") return ["כל החיפוי", ...(u?.splits || []).map((s, i) => `חלק ${i + 1} מלמטה (${s})`)];
+  if (kind === "column") return ["כל העמודה", ...columnParts({ kind: "column", w, parts: u?.parts }, DEFAULT_HEIGHTS).flatMap((p) => Array.from({ length: p.count }, (_, k) => `${PART_LABEL[p.kind]} ${p.h}${p.count > 1 ? ` · ${k + 1}` : ""}`))];
   if (["gap", "open", "hood"].includes(kind)) return [];
   if (kind === "fridge" || kind === "corner") return ["כל הארון"];
   const parts = kind === "dishwasher" || kind === "oven" ? 1 : partsOf(kind as never, w, n, upper);
@@ -76,15 +78,52 @@ function UnitRows<K extends string>({ units, labels, onChange, addKind, box }: {
             {(Object.keys(labels) as K[]).map((k) => <option key={k} value={k}>{labels[k]}</option>)}
           </select>
           <input className="in num" type="number" inputMode="decimal" aria-label="רוחב בס״מ" value={u.w || ""} onChange={(e) => set(i, { w: Number(e.target.value) || 0 })} />
-          <input className="in num" type="number" inputMode="numeric" aria-label="כמות דלתות או מגירות" placeholder="אוטו׳" value={u.n || ""} onChange={(e) => set(i, { n: Number(e.target.value) || undefined })} />
+          <input className="in num" type="number" inputMode="numeric" aria-label="כמות דלתות או מגירות" placeholder="אוטו׳" value={u.kind === "open" ? u.n ?? "" : u.n || ""} onChange={(e) => set(i, { n: e.target.value === "" ? undefined : u.kind === "open" ? Number(e.target.value) : Number(e.target.value) || undefined })} />
           <span className="nqp-acts">
-            {frontScopes(u.kind, u.w, u.n, !!box).length > 0 && (
+            {frontScopes(u.kind, u.w, u.n, !!box, u).length > 0 && (
               <SwatchButton value={u.color || u.fronts?.find(Boolean)} empty={!u.color && !u.fronts?.some(Boolean)} label="צבע הארון והדלתות" onClick={() => setPaint(i)} />
             )}
             <button type="button" className="nq-btn sm ghost" disabled={i === 0} onClick={() => move(i, -1)} aria-label="הזז שמאלה">‹</button>
             <button type="button" className="nq-btn sm ghost" disabled={i === units.length - 1} onClick={() => move(i, 1)} aria-label="הזז ימינה">›</button>
             <button type="button" className="nq-btn sm ghost" onClick={() => onChange(units.filter((_, j) => j !== i))} aria-label="הסר">×</button>
           </span>
+          {!box && (u.kind === "panel" || u.kind === "column" || u.y !== undefined || u.h !== undefined || u.d !== undefined) && (
+            <span className="nqp-box">
+              <label>עומק<input className="in num" type="number" inputMode="decimal" value={u.d ?? ""} onChange={(e) => set(i, { d: optNum(e.target.value) })} /></label>
+              {u.kind !== "column" && <label>גובה<input className="in num" type="number" inputMode="decimal" value={u.h ?? ""} onChange={(e) => set(i, { h: optNum(e.target.value) })} /></label>}
+              <label>מגובה<input className="in num" type="number" inputMode="decimal" value={u.y ?? ""} onChange={(e) => set(i, { y: optNum(e.target.value) })} /></label>
+              {u.kind === "panel" && <label>חלוקה מלמטה<input className="in num" dir="ltr" placeholder="70, 95, 89" defaultValue={(u.splits || []).join(", ")} onBlur={(e) => {
+                const splits = e.target.value.split(/[,\s]+/).map(Number).filter((v) => v > 0);
+                set(i, { splits: splits.length ? splits : undefined });
+              }} /></label>}
+            </span>
+          )}
+          {u.kind === "column" && (
+            <span className="nqp-parts">
+              {(u.parts || []).map((p, k) => {
+                const setPart = (patch: Partial<ColumnPart>) => set(i, { parts: (u.parts || []).map((x, j) => (j === k ? { ...x, ...patch } : x)) });
+                return (
+                  <span key={k} className="nqp-part">
+                    <select className="in" value={p.kind} aria-label="סוג החלק" onChange={(e) => setPart({ kind: e.target.value as ColumnPart["kind"] })}>
+                      {(Object.keys(PART_LABEL) as ColumnPart["kind"][]).map((x) => <option key={x} value={x}>{PART_LABEL[x]}</option>)}
+                    </select>
+                    <label>גובה<input className="in num" type="number" inputMode="decimal" value={p.h || ""} onChange={(e) => setPart({ h: Number(e.target.value) || 0 })} /></label>
+                    <label>כמות<input className="in num" type="number" inputMode="numeric" placeholder="אוטו׳" value={p.n ?? ""} onChange={(e) => setPart({ n: optNum(e.target.value) })} /></label>
+                    {p.kind === "niche" && <label>עומק פנימי<input className="in num" type="number" inputMode="decimal" placeholder="10" value={p.recess ?? ""} onChange={(e) => setPart({ recess: optNum(e.target.value) })} /></label>}
+                    {p.kind === "niche" && <label>מסגרת<input className="in num" type="number" inputMode="decimal" placeholder="2" value={p.frame ?? ""} onChange={(e) => setPart({ frame: optNum(e.target.value) })} /></label>}
+                    <button type="button" className="nq-btn sm ghost" aria-label="הסר חלק" onClick={() => set(i, { parts: (u.parts || []).filter((_, j) => j !== k) })}>×</button>
+                  </span>
+                );
+              })}
+              <button type="button" className="nq-btn sm" onClick={() => set(i, { parts: [...(u.parts || []), { kind: "doors", h: 70 }] })}>+ חלק למעלה</button>
+            </span>
+          )}
+          {box && u.kind === "open" && (
+            <span className="nqp-box">
+              <label>עומק פנימי<input className="in num" type="number" inputMode="decimal" value={u.recess ?? ""} onChange={(e) => set(i, { recess: optNum(e.target.value) })} /></label>
+              <label>מסגרת<input className="in num" type="number" inputMode="decimal" value={u.frame ?? ""} onChange={(e) => set(i, { frame: optNum(e.target.value) })} /></label>
+            </span>
+          )}
           {box && u.kind !== "gap" && u.kind !== "corner" && (
             <span className="nqp-box">
               <label>עומק<input className="in num" type="number" inputMode="decimal" placeholder={String(box.d)} value={u.d ?? ""} onChange={(e) => set(i, { d: optNum(e.target.value) })} /></label>
@@ -98,7 +137,7 @@ function UnitRows<K extends string>({ units, labels, onChange, addKind, box }: {
       {paint !== null && units[paint] && (
         <BluranSheet
           title={`צבע: ${labels[units[paint].kind]} ${units[paint].w}`}
-          scopes={frontScopes(units[paint].kind, units[paint].w, units[paint].n, !!box)}
+          scopes={frontScopes(units[paint].kind, units[paint].w, units[paint].n, !!box, units[paint])}
           value={(scope) => (scope ? units[paint].fronts?.[scope - 1] || undefined : units[paint].color)}
           emptyLabel="כמו כל המטבח"
           onPick={(v, scope) => pick(paint, v, scope)}

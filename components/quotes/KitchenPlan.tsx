@@ -3,7 +3,7 @@
 // is in cm), so proportions are exact at any size. No hooks: renders on the server for the PDF too.
 import "./plan.css";
 import {
-  BASE_LABEL, COUNTER_COLORS, FRONT_COLORS, colorOf, cornerPart, counterSpans, endWallLen, heightsOf, islandBox, partsOf, placed, tallOvenParts, upperBox, wallGeometry, wallName,
+  BASE_LABEL, COUNTER_COLORS, FRONT_COLORS, baseUnitTop, colorOf, columnParts, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, partsOf, placed, tallOvenParts, upperBox, wallGeometry, wallName,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 
@@ -80,6 +80,21 @@ function Stack({ c, x, y0, w, h, n, fill, fills = [], handle = "top", r }: { c: 
   return <>{Array.from({ length: n }, (_, i) => <Front key={i} c={c} x={x} y0={y0 + h - (i + 1) * dh} w={w} h={dh} fill={fills[i] || fill} handle={handle} r={`${r}.${i}`} />)}</>;
 }
 
+/** A niche seen from the front: the frame around a recessed back */
+function Niche({ c, x, y0, w, h, frame, fill, r, n = 0, label }: { c: Ctx; x: number; y0: number; w: number; h: number; frame: number; fill: string; r: string; n?: number; label: string }) {
+  return (
+    <g data-front={r}>
+      <rect x={x} y={Y(c, y0 + h)} width={w} height={h} fill={fill} stroke={LINE} strokeWidth={0.35} />
+      <rect x={x + frame} y={Y(c, y0 + h) + frame} width={Math.max(0.5, w - frame * 2)} height={Math.max(0.5, h - frame * 2)} fill="#d9d3c8" stroke={LINE} strokeWidth={0.35} />
+      {Array.from({ length: n }, (_, i) => {
+        const yy = Y(c, y0 + (h * (i + 1)) / (n + 1));
+        return <line key={i} x1={x + frame} x2={x + w - frame} y1={yy} y2={yy} stroke={LINE} strokeWidth={0.8} />;
+      })}
+      <Label c={c} x={x + w / 2} y={Y(c, y0 + h / 2)} t={label} />
+    </g>
+  );
+}
+
 /** A unit's own color, and a color per door/drawer, falling back to the kitchen's */
 const unitFills = (u: { color?: string; fronts?: string[] }, base: string) => {
   const own = u.color ? colorOf(u.color, FRONT_COLORS, base) : base;
@@ -89,12 +104,34 @@ const unitFills = (u: { color?: string; fronts?: string[] }, base: string) => {
 function BaseShape({ c, u, x, units, index, at }: { c: Ctx; u: BaseUnit; x: number; units: BaseUnit[]; index: number; at: string }) {
   const { h } = c;
   const r = `${at}.base.${index}`;
-  const f0 = h.plinth, f1 = h.base - h.counter, fh = f1 - f0;
+  const f0 = frontsFrom(h), f1 = h.base - h.counter, fh = f1 - f0;
   const n = partsOf(u.kind, u.w, u.n);
   const { own: fr, parts: pf } = unitFills(u, c.front);
-  const plinth = <rect x={x} y={Y(c, h.plinth)} width={u.w} height={h.plinth} fill="#5b544d" />;
+  const plinth = u.y === undefined && h.plinth > 0 ? <rect x={x} y={Y(c, h.plinth)} width={u.w} height={h.plinth} fill="#5b544d" /> : null;
   const mid = x + u.w / 2;
+  // a cabinet with its own bottom or height
+  const by = u.y ?? f0, bh = u.h ?? (u.kind === "tall" ? h.tall - by : f1 - by);
   switch (u.kind) {
+    case "panel": {
+      let y = by;
+      return <>{plinth}{panelHeights(u, h).map((ph, i) => {
+        const front = <Front key={i} c={c} x={x} y0={y} w={u.w} h={ph} fill={pf[i] || fr} r={`${r}.${i}`} />;
+        y += ph;
+        return front;
+      })}</>;
+    }
+    case "column":
+      return (
+        <>
+          {plinth}
+          {columnParts(u, h).map((p, i) => {
+            if (p.kind === "niche") return <Niche key={i} c={c} x={x} y0={p.y0} w={u.w} h={p.h} frame={p.frame ?? 2} fill={fr} r={`${r}.-1`} n={p.n} label={`נישה ${cm(p.h)}`} />;
+            if (p.kind === "panel") return <Front key={i} c={c} x={x} y0={p.y0} w={u.w} h={p.h} fill={pf[p.from] || fr} r={`${r}.${p.from}`} />;
+            if (p.kind === "doors") return <g key={i}>{Array.from({ length: p.count }, (_, k) => <Front key={k} c={c} x={x + (k * u.w) / p.count} y0={p.y0} w={u.w / p.count} h={p.h} fill={pf[p.from + k] || fr} handle={p.y0 + p.h > 120 ? "bottom" : "top"} r={`${r}.${p.from + k}`} />)}</g>;
+            return <g key={i}>{Array.from({ length: p.count }, (_, k) => <Front key={k} c={c} x={x} y0={p.y0 + p.h - ((k + 1) * p.h) / p.count} w={u.w} h={p.h / p.count} fill={pf[p.from + k] || fr} handle={p.y0 + p.h > 120 ? "bottom" : "top"} r={`${r}.${p.from + k}`} />)}</g>;
+          })}
+        </>
+      );
     case "gap":
       return u.w >= 25 ? <Label c={c} x={mid} y={Y(c, h.base / 2)} t="פנוי" /> : null;
     case "corner": {
@@ -113,10 +150,10 @@ function BaseShape({ c, u, x, units, index, at }: { c: Ctx; u: BaseUnit; x: numb
     }
     case "doors":
     case "sink":
-      return <>{plinth}<Doors c={c} x={x} y0={f0} w={u.w} h={fh} n={n} fill={fr} fills={pf} at="top" r={r} />{u.kind === "sink" && <Label c={c} x={mid} y={Y(c, f0 + fh / 2)} t="כיור" light={isDark(fr)} />}</>;
+      return <>{plinth}<Doors c={c} x={x} y0={by} w={u.w} h={bh} n={n} fill={fr} fills={pf} at="top" r={r} />{u.kind === "sink" && <Label c={c} x={mid} y={Y(c, by + bh / 2)} t="כיור" light={isDark(fr)} />}</>;
     case "drawers":
     case "cooktop":
-      return <>{plinth}<Stack c={c} x={x} y0={f0} w={u.w} h={fh} n={n} fill={fr} fills={pf} r={r} />{u.kind === "cooktop" && <rect x={x + 4} y={Y(c, h.base) - 1.2} width={u.w - 8} height={1.2} fill={GLASS} />}</>;
+      return <>{plinth}<Stack c={c} x={x} y0={by} w={u.w} h={bh} n={n} fill={fr} fills={pf} r={r} />{u.kind === "cooktop" && <rect x={x + 4} y={Y(c, h.base) - 1.2} width={u.w - 8} height={1.2} fill={GLASS} />}</>;
     case "dishwasher":
       return <>{plinth}<Front c={c} x={x} y0={f0} w={u.w} h={fh} fill={pf[0] || fr} handle="top" r={`${r}.0`} /><Label c={c} x={mid} y={Y(c, f0 + fh / 2)} t="מדיח" light={isDark(pf[0] || fr)} /></>;
     case "oven": {
@@ -145,7 +182,7 @@ function BaseShape({ c, u, x, units, index, at }: { c: Ctx; u: BaseUnit; x: numb
       );
     }
     case "tall":
-      return <>{plinth}<Stack c={c} x={x} y0={f0} w={u.w} h={h.tall - f0} n={n} fill={fr} fills={pf} handle="mid" r={r} /></>;
+      return <>{plinth}<Stack c={c} x={x} y0={by} w={u.w} h={bh} n={n} fill={fr} fills={pf} handle="mid" r={r} /></>;
     case "tall_oven": {
       const t = tallOvenParts(u, h);
       return (
@@ -189,6 +226,7 @@ function upperFront(c: Ctx, u: UpperUnit, x: number, y0: number, uh: number, n: 
     case "lift":
       return <Stack c={c} x={x} y0={y0} w={u.w} h={uh} n={n} fill={fu} fills={pf} handle="bottom" r={r} />;
     case "open":
+      if (u.recess || u.frame) return <Niche c={c} x={x} y0={y0} w={u.w} h={uh} frame={u.frame ?? 2} fill={fu} r={`${r}.-1`} n={n} label={`נישה ${cm(uh)}`} />;
       return (
         <g>
           <rect x={x + 0.3} y={Y(c, y0 + uh)} width={u.w - 0.6} height={uh} fill="#e9e4da" stroke={LINE} strokeWidth={0.6} />
@@ -264,8 +302,10 @@ export function Elevation({ layout, title, length, base, upper, top = [], island
   const highest = Math.max(0, ...reach(upper, "upper"), ...reach(top, "top"));
   const depthTag = hasTop || upper.some((u) => u.d !== undefined) || top.some((u) => u.d !== undefined);
   const hasTall = base.some((u) => ["fridge", "tall", "tall_oven"].includes(u.kind));
+  const baseReach = Math.max(0, ...base.map((u) => baseUnitTop(u, h)));
   const hasHood = upper.some((u) => u.kind === "hood");
-  const shownTop = island ? h.base + 2 : Math.min(h.ceiling, Math.max(h.base + 30, hasUpper || hasTop ? highest + (hasHood && !hasTop ? 30 : hasTop ? 0 : 10) : 0, hasTall ? h.tall + 10 : 0));
+  const free = !hasCounter(layout); // a wall unit, not a kitchen: only as high as its cabinets
+  const shownTop = island ? h.base + 2 : free ? Math.min(h.ceiling, Math.max(baseReach, hasUpper || hasTop ? highest : 0)) : Math.min(h.ceiling, Math.max(h.base + 30, baseReach, hasUpper || hasTop ? highest + (hasHood && !hasTop ? 30 : hasTop ? 0 : 10) : 0, hasTall ? h.tall + 10 : 0));
   c.top = shownTop;
   const f = c.f;
   const left = f * (hasTall ? 4.6 : 3.2), right = f * 1.2, topPad = f * (hasTop ? 3 : 1.6), bottom = f * 4.4;
@@ -299,7 +339,13 @@ export function Elevation({ layout, title, length, base, upper, top = [], island
         {hasTop && pt.map((u, i) => u.kind === "gap" ? null : <HDim key={"dt" + i} c={c} x0={u.a} x1={u.a + u.w} y={Y(c, shownTop) - f * 1.2} t={cm(u.w)} />)}
 
         {/* heights */}
-        <VDim c={c} x={-f * 1.3} y0={0} y1={h.base} t={cm(h.base)} />
+        {!free && <VDim c={c} x={-f * 1.3} y0={0} y1={h.base} t={cm(h.base)} />}
+        {free && <VDim c={c} x={-f * 1.3} y0={0} y1={baseReach} t={cm(baseReach)} />}
+        {free && h.floorGap > 0 && <text x={length / 2} y={shownTop + f * 0.9} fontSize={f * 0.7} textAnchor="middle" fill={DIM} direction="rtl">ניתוק מהרצפה {cm(h.floorGap)}</text>}
+        {pb.flatMap((u, i) => {
+          const pieces = u.kind === "panel" && u.splits?.length ? panelHeights(u, h).reduce<{ y: number; h: number }[]>((a, ph) => [...a, { y: (a.length ? a[a.length - 1].y + a[a.length - 1].h : u.y ?? frontsFrom(h)), h: ph }], []) : u.kind === "column" ? columnParts(u, h).map((p) => ({ y: p.y0, h: p.h })) : [];
+          return pieces.map((p, k) => <text key={`ph${i}-${k}`} x={u.a + 1.5} y={Y(c, p.y + p.h) + f * 0.85} fontSize={f * 0.65} fill={DIM}>{cm(p.h)}</text>);
+        })}
         {hasUpper && <VDim c={c} x={-f * 1.3} y0={h.base} y1={h.upperFrom} t={cm(h.upperFrom - h.base)} />}
         {hasUpper && <VDim c={c} x={-f * 1.3} y0={h.upperFrom} y1={Math.min(shownTop, h.upperFrom + h.upper)} t={cm(h.upper)} />}
         {hasTop && (() => { const b = upperBox({ kind: "doors", w: 1 }, h, "top"); return <VDim c={c} x={-f * 1.3} y0={b.y0} y1={Math.min(shownTop, b.y0 + b.hh)} t={cm(b.hh)} />; })()}
@@ -348,12 +394,13 @@ export function PlanView({ layout: l }: { layout: KitchenLayout }) {
                   if (p.w <= 0.01) return null;
                   return <polygon key={k} points={poly([P(g, u.a + p.a, 0), P(g, u.a + p.a + p.w, 0), P(g, u.a + p.a + p.w, h.depth), P(g, u.a + p.a, h.depth)])} fill={counter} stroke={LINE} strokeWidth={0.6} />;
                 }
-                const tall = ["fridge", "tall", "tall_oven"].includes(u.kind);
-                const fill = u.kind === "fridge" ? (u.color ? colorOf(u.color, FRONT_COLORS, STEEL) : STEEL) : tall ? (u.color ? colorOf(u.color, FRONT_COLORS, front) : front) : counter;
-                const c = P(g, u.a + u.w / 2, h.depth / 2);
+                const tall = ["fridge", "tall", "tall_oven", "panel", "column"].includes(u.kind);
+                const fill = u.kind === "fridge" ? (u.color ? colorOf(u.color, FRONT_COLORS, STEEL) : STEEL) : tall || !hasCounter(l) ? (u.color ? colorOf(u.color, FRONT_COLORS, front) : front) : counter;
+                const dp = u.d ?? h.depth;
+                const c = P(g, u.a + u.w / 2, dp / 2);
                 return (
                   <g key={k}>
-                    <polygon points={poly([P(g, u.a, 0), P(g, u.a + u.w, 0), P(g, u.a + u.w, h.depth), P(g, u.a, h.depth)])} fill={fill} stroke={LINE} strokeWidth={0.6} />
+                    <polygon points={poly([P(g, u.a, 0), P(g, u.a + u.w, 0), P(g, u.a + u.w, dp), P(g, u.a, dp)])} fill={fill} stroke={LINE} strokeWidth={0.6} />
                     {u.kind === "sink" && <rect x={c[0] - Math.min(u.w - 14, 50) / 2} y={c[1] - 20} width={Math.min(u.w - 14, 50)} height={40} rx={5} fill="#b8bdc1" stroke={LINE} strokeWidth={0.5} transform={g.dz ? `rotate(90 ${c[0]} ${c[1]})` : undefined} />}
                     {u.kind === "cooktop" && [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz], j) => (
                       <circle key={j} cx={c[0] + sx * Math.min(14, u.w / 4.5)} cy={c[1] + sz * 12} r={7} fill="none" stroke={GLASS} strokeWidth={1.4} />

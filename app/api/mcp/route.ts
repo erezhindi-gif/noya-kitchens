@@ -561,8 +561,20 @@ const handler = createMcpHandler(
     );
 
     const baseUnit = z.object({
-      kind: z.enum(["doors", "drawers", "sink", "cooktop", "oven", "dishwasher", "fridge", "tall", "tall_oven", "corner", "gap"]),
+      kind: z.enum(["doors", "drawers", "sink", "cooktop", "oven", "dishwasher", "fridge", "tall", "tall_oven", "corner", "gap", "panel", "column"]),
       w: z.number().describe("רוחב בס״מ"),
+      y: z.number().optional().describe("גובה תחתית הארון מהרצפה בס״מ, רק אם שונה מהשורה"),
+      h: z.number().optional().describe("גובה הארון בס״מ, רק אם שונה מהשורה"),
+      d: z.number().optional().describe("עומק בס״מ, רק אם שונה מהשורה"),
+      splits: z.array(z.number()).optional().describe("panel: גובהי החלקים מלמטה למעלה, למשל [70, 95, 89]; fronts באותו סדר"),
+      parts: z.array(z.object({
+        kind: z.enum(["doors", "drawers", "lift", "panel", "niche"]),
+        h: z.number().describe("גובה החלק"),
+        n: z.number().optional().describe("דלתות, מגירות או מדפים בנישה"),
+        d: z.number().optional().describe("עומק החלק, רק אם שונה מהעמודה"),
+        recess: z.number().optional().describe("niche: עומק פנימי מהמסגרת עד הגב, ברירת מחדל 10"),
+        frame: z.number().optional().describe("niche: עובי המסגרת, ברירת מחדל 2"),
+      })).optional().describe("column: החלקים מלמטה למעלה; fronts רץ על כל החזיתות של העמודה, מהחלק התחתון"),
       n: z.number().optional().describe("מספר דלתות/מגירות (ב-tall_oven: מספר המגירות מתחת לתנור, 30 ס״מ כל אחת). ריק = ברירת מחדל"),
       color: z.string().optional().describe("צבע משלו לארון או למכשיר: גוון בלורן bl:CODE (למשל bl:ZA02SM, מצא עם bluran_colors), או black/#hex למקרר. ריק = כמו שאר המטבח (מקרר: נירוסטה)"),
       fronts: z.array(z.string()).optional().describe("צבע לכל דלת/מגירה בארון בנפרד (דלתות משמאל לימין, מגירות מלמעלה למטה), למשל [\"\", \"bl:ZA03SM\"] = רק הדלת השנייה בצבע אחר. ריק = כמו הארון"),
@@ -576,6 +588,8 @@ const handler = createMcpHandler(
       y: z.number().optional().describe("גובה תחתית הארון מהרצפה בס״מ, רק אם שונה מהשורה"),
       color: z.string().optional().describe("גוון בלורן משלו לארון העליון: bl:CODE. ריק = כמו העליונים"),
       fronts: z.array(z.string()).optional().describe("גוון לכל דלת/קלפה בנפרד: bl:CODE לכל אחת, ריק = כמו הארון"),
+      recess: z.number().optional().describe("open: נישה, עומק פנימי מהמסגרת עד הגב"),
+      frame: z.number().optional().describe("open: נישה, עובי המסגרת"),
     });
     server.registerTool(
       "bluran_colors",
@@ -649,7 +663,8 @@ const handler = createMcpHandler(
           "בעליון: doors, lift קלפה, open מדפים פתוחים, hood קולט אדים, corner, gap (למשל חלון). " +
           "שתי שורות עליונים: upper היא השורה הרגילה (מ-145, גובה 70, עומק 35), ו-top היא שורה שנייה מעליה ועד התקרה (עומק 60). לכל ארון עליון אפשר לתת d (עומק), h (גובה) ו-y (תחתית מהרצפה) משלו, למשל קלפה בעומק 30 מתחת לשורה בעומק 60. " +
           "צבעים: front/upper הם גווני בלורן בלבד: bl:CODE (חפש עם bluran_colors), אפשר גם לכל ארון color ולכל דלת fronts; counter אחד מ-white_stone beige_stone grey_stone black_stone wood או #hex. ידיות: handles bar = ידית חיצונית (ברירת מחדל), integral = ידית אינטגרלית (חריץ בחזית), none = בלי ידיות. " +
-          "גבהים (h) רק אם שונים מהרגיל: משטח 90, תחתית עליונים 145, גובה עליונים 70, ארון גבוה 220, תקרה 260. " +
+          "גבהים (h) רק אם שונים מהרגיל: משטח 90, סוקל 10, תחתית עליונים 145, גובה עליונים 70, ארון גבוה 220, תקרה 260, עומק 60, ניתוק מהרצפה 0. " +
+          "לא רק מטבחים: קיר טלוויזיה או ארון קיר נבנים עם colors.counter \"none\" (בלי משטח), h.plinth 0 (בלי סוקל) ו-h.floorGap (ניתוק מהרצפה, כל הארונות מתחילים ממנו). panel = חיפוי בלי ארון במישור החזיתות, עם splits. column = עמודה ברוחב אחד עם parts מלמטה למעלה: doors, drawers, lift, panel, niche (נישה עם recess ו-frame). לכל ארון בתחתון אפשר גם y, h, d. בעליון open עם n: 0 ו-recess ו-frame הוא נישה. הגובה של כל החלקים ועוד הניתוק לא יעלה על התקרה. " +
           "אחרי השמירה הצג לארז את הסיכום ואת האזהרות אם יש, ותן את הקישור לבדיקה.",
         inputSchema: z.object({
           plan_id: z.string().optional().describe("תכנון קיים לעדכון"),
@@ -664,8 +679,9 @@ const handler = createMcpHandler(
           h: z.object({
             base: z.number().optional(), upperFrom: z.number().optional(), upper: z.number().optional(), tall: z.number().optional(),
             ceiling: z.number().optional(), depth: z.number().optional(), upperDepth: z.number().optional(), topDepth: z.number().optional(),
+            plinth: z.number().optional().describe("גובה סוקל, 0 = בלי סוקל"), floorGap: z.number().optional().describe("ניתוק מהרצפה בס״מ"),
           }).optional(),
-          colors: z.object({ front: z.string().optional(), upper: z.string().optional(), counter: z.string().optional(), handles: z.enum(["bar", "integral", "none"]).optional() }).optional(),
+          colors: z.object({ front: z.string().optional(), upper: z.string().optional(), counter: z.string().optional().describe("white_stone beige_stone grey_stone black_stone wood none (בלי משטח) או #hex"), handles: z.enum(["bar", "integral", "none"]).optional() }).optional(),
           ends: z.object({ left: z.literal("wall").optional(), right: z.literal("wall").optional(), leftLen: z.number().optional(), rightLen: z.number().optional() }).optional().describe("תיחום: קיר ניצב בקצה החופשי של המטבח (שמאל של הקיר הראשון, ימין של האחרון), leftLen/rightLen = אורכו בס״מ. בלי זה הקצה פתוח. רווח בין ארון לקיר: gap בתחילת השורה או קיר ארוך מסכום הארונות"),
         }),
       },
@@ -694,7 +710,7 @@ const handler = createMcpHandler(
     );
   },
   {
-    serverInfo: { name: "noya-quotes", version: "1.11.0" },
+    serverInfo: { name: "noya-quotes", version: "1.12.0" },
     instructions:
       "מערכת הצעות המחיר של נויה מטבחים (ארז). תהליך: 1) search_catalog כדי למצוא את הפריטים. " +
       "2) אם חסרה כמות לרכיב כלשהו (למשל ידית לחזיתות), או שיש כמה פריטים אפשריים, שאל את ארז שאלה אחת מרוכזת עם כל החסרים — לפני שבונים. " +

@@ -81,3 +81,10 @@
 .nqp-paint text { pointer-events: none; }
 .nqr-tools { display: grid; gap: 8px; margin-top: 10px; }
 .nqr-tools .nqr-grid { margin-top: 4px; }
+
+/* a column's parts, bottom up */
+.nqp-parts { grid-column: 1 / -1; display: grid; gap: 4px; padding-inline-start: 18px; }
+.nqp-part { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: #6d655c; }
+.nqp-part select { width: auto; }
+.nqp-part label { display: inline-flex; align-items: center; gap: 3px; }
+.nqp-part .in.num { width: 56px; }
