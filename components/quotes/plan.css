@@ -93,3 +93,5 @@
 .nqp-room { display: grid; gap: 4px; margin: 6px 0; }
 .nqp-room-add { display: flex; flex-wrap: wrap; gap: 4px; }
 .nqp-counter { margin-top: 10px; }
+
+.nqp-more { padding: 6px 8px; background: #f8f4ec; border-radius: 8px; }

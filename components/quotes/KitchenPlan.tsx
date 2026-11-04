@@ -3,7 +3,7 @@
 // is in cm), so proportions are exact at any size. No hooks: renders on the server for the PDF too.
 import "./plan.css";
 import {
-  BASE_LABEL, COUNTER_COLORS, POINT_LABEL, beamHeight, openingBox, FRONT_COLORS, baseUnitTop, colorOf, columnParts, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, partsOf, placed, tvSize, tallOvenParts, upperBox, wallGeometry, wallName,
+  BASE_LABEL, COUNTER_COLORS, POINT_LABEL, beamHeight, openingBox, FRONT_COLORS, baseUnitTop, colorOf, corniceBoxes, columnParts, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, partsOf, placed, tvSize, tallOvenParts, upperBox, wallGeometry, wallName,
   type BaseUnit, type LayoutWall, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 
@@ -14,7 +14,7 @@ const STEEL = "#cfd3d6";
 const GLASS = "#2c2c2c";
 const GAP = 0.5; // gap between fronts, cm
 
-type Ctx = { h: LayoutHeights; top: number; front: string; upper: string; counter: string; handles: boolean; grip: boolean; f: number };
+type Ctx = { h: LayoutHeights; top: number; front: string; upper: string; counter: string; handles: boolean; grip: boolean; f: number; plinth: string };
 
 /** Dark fronts (anthracite, black, walnut…) get light writing on them. */
 const isDark = (hex: string) => {
@@ -26,7 +26,7 @@ const isDark = (hex: string) => {
 const Y = (c: Ctx, cm: number) => c.top - cm;
 
 /** r: which front this is, for painting it with a touch (see paintFront) */
-function Front({ c, x, y0, w, h, fill, handle, r }: { c: Ctx; x: number; y0: number; w: number; h: number; fill: string; handle?: "top" | "bottom" | "side-l" | "side-r" | "mid"; r?: string }) {
+function Front({ c, x, y0, w, h, fill, handle, r, glass }: { c: Ctx; x: number; y0: number; w: number; h: number; fill: string; handle?: "top" | "bottom" | "side-l" | "side-r" | "mid"; r?: string; glass?: string }) {
   const g = GAP / 2;
   const rx = x + g, ry = Y(c, y0 + h) + g, rw = Math.max(0.5, w - GAP), rh = Math.max(0.5, h - GAP);
   const hl = Math.min(16, rw * 0.45);
@@ -50,6 +50,7 @@ function Front({ c, x, y0, w, h, fill, handle, r }: { c: Ctx; x: number; y0: num
   return (
     <g data-front={r}>
       <rect x={rx} y={ry} width={rw} height={rh} fill={fill} stroke={LINE} strokeWidth={0.35} />
+      {glass && <rect x={rx + 2.5} y={ry + 2.5} width={Math.max(0.5, rw - 5)} height={Math.max(0.5, rh - 5)} fill={glass === "smoked" ? "#8d9499" : "#d7e6ec"} stroke={LINE} strokeWidth={0.3} />}
       {bar}
     </g>
   );
@@ -70,9 +71,9 @@ const Label = ({ c, x, y, t, light }: { c: Ctx; x: number; y: number; t: string;
 
 /** doors side by side; the handle sits on the inner edges */
 /** doors side by side; fills = a color per door (left to right), else fill */
-function Doors({ c, x, y0, w, h, n, fill, fills = [], at, r }: { c: Ctx; x: number; y0: number; w: number; h: number; n: number; fill: string; fills?: (string | undefined)[]; at: "top" | "bottom"; r: string }) {
+function Doors({ c, x, y0, w, h, n, fill, fills = [], at, r, glass }: { c: Ctx; x: number; y0: number; w: number; h: number; n: number; fill: string; fills?: (string | undefined)[]; at: "top" | "bottom"; r: string; glass?: string }) {
   const dw = w / n;
-  return <>{Array.from({ length: n }, (_, i) => <Front key={i} c={c} x={x + i * dw} y0={y0} w={dw} h={h} fill={fills[i] || fill} handle={at} r={`${r}.${i}`} />)}</>;
+  return <>{Array.from({ length: n }, (_, i) => <Front key={i} c={c} x={x + i * dw} y0={y0} w={dw} h={h} fill={fills[i] || fill} handle={at} r={`${r}.${i}`} glass={glass} />)}</>;
 }
 /** fronts one above the other; fills = a color per front (top to bottom), else fill */
 function Stack({ c, x, y0, w, h, n, fill, fills = [], handle = "top", r }: { c: Ctx; x: number; y0: number; w: number; h: number; n: number; fill: string; fills?: (string | undefined)[]; handle?: "top" | "mid" | "bottom"; r: string }) {
@@ -109,11 +110,13 @@ function BaseShape({ c, u, x, units, index, at }: { c: Ctx; u: BaseUnit; x: numb
   const f0 = frontsFrom(h), f1 = h.base - h.counter, fh = f1 - f0;
   const n = partsOf(u.kind, u.w, u.n);
   const { own: fr, parts: pf } = unitFills(u, c.front);
-  const plinth = u.y === undefined && h.plinth > 0 ? <rect x={x} y={Y(c, h.plinth)} width={u.w} height={h.plinth} fill="#5b544d" /> : null;
+  const plinth = u.y === undefined && h.plinth > 0 ? <rect x={x} y={Y(c, h.plinth)} width={u.w} height={h.plinth} fill={c.plinth} /> : null;
   const mid = x + u.w / 2;
   // a cabinet with its own bottom or height
   const by = u.y ?? f0, bh = u.h ?? (u.kind === "tall" ? h.tall - by : f1 - by);
   switch (u.kind) {
+    case "open":
+      return <>{plinth}<Niche c={c} x={x} y0={by} w={u.w} h={bh} frame={u.frame ?? 2} fill={fr} r={`${r}.-1`} n={partsOf("open", u.w, u.n)} label="תא פתוח" /></>;
     case "panel": {
       let y = by;
       return <>{plinth}{panelHeights(u, h).map((ph, i) => {
@@ -146,13 +149,13 @@ function BaseShape({ c, u, x, units, index, at }: { c: Ctx; u: BaseUnit; x: numb
           {plinth}
           <Hatch c={c} x={x + hatchA} y0={f0} w={u.w - p.filler.w} h={fh} />
           <Cross c={c} x={x + hatchA} y0={f0} w={u.w - p.filler.w} h={fh} />
-          {p.filler.w > 0.01 && <Front c={c} x={x + p.filler.a} y0={f0} w={p.filler.w} h={fh} fill={fr} r={`${r}.-1`} />}
+          {p.filler.w > 0.01 && <Front c={c} x={x + p.filler.a} y0={f0} w={p.filler.w} h={fh} fill={fr} r={`${r}.-1`} handle={u.cornerType ? "top" : undefined} />}
         </>
       );
     }
     case "doors":
     case "sink":
-      return <>{plinth}<Doors c={c} x={x} y0={by} w={u.w} h={bh} n={n} fill={fr} fills={pf} at="top" r={r} />{u.kind === "sink" && <Label c={c} x={mid} y={Y(c, by + bh / 2)} t="כיור" light={isDark(fr)} />}</>;
+      return <>{plinth}<Doors c={c} x={x} y0={by} w={u.w} h={bh} n={n} fill={fr} fills={pf} at="top" r={r} glass={u.glass} />{u.kind === "sink" && <Label c={c} x={mid} y={Y(c, by + bh / 2)} t="כיור" light={isDark(fr)} />}</>;
     case "drawers":
     case "cooktop":
       return <>{plinth}<Stack c={c} x={x} y0={by} w={u.w} h={bh} n={n} fill={fr} fills={pf} r={r} />{u.kind === "cooktop" && <rect x={x + 4} y={Y(c, h.base) - 1.2} width={u.w - 8} height={1.2} fill={GLASS} />}</>;
@@ -224,7 +227,9 @@ function upperFront(c: Ctx, u: UpperUnit, x: number, y0: number, uh: number, n: 
     case "corner":
       return <><Hatch c={c} x={x} y0={y0} w={u.w} h={uh} /><Cross c={c} x={x} y0={y0} w={u.w} h={uh} /></>;
     case "doors":
-      return <Doors c={c} x={x} y0={y0} w={u.w} h={uh} n={n} fill={fu} fills={pf} at="bottom" r={r} />;
+      return <Doors c={c} x={x} y0={y0} w={u.w} h={uh} n={n} fill={fu} fills={pf} at="bottom" r={r} glass={u.glass} />;
+    case "shelf":
+      return <g>{Array.from({ length: n }, (_, i) => <rect key={i} data-front={`${r}.-1`} x={x + 0.3} y={Y(c, y0 + (uh * i) / n + (u.frame ?? 4))} width={u.w - 0.6} height={u.frame ?? 4} fill={fu} stroke={LINE} strokeWidth={0.35} />)}</g>;
     case "lift":
       return <Stack c={c} x={x} y0={y0} w={u.w} h={uh} n={n} fill={fu} fills={pf} handle="bottom" r={r} />;
     case "open":
@@ -290,6 +295,7 @@ function ctxOf(l: KitchenLayout, length: number): Ctx {
     counter: colorOf(l.colors?.counter, COUNTER_COLORS, COUNTER_COLORS.white_stone.hex),
     handles: !l.colors?.handles || l.colors.handles === "bar",
     grip: l.colors?.handles === "integral",
+    plinth: !l.colors?.plinth ? "#5b544d" : l.colors.plinth === "front" ? front : colorOf(l.colors.plinth, FRONT_COLORS, "#5b544d"),
     f: Math.min(11, Math.max(6, length * 0.024)),
   };
 }
@@ -344,6 +350,13 @@ export function Elevation({ layout, title, length, base, upper, top = [], island
         {pu.map((u, i) => <UpperShape key={"u" + i} c={c} u={u} x={u.a} row="upper" depthTag={depthTag} r={`${at}.upper.${i}`} />)}
         {pt.map((u, i) => <UpperShape key={"t" + i} c={c} u={u} x={u.a} row="top" depthTag={depthTag} r={`${at}.top.${i}`} />)}
         {pb.map((u, i) => <BaseShape key={"b" + i} c={c} u={u} x={u.a} units={base} index={i} at={at} />)}
+        {!island && corniceBoxes(layout, { length, base, upper, top }).map((b, i) => <rect key={"cn" + i} x={b.a} y={Y(c, Math.min(shownTop, b.y + b.h))} width={b.w} height={Math.max(0, Math.min(shownTop, b.y + b.h) - b.y)} fill={c.front} stroke={LINE} strokeWidth={0.4} />)}
+        {pb.flatMap((u, i) => {
+          const y0 = u.y ?? frontsFrom(h), y1 = baseUnitTop(u, h) - (["doors", "drawers", "sink", "cooktop", "dishwasher"].includes(u.kind) && u.h === undefined ? h.counter : 0);
+          const fr = u.color ? colorOf(u.color, FRONT_COLORS, c.front) : c.front;
+          return [u.side === "left" || u.side === "both" ? u.a : null, u.side === "right" || u.side === "both" ? u.a + u.w - 1 : null].filter((v): v is number => v !== null)
+            .map((sx) => <rect key={`sd${i}-${sx}`} x={sx} y={Y(c, y1)} width={1} height={y1 - y0} fill={fr} stroke={INK} strokeWidth={0.5} />);
+        })}
         {splash > 0 && spans.map((s, i) => <rect key={"sp" + i} x={s.a} y={Y(c, h.base + splash)} width={s.w} height={splash} fill={c.counter} stroke={LINE} strokeWidth={0.3} opacity={0.8} />)}
         {spans.map((s, i) => <rect key={"c" + i} x={s.a} y={Y(c, h.base)} width={s.w} height={h.counter} fill={c.counter} stroke={LINE} strokeWidth={0.4} />)}
         {spans.length > 0 && fallL && <rect x={spans[0].a - h.counter} y={Y(c, h.base)} width={h.counter} height={h.base} fill={c.counter} stroke={LINE} strokeWidth={0.4} />}

@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type * as T from "three";
 import {
-  COUNTER_COLORS, FRONT_COLORS, beamHeight, colorOf, columnParts, openingBox, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, tvSize, mainWallIndex, partsOf, placed, tallOvenParts, upperBox, wallGeometry,
+  COUNTER_COLORS, FRONT_COLORS, beamHeight, colorOf, corniceBoxes, columnParts, openingBox, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, tvSize, mainWallIndex, partsOf, placed, tallOvenParts, upperBox, wallGeometry,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 import { bluranImg, bluranOf } from "@/lib/quotes/bluran";
@@ -91,7 +91,7 @@ function shade(three: Three, hex: string, k: number) {
 }
 
 /** Builds the whole kitchen as one group, in meters. */
-function buildKitchen(three: Three, l: KitchenLayout) {
+function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
   const h = heightsOf(l);
   const front = colorOf(l.colors?.front, FRONT_COLORS, FRONT_COLORS.white.hex);
   const upper = colorOf(l.colors?.upper || l.colors?.front, FRONT_COLORS, front);
@@ -130,7 +130,7 @@ function buildKitchen(three: Three, l: KitchenLayout) {
     carcass: std(shade(three, front, 0.55), 0.8),
     upperCarcass: std(shade(three, upper, 0.55), 0.8),
     counter: std(counter, 0.35),
-    plinth: std("#4a4642", 0.9),
+    plinth: l.colors?.plinth ? (l.colors.plinth === "front" ? std(front, 0.55) : std(colorOf(l.colors.plinth, FRONT_COLORS, "#4a4642"), 0.6)) : std("#4a4642", 0.9),
     steel: std("#d4d7da", 0.35, 0.25),
     glass: std("#0c0c0d", 0.12, 0),
     handle: std("#7d8185", 0.35, 0.4),
@@ -174,7 +174,21 @@ function buildKitchen(three: Three, l: KitchenLayout) {
     return m;
   };
   /** A door or drawer front with its handle; (x0,y0) is its lower-left corner on the run's face at depth z. */
-  const frontPanel = (p: T.Object3D, mat: T.Material, x0: number, y0: number, w: number, hh: number, z: number, handle: "top" | "bottom" | "mid" | undefined, ref?: string) => {
+  const frontPanel = (p: T.Object3D, mat: T.Material, x0: number, y0: number, w: number, hh: number, z: number, handle: "top" | "bottom" | "mid" | undefined, ref?: string, glass?: string) => {
+    if (showInside) return; // the view with the fronts off, to see what's in the cabinets
+    if (glass) {
+      // a vitrine: glass in a frame
+      const t = 2.2;
+      tag(box(p, mat, w - 0.4, t, 1.8, x0 + w / 2, y0 + hh - t / 2 - 0.2, z + 0.9), ref);
+      tag(box(p, mat, w - 0.4, t, 1.8, x0 + w / 2, y0 + t / 2 + 0.2, z + 0.9), ref);
+      tag(box(p, mat, t, hh - 0.4, 1.8, x0 + t / 2 + 0.2, y0 + hh / 2, z + 0.9), ref);
+      tag(box(p, mat, t, hh - 0.4, 1.8, x0 + w - t / 2 - 0.2, y0 + hh / 2, z + 0.9), ref);
+      const pane = new three.Mesh(new three.BoxGeometry((w - t * 2) * M, (hh - t * 2) * M, 0.6 * M), std(glass === "smoked" ? "#3d4347" : "#dfeef7", 0.08, 0, { transparent: true, opacity: glass === "smoked" ? 0.65 : 0.3 }));
+      pane.position.set((x0 + w / 2) * M, (y0 + hh / 2) * M, (z + 0.9) * M);
+      p.add(pane);
+      if (handles && handle) box(p, mats.handle, Math.min(16, w * 0.45), 1.2, 1.6, x0 + w / 2, handle === "top" ? y0 + hh - 4 : y0 + 4, z + 2.6);
+      return;
+    }
     const panel = tag(box(p, mat, w - 0.4, hh - 0.4, 1.8, x0 + w / 2, y0 + hh / 2, z + 0.9), ref);
     if (grip && handle) {
       // integral handle: a grip groove milled into the edge of the front
@@ -229,6 +243,59 @@ function buildKitchen(three: Three, l: KitchenLayout) {
     box(p, mats.inox, 1.2, 4, 1.2, cx + 2.2, y + 22, z);
   };
 
+  /** The body of a cabinet: solid, or with the fronts off an open box showing what's inside. */
+  const body = (p: T.Object3D, mat: T.Material, x: number, y0: number, w: number, hh: number, z: number, u?: { inside?: { shelves?: number; drawers?: number; pull?: string }; kind?: string; cornerType?: string }, stack?: number) => {
+    if (!showInside && !(u as { glass?: string } | undefined)?.glass) return box(p, mat, w - 0.2, hh, z, x + w / 2, y0 + hh / 2, z / 2);
+    const t = 1.8, cz = z / 2, cx = x + w / 2, cy = y0 + hh / 2;
+    box(p, mat, w - 0.2, hh, 0.8, cx, cy, 0.4);
+    box(p, mat, t, hh, z, x + t / 2, cy, cz);
+    box(p, mat, t, hh, z, x + w - t / 2, cy, cz);
+    box(p, mat, w - 0.2, t, z, cx, y0 + t / 2, cz);
+    box(p, mat, w - 0.2, t, z, cx, y0 + hh - t / 2, cz);
+    const inner = w - t * 2 - 0.4;
+    const metal = mats.inox, wood = mats.shelf;
+    let room = hh, from = y0;
+    if (u?.inside?.drawers || stack) {
+      // inner drawers from the bottom: each an open tray
+      const n = u?.inside?.drawers || stack || 0, dh = u?.inside?.drawers ? Math.min(16, (hh * 0.6) / n) : (hh - t * 2) / n;
+      for (let i = 0; i < n; i++) {
+        const y = y0 + t + i * dh + 0.5;
+        box(p, metal, inner, 0.6, z - 6, cx, y, cz + 1);
+        box(p, wood, inner, dh * 0.6, 1, cx, y + dh * 0.3, z - 2.5);
+        box(p, metal, 1, dh * 0.5, z - 6, x + t + 0.9, y + dh * 0.25, cz + 1);
+        box(p, metal, 1, dh * 0.5, z - 6, x + w - t - 0.9, y + dh * 0.25, cz + 1);
+      }
+      room -= n * dh + t;
+      from += n * dh + t;
+    }
+    if (u?.inside?.pull === "trash") {
+      const bw = inner / 2 - 1.5, bh = Math.min(hh - 12, 40);
+      for (const k of [-1, 1]) box(p, mats.black, bw, bh, z - 14, cx + (k * (bw + 1.5)) / 2, y0 + t + bh / 2 + 2, cz + 2);
+    }
+    if (u?.inside?.pull === "pantry") {
+      const shelves = Math.max(3, Math.floor(hh / 35));
+      for (let i = 0; i < shelves; i++) {
+        const y = y0 + t + 5 + (i * (hh - 12)) / shelves;
+        box(p, metal, inner * 0.92, 0.5, z - 6, cx, y, cz + 1);
+        box(p, metal, inner * 0.92, 7, 0.4, cx, y + 3.5, z - 3);
+        box(p, metal, 0.4, 7, z - 6, x + t + inner * 0.05, y + 3.5, cz + 1);
+        box(p, metal, 0.4, 7, z - 6, x + w - t - inner * 0.05, y + 3.5, cz + 1);
+      }
+    }
+    if (u?.inside?.shelves) for (let i = 1; i <= u.inside.shelves; i++) box(p, wood, inner, 1.8, z - 3, cx, from + (room * i) / (u.inside.shelves + 1), cz);
+    if (u?.cornerType === "carousel") for (const k of [0.3, 0.7]) {
+      const disc = new three.Mesh(new three.CylinderGeometry(Math.min(inner, z) * 0.42 * M, Math.min(inner, z) * 0.42 * M, 1.2 * M, 28), metal);
+      disc.position.set(cx * M, (y0 + hh * k) * M, cz * M);
+      p.add(disc);
+    }
+    if (u?.cornerType === "pullout") for (const k of [0.3, 0.7]) box(p, metal, inner * 0.9, 1, z - 5, cx, y0 + hh * k, cz);
+    return undefined;
+  };
+  /** A finished panel on the exposed side of a cabinet. */
+  const sidePanels = (p: T.Object3D, mat: T.Material, side: string | undefined, x: number, w: number, y0: number, hh: number, z: number) => {
+    if (side === "left" || side === "both") box(p, mat, 1.8, hh, z + 2, x - 0.9, y0 + hh / 2, (z + 2) / 2);
+    if (side === "right" || side === "both") box(p, mat, 1.8, hh, z + 2, x + w + 0.9, y0 + hh / 2, (z + 2) / 2);
+  };
   /** A niche: a frame in the plane of the fronts, its back `recess` behind it. */
   const niche = (p: T.Object3D, mat: T.Material, x: number, y0: number, w: number, hh: number, front: number, recess: number, frame: number, shelves: number, ref?: string, tv?: boolean, tvGap?: number) => {
     const back = Math.max(0.1, front - recess);
@@ -262,9 +329,9 @@ function buildKitchen(three: Three, l: KitchenLayout) {
         const c = cornerPart(units, idx, depth);
         if (c.w > 0.01) {
           if (hs.plinth > 0) box(p, mats.plinth, c.w, hs.plinth, depth - 6, x + c.a + c.w / 2, hs.plinth / 2, (depth - 6) / 2);
-          box(p, mats.carcass, c.w, f1 - f0, z, x + c.a + c.w / 2, f0 + (f1 - f0) / 2, z / 2);
+          body(p, mats.carcass, x + c.a, f0, c.w, f1 - f0, z, u);
         }
-        if (c.filler.w > 0.01) frontPanel(p, matOf(u.color, mats.front), x + c.filler.a, f0, c.filler.w + 0.4, fh, z, undefined, r(-1));
+        if (c.filler.w > 0.01) frontPanel(p, matOf(u.color, mats.front), x + c.filler.a, f0, c.filler.w + 0.4, fh, z, u.cornerType ? "top" : undefined, r(-1));
         continue;
       }
       if (u.kind === "fridge") {
@@ -287,6 +354,10 @@ function buildKitchen(three: Three, l: KitchenLayout) {
       const fm = unitMats(u, mats.front);
       const by = u.y ?? f0, dd = u.d ?? depth, zz = dd - 2;
       if (u.y === undefined && hs.plinth > 0) box(p, mats.plinth, w, hs.plinth, dd - 6, x + w / 2, hs.plinth / 2, (dd - 6) / 2);
+      if (u.kind === "open") {
+        niche(p, matOf(u.color, mats.front), x, by, w, (u.h ?? f1 - by), dd - 0.2, u.recess ?? dd - 1, u.frame ?? 2, n, r(-1));
+        continue;
+      }
       if (u.kind === "panel") {
         // a front with no cabinet of its own, in the plane of the fronts, closed behind so its side looks whole
         let yy = by;
@@ -314,11 +385,13 @@ function buildKitchen(three: Three, l: KitchenLayout) {
       }
       const top = u.h !== undefined ? by + u.h : tall ? hs.tall : f1;
       const bh = top - by;
-      box(p, mats.carcass, w - 0.2, bh, zz, x + w / 2, by + bh / 2, zz / 2);
+      const stacked = u.kind === "drawers" || u.kind === "cooktop" ? n : u.kind === "tall_oven" ? tallOvenParts(u, hs).drawers : undefined;
+      body(p, mats.carcass, x, by, w, bh, zz, u, stacked);
+      sidePanels(p, matOf(u.color, mats.front), u.side, x, w, by, bh, zz);
       switch (u.kind) {
         case "doors":
         case "sink":
-          for (let i = 0; i < n; i++) frontPanel(p, fm(i), x + (i * w) / n, by, w / n, bh, zz, "top", r(i));
+          for (let i = 0; i < n; i++) frontPanel(p, fm(i), x + (i * w) / n, by, w / n, bh, zz, "top", r(i), u.glass);
           break;
         case "drawers":
         case "cooktop":
@@ -381,6 +454,11 @@ function buildKitchen(three: Three, l: KitchenLayout) {
         box(p, mats.steel, cw, h.ceiling - y0 - 12, 24, x + w / 2, y0 + 12 + (h.ceiling - y0 - 12) / 2, 12);
         continue;
       }
+      if (u.kind === "shelf") {
+        const t = u.frame ?? 4;
+        for (let i = 0; i < n; i++) tag(box(p, matOf(u.color, mats.upper), w, t, d, x + w / 2, y0 + (uh * i) / n + t / 2, d / 2), r(-1));
+        continue;
+      }
       if (u.kind === "open" && (u.recess || u.frame)) {
         niche(p, matOf(u.color, mats.upper), x, y0, w, uh, d, u.recess ?? d, u.frame ?? 2, n, r(-1), u.tv, u.tvGap);
         continue;
@@ -393,9 +471,10 @@ function buildKitchen(three: Three, l: KitchenLayout) {
         for (let i = 1; i <= n; i++) box(p, mats.shelf, w - 3.6, 1.8, d - 2, x + w / 2, y0 + (uh * i) / (n + 1), d / 2);
         continue;
       }
-      box(p, mats.upperCarcass, w - 0.2, uh, d - 2, x + w / 2, y0 + uh / 2, (d - 2) / 2);
+      body(p, mats.upperCarcass, x, y0, w, uh, d - 2, u);
+      sidePanels(p, matOf(u.color, mats.upper), u.side, x, w, y0, uh, d - 2);
       const um = unitMats(u, mats.upper);
-      if (u.kind === "doors") for (let i = 0; i < n; i++) frontPanel(p, um(i), x + (i * w) / n, y0, w / n, uh, d - 2, "bottom", r(i));
+      if (u.kind === "doors") for (let i = 0; i < n; i++) frontPanel(p, um(i), x + (i * w) / n, y0, w / n, uh, d - 2, "bottom", r(i), u.glass);
       else for (let i = 0; i < n; i++) frontPanel(p, um(n - 1 - i), x, y0 + (i * uh) / n, w, uh / n, d - 2, "bottom", r(n - 1 - i));
     }
   };
@@ -460,6 +539,7 @@ function buildKitchen(three: Three, l: KitchenLayout) {
     baseRun(grp, w.base, h.depth, h, String(i), true, { left: i === 0 && l.counter?.fallLeft, right: i === geo.length - 1 && l.counter?.fallRight });
     upperRun(grp, w.upper, "upper", String(i));
     upperRun(grp, w.top || [], "top", String(i));
+    for (const b of corniceBoxes(l, w)) box(grp, mats.front, b.w, b.h, b.d + (l.cornice?.over ?? 2), b.a + b.w / 2, b.y + b.h / 2, (b.d + (l.cornice?.over ?? 2)) / 2);
     root.add(grp);
   });
 
@@ -498,8 +578,9 @@ function buildKitchen(three: Three, l: KitchenLayout) {
 }
 
 /** shotRef: takes a 16:9 picture from the angle now on screen. paint: while set, a touch on a front paints it. */
-export default function Kitchen3D({ layout, still = false, height = 420, shotRef, paint }: {
+export default function Kitchen3D({ layout, still = false, height = 420, shotRef, paint, inside = false }: {
   layout: KitchenLayout; still?: boolean; height?: number; shotRef?: MutableRefObject<(() => string) | null>; paint?: (ref: string) => void;
+  /** the fronts off, to see what's inside the cabinets */ inside?: boolean;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [img, setImg] = useState("");
@@ -507,6 +588,8 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
   const key = JSON.stringify(layout);
   const keyRef = useRef(key);
   keyRef.current = key;
+  const insideRef = useRef(inside);
+  insideRef.current = inside;
   const paintRef = useRef(paint);
   paintRef.current = paint;
   const swap = useRef<((k: string) => void) | null>(null);
@@ -544,13 +627,13 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
       const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
       scene.environment = envMap;
       scene.environmentIntensity = 0.95;
-      let builtKey = keyRef.current;
-      let kitchen = buildKitchen(three, JSON.parse(builtKey));
+      let builtKey = keyRef.current + insideRef.current;
+      let kitchen = buildKitchen(three, JSON.parse(keyRef.current), insideRef.current);
       scene.add(kitchen.root);
       const { box } = kitchen;
 
       // a wall unit stands up to the ceiling: the view takes in all of it
-      const wallUnit = !hasCounter(JSON.parse(builtKey));
+      const wallUnit = !hasCounter(JSON.parse(keyRef.current));
       const center = new three.Vector3((box.min.x + box.max.x) / 2, wallUnit ? box.max.y / 2 : 1.0, (box.min.z + box.max.z) / 2);
       const size = Math.max(box.max.x - box.min.x, box.max.z - box.min.z, 2.5);
       scene.add(new three.HemisphereLight(0xffffff, 0xdcd3c4, 0.95));
@@ -573,7 +656,7 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
 
       const cam = new three.PerspectiveCamera(42, W / H, 0.05, 60);
       // from the room's open side, above eye level; an L is seen from the left so its side wall faces the camera
-      const walls = (JSON.parse(builtKey) as KitchenLayout).walls.length;
+      const walls = (JSON.parse(keyRef.current) as KitchenLayout).walls.length;
       const side = walls === 2 ? -0.42 : walls === 1 ? 0.18 : 0;
       cam.position.set(center.x + size * side, wallUnit ? center.y + 0.25 : 1.6 + size * 0.2, center.z + size * (wallUnit ? 1.1 : 0.85) + 0.8);
       // a narrow (phone) frame needs the camera further back to fit the whole kitchen
@@ -622,11 +705,11 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
       });
       // the layout changed (a door painted, a width typed): only the kitchen is rebuilt, the view stays where it is
       swap.current = (k) => {
-        if (k === builtKey) return;
-        builtKey = k;
+        if (k + insideRef.current === builtKey) return;
+        builtKey = k + insideRef.current;
         scene.remove(kitchen.root);
         dispose3D(kitchen.root);
-        kitchen = buildKitchen(three, JSON.parse(k));
+        kitchen = buildKitchen(three, JSON.parse(k), insideRef.current);
         scene.add(kitchen.root);
         hl.visible = false;
         kitchen.ready.then(reshade);
@@ -747,7 +830,7 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
 
   useEffect(() => {
     if (!still) swap.current?.(key);
-  }, [key, still]);
+  }, [key, still, inside]);
 
   if (failed && still) return <div className="nqp-3d still" data-ready="1" />; // the PDF goes out with the drawings only
   if (failed) return <div className="nqp-3d-fail">התצוגה בתלת-ממד לא נתמכת בדפדפן הזה. השרטוט עם המידות מופיע למטה.</div>;
