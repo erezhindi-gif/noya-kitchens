@@ -669,6 +669,7 @@ const handler = createMcpHandler(
           "צבעים: front/upper הם גווני בלורן בלבד: bl:CODE (חפש עם bluran_colors), אפשר גם לכל ארון color ולכל דלת fronts; counter אחד מ-white_stone beige_stone grey_stone black_stone wood או #hex. ידיות: handles bar = ידית חיצונית (ברירת מחדל), integral = ידית אינטגרלית (חריץ בחזית), none = בלי ידיות. " +
           "גבהים (h) רק אם שונים מהרגיל: משטח 90, סוקל 10, תחתית עליונים 145, גובה עליונים 70, ארון גבוה 220, תקרה 260, עומק 60, ניתוק מהרצפה 0. " +
           "לא רק מטבחים: קיר טלוויזיה או ארון קיר נבנים עם colors.counter \"none\" (בלי משטח), h.plinth 0 (בלי סוקל) ו-h.floorGap (ניתוק מהרצפה, כל הארונות מתחילים ממנו). panel = חיפוי בלי ארון במישור החזיתות, עם splits. column = עמודה ברוחב אחד עם parts מלמטה למעלה: doors, drawers, lift, panel, niche (נישה עם recess ו-frame). לכל ארון בתחתון אפשר גם y, h, d. בעליון open עם n: 0 ו-recess ו-frame הוא נישה. הגובה של כל החלקים ועוד הניתוק לא יעלה על התקרה. " +
+          "בכל קיר אפשר לציין מה יש בחדר: openings (חלונות ודלתות), obstacles (עמודים וקורות), points (נקודות מים, ניקוז, חשמל וגז). המערכת מזהירה כשארון מסתיר פתח או נכנס בעמוד. " +
           "אחרי השמירה הצג לארז את הסיכום ואת האזהרות אם יש, ותן את הקישור לבדיקה.",
         inputSchema: z.object({
           plan_id: z.string().optional().describe("תכנון קיים לעדכון"),
@@ -678,6 +679,9 @@ const handler = createMcpHandler(
           walls: z.array(z.object({
             length: z.number().describe("אורך הקיר בס״מ"), base: z.array(baseUnit), upper: z.array(upperUnit),
             top: z.array(upperUnit).optional().describe("שורה שנייה של ארונות עליונים, מעל העליונים ועד התקרה (ברירת מחדל: עומק 60, באותו מישור של התחתונים)"),
+            openings: z.array(z.object({ kind: z.enum(["window", "door"]), a: z.number().describe("מרחק מהקצה השמאלי של הקיר"), w: z.number(), y: z.number().optional().describe("תחתית מהרצפה: חלון 100, דלת 0 כברירת מחדל"), h: z.number().optional().describe("גובה: חלון 120, דלת 210 כברירת מחדל") })).optional().describe("חלונות ודלתות בקיר"),
+            obstacles: z.array(z.object({ kind: z.enum(["column", "beam"]), a: z.number(), w: z.number(), d: z.number().describe("כמה בולט מהקיר"), h: z.number().optional().describe("קורה: גובה מתחת לתקרה, ברירת מחדל 30") })).optional().describe("עמודים וקורות"),
+            points: z.array(z.object({ kind: z.enum(["water", "drain", "power", "gas"]), a: z.number(), y: z.number() })).optional().describe("נקודות מים, ניקוז, חשמל וגז: מרחק מהקצה וגובה"),
           })).min(1).max(3),
           island: z.object({ w: z.number(), d: z.number().default(90), gap: z.number().default(110).describe("מעבר בין הארונות לאי"), base: z.array(baseUnit) }).optional(),
           h: z.object({
@@ -686,6 +690,7 @@ const handler = createMcpHandler(
             plinth: z.number().optional().describe("גובה סוקל, 0 = בלי סוקל"), floorGap: z.number().optional().describe("ניתוק מהרצפה בס״מ"),
           }).optional(),
           colors: z.object({ front: z.string().optional(), upper: z.string().optional(), counter: z.string().optional().describe("white_stone beige_stone grey_stone black_stone wood none (בלי משטח) או #hex"), handles: z.enum(["bar", "integral", "none"]).optional() }).optional(),
+          counter: z.object({ over: z.number().optional().describe("בליטת המשטח מעבר לחזיתות, ברירת מחדל 2"), fallLeft: z.boolean().optional().describe("מפל עד הרצפה בקצה השמאלי החופשי"), fallRight: z.boolean().optional().describe("מפל עד הרצפה בקצה הימני החופשי"), splash: z.number().optional().describe("חיפוי קיר מאותה אבן, גובה בס״מ") }).optional(),
           ends: z.object({ left: z.literal("wall").optional(), right: z.literal("wall").optional(), leftLen: z.number().optional(), rightLen: z.number().optional() }).optional().describe("תיחום: קיר ניצב בקצה החופשי של המטבח (שמאל של הקיר הראשון, ימין של האחרון), leftLen/rightLen = אורכו בס״מ. בלי זה הקצה פתוח. רווח בין ארון לקיר: gap בתחילת השורה או קיר ארוך מסכום הארונות"),
         }),
       },
@@ -714,7 +719,7 @@ const handler = createMcpHandler(
     );
   },
   {
-    serverInfo: { name: "noya-quotes", version: "1.13.0" },
+    serverInfo: { name: "noya-quotes", version: "1.14.0" },
     instructions:
       "מערכת הצעות המחיר של נויה מטבחים (ארז). תהליך: 1) search_catalog כדי למצוא את הפריטים. " +
       "2) אם חסרה כמות לרכיב כלשהו (למשל ידית לחזיתות), או שיש כמה פריטים אפשריים, שאל את ארז שאלה אחת מרוכזת עם כל החסרים — לפני שבונים. " +

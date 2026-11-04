@@ -5,8 +5,8 @@
 import { useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import {
-  BASE_LABEL, COUNTER_COLORS, DEFAULT_HEIGHTS, PART_LABEL, UPPER_LABEL, columnParts, endWallLen, heightsOf, layoutWarnings, leftGap, paintFront, partsOf, setLeftGap, wallName,
-  type BaseKind, type BaseUnit, type ColumnPart, type KitchenLayout, type LayoutHeights, type UpperKind, type UpperUnit,
+  BASE_LABEL, COUNTER_COLORS, DEFAULT_HEIGHTS, OBSTACLE_LABEL, OPENING_LABEL, POINT_LABEL, PART_LABEL, hasCounter, UPPER_LABEL, columnParts, endWallLen, heightsOf, layoutWarnings, leftGap, paintFront, partsOf, setLeftGap, wallName,
+  type BaseKind, type BaseUnit, type ColumnPart, type KitchenLayout, type LayoutWall, type Obstacle, type Opening, type RoomPoint, type LayoutHeights, type UpperKind, type UpperUnit,
 } from "@/lib/quotes/layout";
 import KitchenPlan from "./KitchenPlan";
 import { BluranSheet, SwatchButton, swatchStyle } from "./BluranPicker";
@@ -152,6 +152,58 @@ function UnitRows<K extends string>({ units, labels, onChange, addKind, box }: {
   );
 }
 
+/** What the room itself has on a wall: windows, doors, columns, beams and service points. */
+function WallRoom({ wall, onChange }: { wall: LayoutWall; onChange: (w: LayoutWall) => void }) {
+  const num = (v: string) => Number(v) || 0;
+  const field = (label: string, value: number | undefined, set: (v: number | undefined) => void, placeholder?: string) => (
+    <label>{label}<input className="in num" type="number" inputMode="decimal" placeholder={placeholder} value={value ?? ""} onChange={(e) => set(e.target.value === "" ? undefined : num(e.target.value))} /></label>
+  );
+  const openings = wall.openings || [], obstacles = wall.obstacles || [], points = wall.points || [];
+  const setO = (i: number, p: Partial<Opening>) => onChange({ ...wall, openings: openings.map((x, j) => (j === i ? { ...x, ...p } : x)) });
+  const setB = (i: number, p: Partial<Obstacle>) => onChange({ ...wall, obstacles: obstacles.map((x, j) => (j === i ? { ...x, ...p } : x)) });
+  const setP = (i: number, p: Partial<RoomPoint>) => onChange({ ...wall, points: points.map((x, j) => (j === i ? { ...x, ...p } : x)) });
+  return (
+    <div className="nqp-room">
+      {openings.map((o, i) => (
+        <span key={"o" + i} className="nqp-part">
+          <select className="in" value={o.kind} aria-label="סוג הפתח" onChange={(e) => setO(i, { kind: e.target.value as Opening["kind"] })}>
+            {(Object.keys(OPENING_LABEL) as Opening["kind"][]).map((k) => <option key={k} value={k}>{OPENING_LABEL[k]}</option>)}
+          </select>
+          {field("מהקצה", o.a, (v) => setO(i, { a: v ?? 0 }))}{field("רוחב", o.w, (v) => setO(i, { w: v ?? 0 }))}
+          {field("מגובה", o.y, (v) => setO(i, { y: v }), o.kind === "door" ? "0" : "100")}{field("גובה", o.h, (v) => setO(i, { h: v }), o.kind === "door" ? "210" : "120")}
+          <button type="button" className="nq-btn sm ghost" aria-label="הסר" onClick={() => onChange({ ...wall, openings: openings.filter((_, j) => j !== i) })}>×</button>
+        </span>
+      ))}
+      {obstacles.map((o, i) => (
+        <span key={"b" + i} className="nqp-part">
+          <select className="in" value={o.kind} aria-label="עמוד או קורה" onChange={(e) => setB(i, { kind: e.target.value as Obstacle["kind"] })}>
+            {(Object.keys(OBSTACLE_LABEL) as Obstacle["kind"][]).map((k) => <option key={k} value={k}>{OBSTACLE_LABEL[k]}</option>)}
+          </select>
+          {field("מהקצה", o.a, (v) => setB(i, { a: v ?? 0 }))}{field("רוחב", o.w, (v) => setB(i, { w: v ?? 0 }))}{field("בולט", o.d, (v) => setB(i, { d: v ?? 0 }))}
+          {o.kind === "beam" && field("גובה", o.h, (v) => setB(i, { h: v }), "30")}
+          <button type="button" className="nq-btn sm ghost" aria-label="הסר" onClick={() => onChange({ ...wall, obstacles: obstacles.filter((_, j) => j !== i) })}>×</button>
+        </span>
+      ))}
+      {points.map((o, i) => (
+        <span key={"p" + i} className="nqp-part">
+          <select className="in" value={o.kind} aria-label="סוג הנקודה" onChange={(e) => setP(i, { kind: e.target.value as RoomPoint["kind"] })}>
+            {(Object.keys(POINT_LABEL) as RoomPoint["kind"][]).map((k) => <option key={k} value={k}>נקודת {POINT_LABEL[k]}</option>)}
+          </select>
+          {field("מהקצה", o.a, (v) => setP(i, { a: v ?? 0 }))}{field("גובה", o.y, (v) => setP(i, { y: v ?? 0 }))}
+          <button type="button" className="nq-btn sm ghost" aria-label="הסר" onClick={() => onChange({ ...wall, points: points.filter((_, j) => j !== i) })}>×</button>
+        </span>
+      ))}
+      <span className="nqp-room-add">
+        <button type="button" className="nq-btn sm" onClick={() => onChange({ ...wall, openings: [...openings, { kind: "window", a: 0, w: 100 }] })}>+ חלון</button>
+        <button type="button" className="nq-btn sm" onClick={() => onChange({ ...wall, openings: [...openings, { kind: "door", a: 0, w: 90 }] })}>+ דלת</button>
+        <button type="button" className="nq-btn sm" onClick={() => onChange({ ...wall, obstacles: [...obstacles, { kind: "column", a: 0, w: 30, d: 30 }] })}>+ עמוד</button>
+        <button type="button" className="nq-btn sm" onClick={() => onChange({ ...wall, obstacles: [...obstacles, { kind: "beam", a: 0, w: wall.length, d: 30 }] })}>+ קורה</button>
+        <button type="button" className="nq-btn sm" onClick={() => onChange({ ...wall, points: [...points, { kind: "water", a: 0, y: 55 }] })}>+ נקודה</button>
+      </span>
+    </div>
+  );
+}
+
 export const STARTER_LAYOUT = (): KitchenLayout => clone(STARTER);
 
 /** "שנהב ZA02SM" for a Bluran shade, the old color names as they were */
@@ -289,6 +341,14 @@ export default function LayoutEditor({ layout, onChange, claudeHref, shotRef, vi
           </select>
         </label>
       </div>
+      {hasCounter(layout) && (
+        <div className="nqp-box nqp-counter">
+          <label>בליטת משטח<input className="in num" type="number" inputMode="decimal" placeholder="2" value={layout.counter?.over ?? ""} onChange={(e) => up((l) => { l.counter = { ...l.counter, over: e.target.value === "" ? undefined : Number(e.target.value) || 0 }; })} /></label>
+          <label>חיפוי קיר בגובה<input className="in num" type="number" inputMode="decimal" placeholder="בלי" value={layout.counter?.splash ?? ""} onChange={(e) => up((l) => { l.counter = { ...l.counter, splash: Number(e.target.value) || undefined }; })} /></label>
+          <label><input type="checkbox" style={{ width: "auto" }} checked={!!layout.counter?.fallLeft} onChange={(e) => up((l) => { l.counter = { ...l.counter, fallLeft: e.target.checked || undefined }; })} /> מפל משמאל</label>
+          <label><input type="checkbox" style={{ width: "auto" }} checked={!!layout.counter?.fallRight} onChange={(e) => up((l) => { l.counter = { ...l.counter, fallRight: e.target.checked || undefined }; })} /> מפל מימין</label>
+        </div>
+      )}
       {paintAll && (
         <BluranSheet
           title={paintAll === "front" ? "צבע החזיתות של כל המטבח" : "צבע הארונות העליונים"}
@@ -311,6 +371,7 @@ export default function LayoutEditor({ layout, onChange, claudeHref, shotRef, vi
               <label className="nqp-num">רווח מימין לארון<input className="in num" type="number" inputMode="decimal" placeholder="0" value={Math.max(0, Math.round((w.length - sumW(w.base)) * 10) / 10) || ""} onChange={(e) => up((l) => { l.walls[i].length = sumW(l.walls[i].base) + Math.max(0, Number(e.target.value) || 0); })} /></label>
             )}
           </div>
+          <WallRoom wall={w} onChange={(next) => up((l) => { l.walls[i] = next; })} />
           <div className="nqp-sub">ארונות תחתונים · <span className={sumW(w.base) > w.length ? "bad" : ""}>{sumW(w.base)} מתוך {w.length}</span></div>
           <UnitRows<BaseKind> units={w.base} labels={BASE_LABEL} addKind="doors" onChange={(us) => up((l) => { l.walls[i].base = us as BaseUnit[]; })} />
           <div className="nqp-sub">ארונות עליונים · <span className={sumW(w.upper) > w.length ? "bad" : ""}>{sumW(w.upper)} מתוך {w.length}</span></div>

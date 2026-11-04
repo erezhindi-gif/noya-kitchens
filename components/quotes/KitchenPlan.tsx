@@ -3,8 +3,8 @@
 // is in cm), so proportions are exact at any size. No hooks: renders on the server for the PDF too.
 import "./plan.css";
 import {
-  BASE_LABEL, COUNTER_COLORS, FRONT_COLORS, baseUnitTop, colorOf, columnParts, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, partsOf, placed, tvSize, tallOvenParts, upperBox, wallGeometry, wallName,
-  type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
+  BASE_LABEL, COUNTER_COLORS, POINT_LABEL, beamHeight, openingBox, FRONT_COLORS, baseUnitTop, colorOf, columnParts, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, partsOf, placed, tvSize, tallOvenParts, upperBox, wallGeometry, wallName,
+  type BaseUnit, type LayoutWall, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 
 const INK = "#3a3530";
@@ -295,9 +295,10 @@ function ctxOf(l: KitchenLayout, length: number): Ctx {
 }
 
 /** Front view of one run of cabinets (a wall, or the island). */
-export function Elevation({ layout, title, length, base, upper, top = [], island = false, at, wallL = false, wallR = false }: { layout: KitchenLayout; title: string; length: number; base: BaseUnit[]; upper: UpperUnit[]; top?: UpperUnit[]; island?: boolean; at: string; /** a wall stands across this end */ wallL?: boolean; wallR?: boolean }) {
+export function Elevation({ layout, title, length, base, upper, top = [], island = false, at, wallL = false, wallR = false, wall, fallL = false, fallR = false }: { layout: KitchenLayout; title: string; length: number; base: BaseUnit[]; upper: UpperUnit[]; top?: UpperUnit[]; island?: boolean; at: string; /** a wall stands across this end */ wallL?: boolean; wallR?: boolean; /** what the room has on this wall */ wall?: LayoutWall; /** the counter runs down to the floor at this end */ fallL?: boolean; fallR?: boolean }) {
   const c = ctxOf(layout, length);
   const { h } = c;
+  const splash = island || !hasCounter(layout) ? 0 : layout.counter?.splash || 0;
   const hasUpper = upper.some((u) => u.kind !== "gap");
   const hasTop = top.some((u) => u.kind !== "gap");
   const reach = (us: UpperUnit[], row: UpperRow) => us.filter((u) => u.kind !== "gap").map((u) => { const b = upperBox(u, h, row); return b.y0 + b.hh; });
@@ -307,7 +308,8 @@ export function Elevation({ layout, title, length, base, upper, top = [], island
   const baseReach = Math.max(0, ...base.map((u) => baseUnitTop(u, h)));
   const hasHood = upper.some((u) => u.kind === "hood");
   const free = !hasCounter(layout); // a wall unit, not a kitchen: only as high as its cabinets
-  const shownTop = island ? h.base + 2 : free ? Math.min(h.ceiling, Math.max(baseReach, hasUpper || hasTop ? highest : 0)) : Math.min(h.ceiling, Math.max(h.base + 30, baseReach, hasUpper || hasTop ? highest + (hasHood && !hasTop ? 30 : hasTop ? 0 : 10) : 0, hasTall ? h.tall + 10 : 0));
+  const roomTop = Math.max(0, ...(wall?.openings || []).map((o) => openingBox(o).y + openingBox(o).h), (wall?.obstacles?.length ? h.ceiling : 0));
+  const shownTop = island ? h.base + 2 : roomTop && !free ? Math.min(h.ceiling, Math.max(h.base + 30, baseReach, roomTop, hasUpper || hasTop ? highest : 0, hasTall ? h.tall + 10 : 0)) : free ? Math.min(h.ceiling, Math.max(baseReach, hasUpper || hasTop ? highest : 0)) : Math.min(h.ceiling, Math.max(h.base + 30, baseReach, hasUpper || hasTop ? highest + (hasHood && !hasTop ? 30 : hasTop ? 0 : 10) : 0, hasTall ? h.tall + 10 : 0));
   c.top = shownTop;
   const f = c.f;
   const left = f * (hasTall ? 4.6 : 3.2), right = f * 1.2, topPad = f * (hasTop ? 3 : 1.6), bottom = f * 4.4;
@@ -325,10 +327,33 @@ export function Elevation({ layout, title, length, base, upper, top = [], island
           </pattern>
         </defs>
         {!island && <rect x={0} y={0} width={length} height={shownTop} fill="#f8f6f2" />}
+        {(wall?.openings || []).map((o, i) => {
+          const b = openingBox(o), y1 = Math.min(shownTop, b.y + b.h);
+          return (
+            <g key={"o" + i}>
+              <rect x={o.a} y={Y(c, y1)} width={o.w} height={y1 - b.y} fill={o.kind === "window" ? "#dbe9f2" : "#ece6da"} stroke={INK} strokeWidth={0.6} />
+              {o.kind === "door" && <line x1={o.a} x2={o.a + o.w} y1={Y(c, b.y)} y2={Y(c, y1)} stroke={LINE} strokeWidth={0.4} strokeDasharray="3 2" />}
+              {o.kind === "window" && <line x1={o.a + o.w / 2} x2={o.a + o.w / 2} y1={Y(c, y1)} y2={Y(c, b.y)} stroke={INK} strokeWidth={0.4} />}
+              <text x={o.a + o.w / 2} y={Y(c, y1) + f * 0.9} fontSize={f * 0.7} textAnchor="middle" fill={INK} direction="rtl">{o.kind === "door" ? "דלת" : "חלון"} {cm(o.w)}</text>
+            </g>
+          );
+        })}
+        {(wall?.obstacles || []).map((o, i) => o.kind === "column"
+          ? <rect key={"ob" + i} x={o.a} y={0} width={o.w} height={shownTop} fill="url(#nqp-hatch)" stroke={INK} strokeWidth={0.8} />
+          : <rect key={"ob" + i} x={o.a} y={Y(c, h.ceiling)} width={o.w} height={Math.max(0, h.ceiling >= shownTop ? beamHeight(o) - (h.ceiling - shownTop) : beamHeight(o))} fill="url(#nqp-hatch)" stroke={INK} strokeWidth={0.8} />)}
         {pu.map((u, i) => <UpperShape key={"u" + i} c={c} u={u} x={u.a} row="upper" depthTag={depthTag} r={`${at}.upper.${i}`} />)}
         {pt.map((u, i) => <UpperShape key={"t" + i} c={c} u={u} x={u.a} row="top" depthTag={depthTag} r={`${at}.top.${i}`} />)}
         {pb.map((u, i) => <BaseShape key={"b" + i} c={c} u={u} x={u.a} units={base} index={i} at={at} />)}
+        {splash > 0 && spans.map((s, i) => <rect key={"sp" + i} x={s.a} y={Y(c, h.base + splash)} width={s.w} height={splash} fill={c.counter} stroke={LINE} strokeWidth={0.3} opacity={0.8} />)}
         {spans.map((s, i) => <rect key={"c" + i} x={s.a} y={Y(c, h.base)} width={s.w} height={h.counter} fill={c.counter} stroke={LINE} strokeWidth={0.4} />)}
+        {spans.length > 0 && fallL && <rect x={spans[0].a - h.counter} y={Y(c, h.base)} width={h.counter} height={h.base} fill={c.counter} stroke={LINE} strokeWidth={0.4} />}
+        {spans.length > 0 && fallR && <rect x={spans[spans.length - 1].a + spans[spans.length - 1].w} y={Y(c, h.base)} width={h.counter} height={h.base} fill={c.counter} stroke={LINE} strokeWidth={0.4} />}
+        {(wall?.points || []).map((o, i) => (
+          <g key={"pt" + i}>
+            <circle cx={o.a} cy={Y(c, o.y)} r={f * 0.45} fill={o.kind === "water" ? "#2c6fbb" : o.kind === "drain" ? "#6b7280" : o.kind === "gas" ? "#c2410c" : "#ca8a04"} stroke="#fff" strokeWidth={0.5} />
+            <text x={o.a} y={Y(c, o.y) - f * 0.6} fontSize={f * 0.65} textAnchor="middle" fill={INK} direction="rtl">{POINT_LABEL[o.kind]}</text>
+          </g>
+        ))}
         <line x1={-left * 0.3} x2={length + right * 0.6} y1={shownTop} y2={shownTop} stroke={INK} strokeWidth={1} />
         <line x1={0} x2={0} y1={0} y2={shownTop} stroke={wallL ? "#5b544d" : "#b9b1a6"} strokeWidth={wallL ? 3 : 0.6} />
         <line x1={length} x2={length} y1={0} y2={shownTop} stroke={wallR ? "#5b544d" : "#b9b1a6"} strokeWidth={wallR ? 3 : 0.6} />
@@ -387,6 +412,8 @@ export function PlanView({ layout: l }: { layout: KitchenLayout }) {
           return (
             <g key={i}>
               <polygon points={poly([P(g, 0, 0), P(g, w.length, 0), P(g, w.length, -8), P(g, 0, -8)])} fill="#5b544d" />
+              {(w.openings || []).map((o, k) => <polygon key={"op" + k} points={poly([P(g, o.a, 0.5), P(g, o.a + o.w, 0.5), P(g, o.a + o.w, -8.5), P(g, o.a, -8.5)])} fill={o.kind === "window" ? "#dbe9f2" : "#fff"} stroke={INK} strokeWidth={0.6} />)}
+              {(w.obstacles || []).map((o, k) => <polygon key={"ob" + k} points={poly([P(g, o.a, 0), P(g, o.a + o.w, 0), P(g, o.a + o.w, o.d), P(g, o.a, o.d)])} fill={o.kind === "column" ? "#5b544d" : "none"} stroke={INK} strokeWidth={0.7} strokeDasharray={o.kind === "beam" ? "6 3" : undefined} />)}
               {i === 0 && l.ends?.left && <polygon points={poly([P(g, -8, -8), P(g, 0, -8), P(g, 0, endWallLen(l, "left")), P(g, -8, endWallLen(l, "left"))])} fill="#5b544d" />}
               {i === geo.length - 1 && l.ends?.right && <polygon points={poly([P(g, w.length, -8), P(g, w.length + 8, -8), P(g, w.length + 8, endWallLen(l, "right")), P(g, w.length, endWallLen(l, "right"))])} fill="#5b544d" />}
               {placed(w.base).map((u, k) => {
@@ -452,7 +479,8 @@ export default function KitchenPlan({ layout }: { layout: KitchenLayout }) {
       <PlanView layout={layout} />
       {layout.walls.map((w, i) => (
         <Elevation key={i} layout={layout} title={wallName(layout, i)} length={w.length} base={w.base} upper={w.upper} top={w.top} at={String(i)}
-          wallL={i === 0 && !!layout.ends?.left} wallR={i === layout.walls.length - 1 && !!layout.ends?.right} />
+          wallL={i === 0 && !!layout.ends?.left} wallR={i === layout.walls.length - 1 && !!layout.ends?.right} wall={w}
+          fallL={i === 0 && !!layout.counter?.fallLeft} fallR={i === layout.walls.length - 1 && !!layout.counter?.fallRight} />
       ))}
       {layout.island && <Elevation layout={layout} title="אי (הצד הפונה לארונות)" length={layout.island.w} base={layout.island.base} upper={[]} island at="island" />}
       <div className="nqp-note">כל המידות בס״מ. השרטוט בקנה מידה.</div>

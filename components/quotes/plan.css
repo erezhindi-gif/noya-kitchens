@@ -88,3 +88,8 @@
 .nqp-part select { width: auto; }
 .nqp-part label { display: inline-flex; align-items: center; gap: 3px; }
 .nqp-part .in.num { width: 56px; }
+
+/* what the room has on a wall */
+.nqp-room { display: grid; gap: 4px; margin: 6px 0; }
+.nqp-room-add { display: flex; flex-wrap: wrap; gap: 4px; }
+.nqp-counter { margin-top: 10px; }

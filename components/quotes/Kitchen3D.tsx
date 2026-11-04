@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type * as T from "three";
 import {
-  COUNTER_COLORS, FRONT_COLORS, colorOf, columnParts, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, tvSize, mainWallIndex, partsOf, placed, tallOvenParts, upperBox, wallGeometry,
+  COUNTER_COLORS, FRONT_COLORS, beamHeight, colorOf, columnParts, openingBox, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, tvSize, mainWallIndex, partsOf, placed, tallOvenParts, upperBox, wallGeometry,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 import { bluranImg, bluranOf } from "@/lib/quotes/bluran";
@@ -248,7 +248,7 @@ function buildKitchen(three: Three, l: KitchenLayout) {
   };
 
   /** One run of base cabinets along local x, backs at z=0, fronts facing +z. */
-  const baseRun = (p: T.Object3D, units: BaseUnit[], depth: number, hs: LayoutHeights, at: string, withCounter = true) => {
+  const baseRun = (p: T.Object3D, units: BaseUnit[], depth: number, hs: LayoutHeights, at: string, withCounter = true, fall?: { left?: boolean; right?: boolean }) => {
     const f0 = frontsFrom(hs), f1 = hs.base - hs.counter, fh = f1 - f0;
     const z = depth - 2;
     const pl = placed(units);
@@ -355,7 +355,15 @@ function buildKitchen(three: Three, l: KitchenLayout) {
       }
       if (u.kind === "cooktop") cooktop(p, x + w / 2, hs.base, depth / 2 + 1, Math.min(w - 8, 60));
     }
-    if (withCounter && hasCounter(l)) for (const s of counterSpans(units, depth)) box(p, counterMat(s.w, depth + 2), s.w, hs.counter, depth + 2, s.a + s.w / 2, hs.base - hs.counter / 2, (depth + 2) / 2);
+    if (withCounter && hasCounter(l)) {
+      const over = l.counter?.over ?? 2, spans = counterSpans(units, depth);
+      spans.forEach((s, k) => {
+        box(p, counterMat(s.w, depth + over), s.w, hs.counter, depth + over, s.a + s.w / 2, hs.base - hs.counter / 2, (depth + over) / 2);
+        if (l.counter?.splash) box(p, counterMat(s.w, l.counter.splash), s.w, l.counter.splash, 1, s.a + s.w / 2, hs.base + l.counter.splash / 2, 0.5);
+        if (fall?.left && k === 0) box(p, counterMat(depth + over, hs.base), hs.counter, hs.base, depth + over, s.a - hs.counter / 2, hs.base / 2, (depth + over) / 2);
+        if (fall?.right && k === spans.length - 1) box(p, counterMat(depth + over, hs.base), hs.counter, hs.base, depth + over, s.a + s.w + hs.counter / 2, hs.base / 2, (depth + over) / 2);
+      });
+    }
   };
 
   /** a row of upper cabinets; each cabinet may have its own depth, height and bottom */
@@ -398,10 +406,47 @@ function buildKitchen(three: Three, l: KitchenLayout) {
     const grp = new three.Group();
     grp.position.set(g.x * M, 0, g.z * M);
     grp.rotation.y = Math.atan2(-g.dz, g.dx);
-    const wall = new three.Mesh(new three.PlaneGeometry(w.length * M, h.ceiling * M), mats.wall);
-    wall.position.set((w.length / 2) * M, (h.ceiling / 2) * M, 0);
+    // the wall, with real holes for its windows and doors
+    const outline = new three.Shape();
+    outline.moveTo(0, 0);
+    outline.lineTo(w.length * M, 0);
+    outline.lineTo(w.length * M, h.ceiling * M);
+    outline.lineTo(0, h.ceiling * M);
+    outline.closePath();
+    for (const o of w.openings || []) {
+      const b = openingBox(o), y1 = Math.min(h.ceiling, b.y + b.h);
+      const hole = new three.Path();
+      hole.moveTo(o.a * M, b.y * M);
+      hole.lineTo((o.a + o.w) * M, b.y * M);
+      hole.lineTo((o.a + o.w) * M, y1 * M);
+      hole.lineTo(o.a * M, y1 * M);
+      hole.closePath();
+      outline.holes.push(hole);
+    }
+    const wall = new three.Mesh(new three.ShapeGeometry(outline), mats.wall);
     wall.receiveShadow = true;
     grp.add(wall);
+    for (const o of w.openings || []) {
+      const b = openingBox(o), hh = Math.min(h.ceiling - b.y, b.h), cx = o.a + o.w / 2, cy = b.y + hh / 2;
+      // frame all around, sticking out a little into the room
+      box(grp, mats.shelf, o.w + 6, 3, 4, cx, b.y + hh + 1.5, -0.5);
+      box(grp, mats.shelf, 3, hh + 3, 4, o.a - 1.5, cy, -0.5);
+      box(grp, mats.shelf, 3, hh + 3, 4, o.a + o.w + 1.5, cy, -0.5);
+      if (o.kind === "window") {
+        box(grp, mats.shelf, o.w + 6, 3, 8, cx, b.y - 1.5, 1.5);
+        box(grp, mats.shelf, 3, hh, 2, cx, cy, -4);
+        const pane = new three.Mesh(new three.PlaneGeometry(o.w * M, hh * M), std("#dfeef7", 0.08, 0, { transparent: true, opacity: 0.55 }));
+        pane.position.set(cx * M, cy * M, -4 * M);
+        grp.add(pane);
+      } else {
+        box(grp, std("#ece8df", 0.6), o.w - 1, hh - 0.5, 3, cx, cy, -6);
+        box(grp, mats.handle, 12, 1.6, 2, o.a + o.w - 9, b.y + 100, -3.5);
+      }
+    }
+    for (const o of w.obstacles || []) {
+      if (o.kind === "column") box(grp, mats.wall, o.w, h.ceiling, o.d, o.a + o.w / 2, h.ceiling / 2, o.d / 2);
+      else box(grp, mats.wall, o.w, beamHeight(o), o.d, o.a + o.w / 2, h.ceiling - beamHeight(o) / 2, o.d / 2);
+    }
     // a wall standing across the kitchen's free end, if there is one
     const cross = (x: number, facing: 1 | -1, len: number) => {
       const side = new three.Mesh(new three.PlaneGeometry(len * M, h.ceiling * M), mats.wall);
@@ -412,7 +457,7 @@ function buildKitchen(three: Three, l: KitchenLayout) {
     };
     if (i === 0 && l.ends?.left) cross(0, 1, endWallLen(l, "left"));
     if (i === geo.length - 1 && l.ends?.right) cross(w.length, -1, endWallLen(l, "right"));
-    baseRun(grp, w.base, h.depth, h, String(i));
+    baseRun(grp, w.base, h.depth, h, String(i), true, { left: i === 0 && l.counter?.fallLeft, right: i === geo.length - 1 && l.counter?.fallRight });
     upperRun(grp, w.upper, "upper", String(i));
     upperRun(grp, w.top || [], "top", String(i));
     root.add(grp);
