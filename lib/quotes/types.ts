@@ -122,7 +122,7 @@ export type Settings = {
   /** The WhatsApp message for calling back a client who hasn't answered a quote; edited before each send */
   followUpText?: string;
   /** How Erez builds, for the workshop sheets; missing values use the defaults in takeoff.ts */
-  shopRules?: { board?: number; back?: number; frontGap?: number; shelfSetback?: number; frontThick?: number };
+  shopRules?: { board?: number; back?: number; frontGap?: number; shelfSetback?: number };
 };
 
 export type LeadSource = "email" | "whatsapp" | "phone" | "site" | "other";

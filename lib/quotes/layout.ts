@@ -19,7 +19,8 @@ export type UpperKind = "doors" | "lift" | "open" | "shelf" | "hood" | "corner" 
  *  glass = glass doors in a frame (a vitrine); cornerType (corner only): a door on the strip instead of the closed corner */
 export type UnitExtras = {
   inside?: { shelves?: number; drawers?: number; pull?: "pantry" | "trash" };
-  side?: "left" | "right" | "both";
+  /** missing = automatic: a side with no wall or cabinet beside it gets a 2 cm side panel */
+  side?: "left" | "right" | "both" | "none";
   glass?: "clear" | "smoked";
   cornerType?: "carousel" | "pullout" | "door";
   /** fridge: built = behind fronts like the cabinets */ fridgeType?: "standing" | "built";
@@ -143,8 +144,12 @@ export const upperTop = (w: LayoutWall, h: LayoutHeights) =>
   Math.max(0, ...w.upper.filter((u) => u.kind !== "gap").map((u) => { const b = upperBox(u, h, "upper"); return b.y0 + b.hh; }),
     ...(w.top || []).filter((u) => u.kind !== "gap").map((u) => { const b = upperBox(u, h, "top"); return b.y0 + b.hh; }));
 
-/** Erez's widest door */
+/** Erez's widest door; wider than this, an upper cabinet up to this high can take a lift-up */
 export const DOOR_MAX = 60;
+/** A cabinet's depth is its body. The front comes on top of it. */
+export const FRONT_THICK = 2;
+/** The finished side panel on a side nothing covers */
+export const SIDE_PANEL = 2;
 
 /** Named colors Erez and Claude can use; any #hex works too. */
 export const FRONT_COLORS: Record<string, { name: string; hex: string }> = {
@@ -251,7 +256,7 @@ export function normalizeLayout(raw: unknown): KitchenLayout | null {
         ...(u.y !== undefined && u.y !== null && u.y !== "" ? { y: num(u.y, 0, 400, 145) } : {}),
         ...(u.recess ? { recess: num(u.recess, 0.5, 120, 10) } : {}), ...(u.frame ? { frame: num(u.frame, 0.5, 30, 2) } : {}),
         ...(u.tv ? { tv: true, ...(u.tvGap !== undefined ? { tvGap: num(u.tvGap, 0, 60, 4) } : {}) } : {}),
-        ...(u.side === "left" || u.side === "right" || u.side === "both" ? { side: u.side as UnitExtras["side"] } : {}),
+        ...(u.side === "left" || u.side === "right" || u.side === "both" || u.side === "none" ? { side: u.side as UnitExtras["side"] } : {}),
         ...(u.glass === "clear" || u.glass === "smoked" ? { glass: u.glass as UnitExtras["glass"] } : {}),
         ...(u.fridgeType === "built" || u.fridgeType === "standing" ? { fridgeType: u.fridgeType as UnitExtras["fridgeType"] } : {}),
         ...(u.hob === "gas" || u.hob === "induction" ? { hob: u.hob as UnitExtras["hob"] } : {}),
@@ -393,7 +398,11 @@ export function layoutWarnings(l: KitchenLayout) {
     if (t > w.length + 0.5) out.push(`${wallName(l, i)}: השורה העליונה (${t} ס״מ) ארוכה מהקיר (${w.length} ס״מ)`);
     if (upperTop(w, heightsOf(l)) > heightsOf(l).ceiling + 0.5) out.push(`${wallName(l, i)}: הארונות העליונים עוברים את התקרה`);
     const wide = (x: BaseUnit | UpperUnit) => x.kind === "doors" || x.kind === "sink" ? x.w / partsOf(x.kind, x.w, x.n) > DOOR_MAX + 0.5 : x.kind === "tall" && x.w > DOOR_MAX + 0.5;
-    for (const x of [...w.base, ...w.upper, ...(w.top || [])]) if (wide(x)) out.push(`${wallName(l, i)}: דלת רחבה מ-${DOOR_MAX} ס״מ ב${x.kind === "tall" ? "ארון גבוה" : "ארון"} ${x.w}. צריך לחלק ליותר דלתות`);
+    for (const x of [...w.base, ...(w.top || []), ...w.upper]) if (wide(x)) {
+      const row = w.upper.includes(x as UpperUnit) ? upperBox(x as UpperUnit, heightsOf(l), "upper") : (w.top || []).includes(x as UpperUnit) ? upperBox(x as UpperUnit, heightsOf(l), "top") : null;
+      out.push(`${wallName(l, i)}: דלת רחבה מ-${DOOR_MAX} ס״מ ב${x.kind === "tall" ? "ארון גבוה" : "ארון"} ${x.w}. ${row && row.hh <= DOOR_MAX + 0.5 ? "אפשר קלפה, או לחלק ליותר דלתות" : "צריך לחלק ליותר דלתות"}`);
+    }
+    for (const row of [w.upper, w.top || []]) for (const x of row) if (x.kind === "lift" && x.w > DOOR_MAX + 0.5 && upperBox(x, heightsOf(l), row === w.upper ? "upper" : "top").hh > DOOR_MAX + 0.5) out.push(`${wallName(l, i)}: קלפה ברוחב ${x.w} יכולה להיות עד גובה ${DOOR_MAX} ס״מ`);
     for (const x of w.base) if (x.kind === "corner" && x.cornerType && x.w - heightsOf(l).depth < 25) out.push(`${wallName(l, i)}: פינה עם דלת צריכה לפחות ${heightsOf(l).depth + 25} ס״מ, כדי שהדלת תיפתח (היום ${x.w})`);
     const hh = heightsOf(l);
     const hits = (a0: number, a1: number, b0: number, b1: number) => a0 < b1 - 0.5 && b0 < a1 - 0.5;
@@ -429,7 +438,7 @@ export function sinkCenters(l: KitchenLayout) {
 export function describeLayout(l: KitchenLayout) {
   const h = heightsOf(l);
   const u = (x: UnitExtras & { kind: string; w: number; n?: number; d?: number; h?: number; y?: number; color?: string; fronts?: string[]; recess?: number; frame?: number; tv?: boolean; tvGap?: number; splits?: number[]; parts?: ColumnPart[] }, lab: Record<string, string>) =>
-    `${lab[x.kind]} ${x.w}${x.n !== undefined ? ` (${x.n})` : ""}${x.d ? ` עומק ${x.d}` : ""}${x.h ? ` גובה ${x.h}` : ""}${x.y !== undefined ? ` מ-${x.y}` : ""}${insideText(x) ? ` [${insideText(x)}]` : ""}${x.glass ? ` ויטרינה ${x.glass === "smoked" ? "מעושנת" : "שקופה"}` : ""}${x.side ? ` פאנל צד ${x.side === "both" ? "משני הצדדים" : x.side === "left" ? "משמאל" : "מימין"}` : ""}${x.recess ? ` עומק פנימי ${x.recess}` : ""}${x.frame ? ` מסגרת ${x.frame}` : ""}${x.tv && x.h ? ` טלוויזיה ${tvSize(x.w, x.h, x.frame, x.tvGap).w}×${tvSize(x.w, x.h, x.frame, x.tvGap).h}` : x.tv ? " טלוויזיה" : ""}${x.splits?.length ? ` חלוקה מלמטה ${x.splits.join(", ")}` : ""}${x.parts?.length ? ` מלמטה למעלה: ${x.parts.map((p) => `${PART_LABEL[p.kind]} ${p.h}${p.n ? ` (${p.n})` : ""}${p.recess ? ` עומק פנימי ${p.recess}` : ""}${p.frame ? ` מסגרת ${p.frame}` : ""}${p.tv ? ` טלוויזיה ${tvSize(x.w, p.h, p.frame, p.tvGap).w}×${tvSize(x.w, p.h, p.frame, p.tvGap).h}` : ""}`).join(", ")}` : ""}${x.color ? ` [${colorName(x.color)}]` : ""}${x.fronts?.some(Boolean) ? ` [חזיתות: ${x.fronts.map((f, i) => (f ? `${i + 1}=${colorName(f)}` : "")).filter(Boolean).join(", ")}]` : ""}`;
+    `${lab[x.kind]} ${x.w}${x.n !== undefined ? ` (${x.n})` : ""}${x.d ? ` עומק ${x.d}` : ""}${x.h ? ` גובה ${x.h}` : ""}${x.y !== undefined ? ` מ-${x.y}` : ""}${insideText(x) ? ` [${insideText(x)}]` : ""}${x.glass ? ` ויטרינה ${x.glass === "smoked" ? "מעושנת" : "שקופה"}` : ""}${x.side ? (x.side === "none" ? " בלי דופן גלויה" : ` דופן גלויה ${x.side === "both" ? "משני הצדדים" : x.side === "left" ? "משמאל" : "מימין"}`) : ""}${x.recess ? ` עומק פנימי ${x.recess}` : ""}${x.frame ? ` מסגרת ${x.frame}` : ""}${x.tv && x.h ? ` טלוויזיה ${tvSize(x.w, x.h, x.frame, x.tvGap).w}×${tvSize(x.w, x.h, x.frame, x.tvGap).h}` : x.tv ? " טלוויזיה" : ""}${x.splits?.length ? ` חלוקה מלמטה ${x.splits.join(", ")}` : ""}${x.parts?.length ? ` מלמטה למעלה: ${x.parts.map((p) => `${PART_LABEL[p.kind]} ${p.h}${p.n ? ` (${p.n})` : ""}${p.recess ? ` עומק פנימי ${p.recess}` : ""}${p.frame ? ` מסגרת ${p.frame}` : ""}${p.tv ? ` טלוויזיה ${tvSize(x.w, p.h, p.frame, p.tvGap).w}×${tvSize(x.w, p.h, p.frame, p.tvGap).h}` : ""}`).join(", ")}` : ""}${x.color ? ` [${colorName(x.color)}]` : ""}${x.fronts?.some(Boolean) ? ` [חזיתות: ${x.fronts.map((f, i) => (f ? `${i + 1}=${colorName(f)}` : "")).filter(Boolean).join(", ")}]` : ""}`;
   const roomItems = (w: LayoutWall) => [
     ...(w.openings || []).map((o) => `${OPENING_LABEL[o.kind]} מ-${o.a}, רוחב ${o.w}, מגובה ${openingBox(o).y}, גובה ${openingBox(o).h}`),
     ...(w.obstacles || []).map((o) => `${OBSTACLE_LABEL[o.kind]} מ-${o.a}, רוחב ${o.w}, בולט ${o.d}${o.kind === "beam" ? `, גובה ${beamHeight(o)}` : ""}`),
@@ -480,8 +489,8 @@ export function islandBox(l: KitchenLayout) {
   const w = l.walls[mainWallIndex(l)];
   const h = heightsOf(l);
   const along = w.length / 2;
-  const cx = g.x + g.dx * along + g.nx * (h.depth + l.island.gap + l.island.d / 2);
-  const cz = g.z + g.dz * along + g.nz * (h.depth + l.island.gap + l.island.d / 2);
+  const cx = g.x + g.dx * along + g.nx * (h.depth + FRONT_THICK + l.island.gap + l.island.d / 2);
+  const cz = g.z + g.dz * along + g.nz * (h.depth + FRONT_THICK + l.island.gap + l.island.d / 2);
   return { cx, cz, w: l.island.w, d: l.island.d };
 }
 
@@ -521,6 +530,36 @@ export function corniceBoxes(l: KitchenLayout, w: Pick<LayoutWall, "length" | "b
     .filter((b) => !boxes.some((o) => o !== b && o.top > b.top + 0.5 && o.a < b.a + b.w - 0.5 && b.a < o.a + o.w - 0.5))
     .map((b) => ({ a: b.a, w: b.w, y: b.top, d: b.d, h: l.cornice!.toCeiling ? Math.max(0, h.ceiling - b.top) : Math.min(l.cornice!.h ?? 10, Math.max(0, h.ceiling - b.top)) }))
     .filter((b) => b.h > 0.01);
+}
+
+/** Which sides of a unit get a 2 cm side panel: those with no wall and no cabinet beside them, unless the unit says otherwise. */
+export function sidesOf(l: KitchenLayout, at: number | "island", row: "base" | UpperRow, index: number) {
+  const none = { left: false, right: false };
+  const h = heightsOf(l), wall = at === "island" ? null : l.walls[at];
+  const base = at === "island" ? l.island?.base || [] : wall!.base, upper = wall?.upper || [], top = wall?.top || [];
+  const u = (row === "base" ? base : row === "upper" ? upper : top)[index] as (BaseUnit & UpperUnit) | undefined;
+  if (!u) return none;
+  if (u.side === "none") return none;
+  if (u.side) return { left: u.side !== "right", right: u.side !== "left" };
+  if (["gap", "corner", "hood", "shelf", "panel", "open", "oven"].includes(u.kind as string) || ((u.kind as string) === "fridge" && u.fridgeType !== "built")) return none;
+  const range = (x: BaseUnit | UpperUnit, r: "base" | UpperRow) => {
+    if (r !== "base") { const b = upperBox(x as UpperUnit, h, r); return { y0: b.y0, y1: b.y0 + b.hh }; }
+    const bu = x as BaseUnit;
+    return { y0: bu.y ?? frontsFrom(h), y1: baseUnitTop(bu, h) - (["fridge", "tall", "tall_oven", "panel", "column"].includes(bu.kind) || bu.h !== undefined ? 0 : h.counter) };
+  };
+  const covers = (x: { kind: string; fridgeType?: string }) => !["gap", "hood"].includes(x.kind) && !(x.kind === "fridge" && x.fridgeType !== "built") && x.kind !== "shelf";
+  const all = [
+    ...placed(base).filter(covers).map((x) => ({ a: x.a, b: x.a + x.w, ...range(x, "base") })),
+    ...placed(upper).filter(covers).map((x) => ({ a: x.a, b: x.a + x.w, ...range(x, "upper") })),
+    ...placed(top).filter(covers).map((x) => ({ a: x.a, b: x.a + x.w, ...range(x, "top") })),
+  ];
+  const me = placed<{ w: number }>(row === "base" ? base : row === "upper" ? upper : top)[index];
+  const mine = range(u, row), tall = mine.y1 - mine.y0;
+  const covered = (x: number, side: "a" | "b") => all.some((o) => Math.abs(o[side] - x) < 0.6 && Math.min(o.y1, mine.y1) - Math.max(o.y0, mine.y0) > tall * 0.9);
+  const a = me.a, b = me.a + me.w;
+  const wallAtLeft = at !== "island" && a < 0.6 && (at > 0 || !!l.ends?.left);
+  const wallAtRight = at !== "island" && !!wall && b > wall.length - 0.6 && (at < l.walls.length - 1 || !!l.ends?.right);
+  return { left: !wallAtLeft && !covered(a, "b"), right: !wallAtRight && !covered(b, "a") };
 }
 
 /** Pieces of the counter: runs of units that carry a counter (not tall units or gaps). */

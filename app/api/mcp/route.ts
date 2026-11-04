@@ -564,7 +564,7 @@ const handler = createMcpHandler(
     const baseUnit = z.object({
       kind: z.enum(["doors", "drawers", "sink", "cooktop", "oven", "dishwasher", "fridge", "tall", "tall_oven", "corner", "gap", "panel", "column", "open"]),
       inside: z.object({ shelves: z.number().optional(), drawers: z.number().optional().describe("מגירות פנימיות"), pull: z.enum(["pantry", "trash"]).optional().describe("מזווה או פח נשלף") }).optional().describe("מה יש בתוך הארון"),
-      side: z.enum(["left", "right", "both"]).optional().describe("פאנל גמר בצד גלוי"),
+      side: z.enum(["left", "right", "both", "none"]).optional().describe("ריק = אוטומטי: דופן גלויה 2 ס״מ בכל צד שאין בו קיר או ארון. מכריחים או מבטלים רק אם ארז ביקש"),
       glass: z.enum(["clear", "smoked"]).optional().describe("doors: ויטרינה, דלתות זכוכית במסגרת"),
       fridgeType: z.enum(["standing", "built"]).optional().describe("fridge: built = אינטגרלי מאחורי חזיתות"),
       hob: z.enum(["induction", "gas"]).optional().describe("cooktop: סוג הכיריים"),
@@ -700,7 +700,7 @@ const handler = createMcpHandler(
           "גבהים (h) רק אם שונים מהרגיל: משטח 90, סוקל 10, תחתית עליונים 145, גובה עליונים 70, ארון גבוה 220, תקרה 260, עומק 60, ניתוק מהרצפה 0. " +
           "לא רק מטבחים: קיר טלוויזיה או ארון קיר נבנים עם colors.counter \"none\" (בלי משטח), h.plinth 0 (בלי סוקל) ו-h.floorGap (ניתוק מהרצפה, כל הארונות מתחילים ממנו). panel = חיפוי בלי ארון במישור החזיתות, עם splits. column = עמודה ברוחב אחד עם parts מלמטה למעלה: doors, drawers, lift, panel, niche (נישה עם recess ו-frame). לכל ארון בתחתון אפשר גם y, h, d. בעליון open עם n: 0 ו-recess ו-frame הוא נישה. הגובה של כל החלקים ועוד הניתוק לא יעלה על התקרה. " +
           "בכל קיר אפשר לציין מה יש בחדר: openings (חלונות ודלתות), obstacles (עמודים וקורות), points (נקודות מים, ניקוז, חשמל וגז). המערכת מזהירה כשארון מסתיר פתח או נכנס בעמוד. " +
-          "כלל של ארז: דלת ברוחב 60 ס״מ לכל היותר, רחב יותר מחלקים לכמה דלתות. " +
+          "כללים של ארז: דלת ברוחב 60 ס״מ לכל היותר, רחב יותר מחלקים לכמה דלתות, ובעליון עד גובה 60 אפשר קלפה רחבה. העומק הוא של גוף הארון, החזית 2 ס״מ נוספת עליו (עומק 60 = 62 עם החזית). בכל צד גלוי שאין בו קיר או ארון מתווספת אוטומטית דופן 2 ס״מ. " +
           "אחרי השמירה הצג לארז את הסיכום ואת האזהרות אם יש, ותן את הקישור לבדיקה.",
         inputSchema: z.object({
           plan_id: z.string().optional().describe("תכנון קיים לעדכון"),
@@ -753,7 +753,7 @@ const handler = createMcpHandler(
     );
   },
   {
-    serverInfo: { name: "noya-quotes", version: "1.17.0" },
+    serverInfo: { name: "noya-quotes", version: "1.18.0" },
     instructions:
       "מערכת הצעות המחיר של נויה מטבחים (ארז). תהליך: 1) search_catalog כדי למצוא את הפריטים. " +
       "2) אם חסרה כמות לרכיב כלשהו (למשל ידית לחזיתות), או שיש כמה פריטים אפשריים, שאל את ארז שאלה אחת מרוכזת עם כל החסרים — לפני שבונים. " +

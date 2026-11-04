@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type * as T from "three";
 import {
-  COUNTER_COLORS, FRONT_COLORS, beamHeight, colorOf, corniceBoxes, handleOf, columnParts, openingBox, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, tvSize, mainWallIndex, partsOf, placed, tallOvenParts, upperBox, wallGeometry,
+  COUNTER_COLORS, FRONT_COLORS, FRONT_THICK, SIDE_PANEL, beamHeight, sidesOf, colorOf, corniceBoxes, handleOf, columnParts, openingBox, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, tvSize, mainWallIndex, partsOf, placed, tallOvenParts, upperBox, wallGeometry,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 import { bluranImg, bluranOf } from "@/lib/quotes/bluran";
@@ -315,9 +315,10 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
     return undefined;
   };
   /** A finished panel on the exposed side of a cabinet. */
-  const sidePanels = (p: T.Object3D, mat: T.Material, side: string | undefined, x: number, w: number, y0: number, hh: number, z: number) => {
-    if (side === "left" || side === "both") box(p, mat, 1.8, hh, z + 2, x - 0.9, y0 + hh / 2, (z + 2) / 2);
-    if (side === "right" || side === "both") box(p, mat, 1.8, hh, z + 2, x + w + 0.9, y0 + hh / 2, (z + 2) / 2);
+  const sidePanels = (p: T.Object3D, mat: T.Material, sides: { left: boolean; right: boolean }, x: number, w: number, y0: number, hh: number, z: number) => {
+    const deep = z + FRONT_THICK;
+    if (sides.left) box(p, mat, SIDE_PANEL, hh, deep, x - SIDE_PANEL / 2, y0 + hh / 2, deep / 2);
+    if (sides.right) box(p, mat, SIDE_PANEL, hh, deep, x + w + SIDE_PANEL / 2, y0 + hh / 2, deep / 2);
   };
   /** A niche: a frame in the plane of the fronts, its back `recess` behind it. */
   const niche = (p: T.Object3D, mat: T.Material, x: number, y0: number, w: number, hh: number, front: number, recess: number, frame: number, shelves: number, ref?: string, tv?: boolean, tvGap?: number) => {
@@ -341,7 +342,8 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
   /** One run of base cabinets along local x, backs at z=0, fronts facing +z. */
   const baseRun = (p: T.Object3D, units: BaseUnit[], depth: number, hs: LayoutHeights, at: string, withCounter = true, fall?: { left?: boolean; right?: boolean }) => {
     const f0 = frontsFrom(hs), f1 = hs.base - hs.counter, fh = f1 - f0;
-    const z = depth - 2;
+    const z = depth; // the body; its front comes on top of it
+    const atNum = at === "island" ? ("island" as const) : Number(at);
     const pl = placed(units);
     for (let idx = 0; idx < pl.length; idx++) {
       const u = pl[idx];
@@ -362,26 +364,26 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
         const built = u.fridgeType === "built";
         const body = built ? matOf(u.color, mats.front) : matOf(u.color, mats.inox);
         // a real fridge: one or two columns (a wide one is two), freezer below, bar handles, a small display
-        const cols = w >= 100 ? 2 : 1, cw = (w - 0.6) / cols, fz = hs.tall * 0.36;
-        box(p, mats.black, w - 0.6, hs.tall - 1, depth - 4, x + w / 2, (hs.tall - 1) / 2, (depth - 4) / 2);
+        const cols = w >= 100 ? 2 : 1, cw = (w - 0.6) / cols, fz = hs.tall * 0.36, fd = depth + FRONT_THICK;
+        box(p, mats.black, w - 0.6, hs.tall - 1, fd - 4, x + w / 2, (hs.tall - 1) / 2, (fd - 4) / 2);
         for (let k = 0; k < cols; k++) {
           const cx = x + 0.3 + cw * k + cw / 2;
-          tag(box(p, body, cw - 0.5, hs.tall - fz - 1.2, 3, cx, fz + (hs.tall - fz) / 2, depth - 1.5), r(-1));
-          tag(box(p, body, cw - 0.5, fz - 2, 3, cx, 1 + (fz - 2) / 2, depth - 1.5), r(-1));
+          tag(box(p, body, cw - 0.5, hs.tall - fz - 1.2, 3, cx, fz + (hs.tall - fz) / 2, fd - 1.5), r(-1));
+          tag(box(p, body, cw - 0.5, fz - 2, 3, cx, 1 + (fz - 2) / 2, fd - 1.5), r(-1));
           const hx = cols === 2 ? (k === 0 ? cx + cw / 2 - 5 : cx - cw / 2 + 5) : x + 5;
-          if (built) { if (handles) { box(p, mats.handle, 1.4, 30, 1.8, hx, fz + 30, depth + 0.8); box(p, mats.handle, 1.4, 22, 1.8, hx, fz - 16, depth + 0.8); } continue; }
-          box(p, mats.inox, 1.6, 45, 2.4, hx, fz + 40, depth + 1);
-          box(p, mats.inox, 1.6, 30, 2.4, hx, fz - 22, depth + 1);
-          box(p, mats.display, 6, 9, 0.3, cx, fz + (hs.tall - fz) * 0.62, depth + 0.1);
+          if (built) { if (handles) { box(p, mats.handle, 1.4, 30, 1.8, hx, fz + 30, fd + 0.8); box(p, mats.handle, 1.4, 22, 1.8, hx, fz - 16, fd + 0.8); } continue; }
+          box(p, mats.inox, 1.6, 45, 2.4, hx, fz + 40, fd + 1);
+          box(p, mats.inox, 1.6, 30, 2.4, hx, fz - 22, fd + 1);
+          box(p, mats.display, 6, 9, 0.3, cx, fz + (hs.tall - fz) * 0.62, fd + 0.1);
         }
         continue;
       }
       const tall = u.kind === "tall" || u.kind === "tall_oven";
       const fm = unitMats(u, mats.front);
-      const by = u.y ?? f0, dd = u.d ?? depth, zz = dd - 2;
+      const by = u.y ?? f0, dd = u.d ?? depth, zz = dd;
       if (u.y === undefined && hs.plinth > 0) box(p, mats.plinth, w, hs.plinth, dd - 6, x + w / 2, hs.plinth / 2, (dd - 6) / 2);
       if (u.kind === "open") {
-        niche(p, matOf(u.color, mats.front), x, by, w, (u.h ?? f1 - by), dd - 0.2, u.recess ?? dd - 1, u.frame ?? 2, n, r(-1));
+        niche(p, matOf(u.color, mats.front), x, by, w, (u.h ?? f1 - by), dd + 1.8, u.recess ?? dd + 1, u.frame ?? 2, n, r(-1));
         continue;
       }
       if (u.kind === "panel") {
@@ -395,8 +397,9 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
         continue;
       }
       if (u.kind === "column") {
+        sidePanels(p, matOf(u.color, mats.front), sidesOf(l, atNum, "base", idx), x, w, u.y === undefined ? 0 : by, (columnParts(u, hs).reduce((a, c) => a + c.h, 0)) + (u.y === undefined ? by : 0), dd);
         for (const c of columnParts(u, hs)) {
-          const pz = (c.d ?? dd) - 2;
+          const pz = c.d ?? dd;
           const at = c.y0 + c.h > 120 ? "bottom" : "top";
           if (c.kind === "oven" || c.kind === "microwave" || c.kind === "coffee") {
             box(p, mats.carcass, w - 0.2, c.h, pz, x + w / 2, c.y0 + c.h / 2, pz / 2);
@@ -418,7 +421,7 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
       const bh = top - by;
       const stacked = u.kind === "drawers" || u.kind === "cooktop" ? n : u.kind === "tall_oven" ? tallOvenParts(u, hs).drawers : undefined;
       body(p, mats.carcass, x, by, w, bh, zz, u, stacked);
-      sidePanels(p, matOf(u.color, mats.front), u.side, x, w, by, bh, zz);
+      sidePanels(p, matOf(u.color, mats.front), sidesOf(l, atNum, "base", idx), x, w, u.y === undefined ? 0 : by, bh + (u.y === undefined ? by : 0), zz);
       switch (u.kind) {
         case "doors":
         case "sink":
@@ -463,7 +466,7 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
       if (u.kind === "cooktop") cooktop(p, x + w / 2, hs.base, depth / 2 + 1, Math.min(u.hobW || 60, w - 2), u.hob === "gas");
     }
     if (withCounter && hasCounter(l)) {
-      const over = l.counter?.over ?? 2, spans = counterSpans(units, depth);
+      const over = (l.counter?.over ?? 2) + FRONT_THICK, spans = counterSpans(units, depth);
       spans.forEach((s, k) => {
         box(p, counterMat(s.w, depth + over), s.w, hs.counter, depth + over, s.a + s.w / 2, hs.base - hs.counter / 2, (depth + over) / 2);
         if (l.counter?.splash) box(p, counterMat(s.w, l.counter.splash), s.w, l.counter.splash, 1, s.a + s.w / 2, hs.base + l.counter.splash / 2, 0.5);
@@ -495,7 +498,7 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
         continue;
       }
       if (u.kind === "open" && (u.recess || u.frame)) {
-        niche(p, matOf(u.color, mats.upper), x, y0, w, uh, d, u.recess ?? d, u.frame ?? 2, n, r(-1), u.tv, u.tvGap);
+        niche(p, matOf(u.color, mats.upper), x, y0, w, uh, d + 1.8, u.recess ?? d, u.frame ?? 2, n, r(-1), u.tv, u.tvGap);
         continue;
       }
       if (u.kind === "open") {
@@ -506,11 +509,11 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
         for (let i = 1; i <= n; i++) box(p, mats.shelf, w - 3.6, 1.8, d - 2, x + w / 2, y0 + (uh * i) / (n + 1), d / 2);
         continue;
       }
-      body(p, mats.upperCarcass, x, y0, w, uh, d - 2, u);
-      sidePanels(p, matOf(u.color, mats.upper), u.side, x, w, y0, uh, d - 2);
+      body(p, mats.upperCarcass, x, y0, w, uh, d, u);
+      sidePanels(p, matOf(u.color, mats.upper), sidesOf(l, Number(at), row, idx), x, w, y0, uh, d);
       const um = unitMats(u, mats.upper);
-      if (u.kind === "doors") for (let i = 0; i < n; i++) frontPanel(p, um(i), x + (i * w) / n, y0, w / n, uh, d - 2, "bottom", r(i), u.glass);
-      else for (let i = 0; i < n; i++) frontPanel(p, um(n - 1 - i), x, y0 + (i * uh) / n, w, uh / n, d - 2, "bottom", r(n - 1 - i));
+      if (u.kind === "doors") for (let i = 0; i < n; i++) frontPanel(p, um(i), x + (i * w) / n, y0, w / n, uh, d, "bottom", r(i), u.glass);
+      else for (let i = 0; i < n; i++) frontPanel(p, um(n - 1 - i), x, y0 + (i * uh) / n, w, uh / n, d, "bottom", r(n - 1 - i));
     }
   };
 
@@ -579,7 +582,7 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
       const b = upperBox(u, h, "upper");
       box(grp, led, u.w - 2, 0.6, 1.5, u.a + u.w / 2, b.y0 - 0.3, b.d - 6);
     }
-    for (const b of corniceBoxes(l, w)) box(grp, mats.front, b.w, b.h, b.d + (l.cornice?.over ?? 2), b.a + b.w / 2, b.y + b.h / 2, (b.d + (l.cornice?.over ?? 2)) / 2);
+    for (const b of corniceBoxes(l, w)) box(grp, mats.front, b.w, b.h, b.d + FRONT_THICK + (l.cornice?.over ?? 2), b.a + b.w / 2, b.y + b.h / 2, (b.d + FRONT_THICK + (l.cornice?.over ?? 2)) / 2);
     root.add(grp);
   });
 
@@ -591,7 +594,7 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
     grp.position.set((isl.cx + g.dx * (isl.w / 2) + g.nx * (isl.d / 2)) * M, 0, (isl.cz + g.dz * (isl.w / 2) + g.nz * (isl.d / 2)) * M);
     grp.rotation.y = Math.atan2(g.dz, -g.dx);
     const units = l.island.base.length ? l.island.base : [{ kind: "doors" as const, w: isl.w }];
-    baseRun(grp, units, isl.d, h, "island", false);
+    baseRun(grp, units, isl.d - FRONT_THICK, h, "island", false);
     // the counter covers the whole island even where there are no cabinets
     if (hasCounter(l)) box(grp, counterMat(isl.w, isl.d + 2), isl.w, h.counter, isl.d + 2, isl.w / 2, h.base - h.counter / 2, isl.d / 2);
     root.add(grp);

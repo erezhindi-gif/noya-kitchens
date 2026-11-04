@@ -5,7 +5,7 @@
 import { useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import {
-  BASE_LABEL, CORNER_LABEL, COUNTER_COLORS, HANDLE_FINISH, SIZE_PRESETS, DEFAULT_HEIGHTS, OBSTACLE_LABEL, OPENING_LABEL, POINT_LABEL, PART_LABEL, hasCounter, UPPER_LABEL, columnParts, endWallLen, heightsOf, layoutWarnings, leftGap, paintFront, partsOf, setLeftGap, wallName,
+  BASE_LABEL, CORNER_LABEL, COUNTER_COLORS, HANDLE_FINISH, SIZE_PRESETS, applianceText, DEFAULT_HEIGHTS, OBSTACLE_LABEL, OPENING_LABEL, POINT_LABEL, PART_LABEL, hasCounter, UPPER_LABEL, columnParts, endWallLen, heightsOf, layoutWarnings, leftGap, paintFront, partsOf, setLeftGap, wallName,
   type BaseKind, type BaseUnit, type ColumnPart, type UnitExtras, type KitchenLayout, type LayoutWall, type Obstacle, type Opening, type RoomPoint, type LayoutHeights, type UpperKind, type UpperUnit,
 } from "@/lib/quotes/layout";
 import KitchenPlan from "./KitchenPlan";
@@ -84,12 +84,12 @@ function UnitRows<K extends string>({ units, labels, onChange, addKind, box }: {
             {frontScopes(u.kind, u.w, u.n, !!box, u).length > 0 && (
               <SwatchButton value={u.color || u.fronts?.find(Boolean)} empty={!u.color && !u.fronts?.some(Boolean)} label="צבע הארון והדלתות" onClick={() => setPaint(i)} />
             )}
-            {!["gap", "shelf", "panel"].includes(u.kind) && <button type="button" className="nq-btn sm ghost" aria-label="עוד אפשרויות לארון" aria-expanded={more === i} onClick={() => setMore(more === i ? null : i)}>⋯</button>}
+            {!["gap", "shelf", "panel", "fridge", "oven", "dishwasher", "hood"].includes(u.kind) && <button type="button" className="nq-btn sm ghost" aria-label="עוד אפשרויות לארון" aria-expanded={more === i} onClick={() => setMore(more === i ? null : i)}>⋯</button>}
             <button type="button" className="nq-btn sm ghost" disabled={i === 0} onClick={() => move(i, -1)} aria-label="הזז שמאלה">‹</button>
             <button type="button" className="nq-btn sm ghost" disabled={i === units.length - 1} onClick={() => move(i, 1)} aria-label="הזז ימינה">›</button>
             <button type="button" className="nq-btn sm ghost" onClick={() => onChange(units.filter((_, j) => j !== i))} aria-label="הסר">×</button>
           </span>
-          {more === i && (
+          {!!SIZE_PRESETS[u.kind as BaseKind]?.length && (
             <span className="nqp-box nqp-more">
               {!!SIZE_PRESETS[u.kind as BaseKind]?.length && (
                 <label>רוחב רגיל
@@ -156,7 +156,11 @@ function UnitRows<K extends string>({ units, labels, onChange, addKind, box }: {
                   </label>
                 </>
               )}
-              {["fridge", "oven", "dishwasher", "hood"].includes(u.kind) ? null : u.kind === "corner" ? (
+            </span>
+          )}
+          {more === i && (
+            <span className="nqp-box nqp-more">
+              {u.kind === "corner" ? (
                 <label>סוג פינה
                   <select className="in" style={{ width: "auto" }} value={u.cornerType || ""} onChange={(e) => set(i, { cornerType: (e.target.value || undefined) as UnitExtras["cornerType"] })}>
                     <option value="">סגורה עם פס</option>
@@ -174,9 +178,10 @@ function UnitRows<K extends string>({ units, labels, onChange, addKind, box }: {
                       <option value="trash">פח</option>
                     </select>
                   </label>
-                  <label>פאנל צד
+                  <label>דופן גלויה 2 ס״מ
                     <select className="in" style={{ width: "auto" }} value={u.side || ""} onChange={(e) => set(i, { side: (e.target.value || undefined) as UnitExtras["side"] })}>
-                      <option value="">בלי</option>
+                      <option value="">אוטומטי: איפה שאין קיר או ארון</option>
+                      <option value="none">בלי</option>
                       <option value="left">משמאל</option>
                       <option value="right">מימין</option>
                       <option value="both">משני הצדדים</option>
@@ -497,6 +502,10 @@ export default function LayoutEditor({ layout, onChange, claudeHref, shotRef, vi
         />
       )}
 
+      <div className="nqp-apps">
+        <b>מכשירים:</b> {[...layout.walls.flatMap((w) => [...w.base, ...w.upper]), ...(layout.island?.base || [])].map(applianceText).filter(Boolean).join(" · ") || "עוד אין"}
+        <span className="hint">מוסיפים בכל קיר ב&quot;+ הוסף&quot; ובוחרים סוג: מקרר, כיריים, כיור, תנור, מדיח או קולט. הגדרות המכשיר מופיעות מתחת לשורה שלו</span>
+      </div>
       {layout.walls.map((w, i) => (
         <div key={i} className="nqp-wall">
           <div className="nqp-wall-h">

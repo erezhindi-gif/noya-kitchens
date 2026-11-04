@@ -3,7 +3,7 @@
 // is in cm), so proportions are exact at any size. No hooks: renders on the server for the PDF too.
 import "./plan.css";
 import {
-  BASE_LABEL, COUNTER_COLORS, PART_LABEL, POINT_LABEL, beamHeight, handleOf, openingBox, FRONT_COLORS, baseUnitTop, colorOf, corniceBoxes, columnParts, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, partsOf, placed, tvSize, tallOvenParts, upperBox, wallGeometry, wallName,
+  BASE_LABEL, COUNTER_COLORS, PART_LABEL, POINT_LABEL, beamHeight, handleOf, sidesOf, SIDE_PANEL, FRONT_THICK, openingBox, FRONT_COLORS, baseUnitTop, colorOf, corniceBoxes, columnParts, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, partsOf, placed, tvSize, tallOvenParts, upperBox, wallGeometry, wallName,
   type BaseUnit, type LayoutWall, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 
@@ -356,13 +356,15 @@ export function Elevation({ layout, title, length, base, upper, top = [], island
         {pt.map((u, i) => <UpperShape key={"t" + i} c={c} u={u} x={u.a} row="top" depthTag={depthTag} r={`${at}.top.${i}`} />)}
         {pb.map((u, i) => <BaseShape key={"b" + i} c={c} u={u} x={u.a} units={base} index={i} at={at} />)}
         {!island && corniceBoxes(layout, { length, base, upper, top }).map((b, i) => <rect key={"cn" + i} x={b.a} y={Y(c, Math.min(shownTop, b.y + b.h))} width={b.w} height={Math.max(0, Math.min(shownTop, b.y + b.h) - b.y)} fill={c.front} stroke={LINE} strokeWidth={0.4} />)}
-        {pb.flatMap((u, i) => {
-          const y0 = u.y ?? frontsFrom(h), y1 = baseUnitTop(u, h) - (["doors", "drawers", "sink", "cooktop", "dishwasher"].includes(u.kind) && u.h === undefined ? h.counter : 0);
+        {(["base", "upper", "top"] as const).flatMap((row) => (row === "base" ? pb : row === "upper" ? pu : pt).flatMap((u, i) => {
+          const s = sidesOf(layout, at === "island" ? "island" : Number(at), row, i);
+          if (!s.left && !s.right) return [];
+          const bu = u as BaseUnit, b = row === "base" ? null : upperBox(u as UpperUnit, h, row);
+          const y0 = b ? b.y0 : bu.y === undefined ? 0 : bu.y, y1 = b ? b.y0 + b.hh : baseUnitTop(bu, h) - (["doors", "drawers", "sink", "cooktop", "dishwasher"].includes(u.kind) && bu.h === undefined ? h.counter : 0);
           const fr = u.color ? colorOf(u.color, FRONT_COLORS, c.front) : c.front;
-          return [u.side === "left" || u.side === "both" ? u.a : null, u.side === "right" || u.side === "both" ? u.a + u.w - 1 : null].filter((v): v is number => v !== null)
-            .map((sx) => <rect key={`sd${i}-${sx}`} x={sx} y={Y(c, y1)} width={1} height={y1 - y0} fill={fr} stroke={INK} strokeWidth={0.5} />);
-        })}
-        {!island && layout.lighting?.underCabinet && pu.map((u, i) => (u.kind === "gap" || u.kind === "corner" || u.kind === "hood" ? null : <line key={"led" + i} x1={u.a + 1} x2={u.a + u.w - 1} y1={Y(c, upperBox(u, h, "upper").y0) + 0.8} y2={Y(c, upperBox(u, h, "upper").y0) + 0.8} stroke="#f2b632" strokeWidth={1.2} />))}
+          return [s.left ? u.a - SIDE_PANEL : null, s.right ? u.a + u.w : null].filter((v): v is number => v !== null)
+            .map((sx) => <rect key={`sd${row}${i}-${sx}`} x={sx} y={Y(c, y1)} width={SIDE_PANEL} height={y1 - y0} fill={fr} stroke={INK} strokeWidth={0.5} />);
+        }))}
         {splash > 0 && spans.map((s, i) => <rect key={"sp" + i} x={s.a} y={Y(c, h.base + splash)} width={s.w} height={splash} fill={c.counter} stroke={LINE} strokeWidth={0.3} opacity={0.8} />)}
         {spans.map((s, i) => <rect key={"c" + i} x={s.a} y={Y(c, h.base)} width={s.w} height={h.counter} fill={c.counter} stroke={LINE} strokeWidth={0.4} />)}
         {spans.length > 0 && fallL && <rect x={spans[0].a - h.counter} y={Y(c, h.base)} width={h.counter} height={h.base} fill={c.counter} stroke={LINE} strokeWidth={0.4} />}
@@ -444,7 +446,7 @@ export function PlanView({ layout: l }: { layout: KitchenLayout }) {
                 }
                 const tall = ["fridge", "tall", "tall_oven", "panel", "column"].includes(u.kind);
                 const fill = u.kind === "fridge" ? (u.color ? colorOf(u.color, FRONT_COLORS, STEEL) : STEEL) : tall || !hasCounter(l) ? (u.color ? colorOf(u.color, FRONT_COLORS, front) : front) : counter;
-                const dp = u.d ?? h.depth;
+                const dp = (u.d ?? h.depth) + FRONT_THICK;
                 const c = P(g, u.a + u.w / 2, dp / 2);
                 return (
                   <g key={k}>

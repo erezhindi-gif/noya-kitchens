@@ -39,12 +39,13 @@ function Section({ l, i }: { l: KitchenLayout; i: number }) {
         {rows.map((r, k) => (
           <g key={k}>
             <rect x={0} y={Y(r.y + r.hh)} width={r.d} height={r.hh} fill="#efe9de" stroke="#3a3530" strokeWidth={0.6} />
+            <rect x={r.d} y={Y(r.y + r.hh)} width={2} height={r.hh} fill="#c9bfae" stroke="#3a3530" strokeWidth={0.4} />
             <text x={r.d / 2} y={Y(r.y + r.hh / 2)} fontSize={7} textAnchor="middle" fill="#3a3530">{r.d}</text>
             <text x={-9} y={Y(r.y) + 2} fontSize={7} textAnchor="end" fill="#8a5a2b">{r.y}</text>
             <text x={-9} y={Y(r.y + r.hh) + 6} fontSize={7} textAnchor="end" fill="#8a5a2b">{r.y + r.hh}</text>
           </g>
         ))}
-        {l.colors?.counter !== "none" && <rect x={0} y={Y(h.base)} width={h.depth + (l.counter?.over ?? 2)} height={h.counter} fill="#cfcac0" stroke="#3a3530" strokeWidth={0.5} />}
+        {l.colors?.counter !== "none" && <rect x={0} y={Y(h.base)} width={h.depth + 2 + (l.counter?.over ?? 2)} height={h.counter} fill="#cfcac0" stroke="#3a3530" strokeWidth={0.5} />}
         <text x={h.depth + 8} y={8} fontSize={7} fill="#8a5a2b">תקרה {h.ceiling}</text>
       </svg>
     </figure>
@@ -65,7 +66,7 @@ export default async function ShopPage({ params }: { params: { id: string } }) {
         <div>
           <h1>דפי ייצור · {p.title || "מטבח"}</h1>
           <div>{p.client.name}{p.client.phone ? ` · ${p.client.phone}` : ""}</div>
-          <div className="sh-rules">כללי בנייה בחישוב: לוח {rules.board}, גב {rules.back} על הגוף מבחוץ, עובי חזית {rules.frontThick}, רווח חזיתות {rules.frontGap}, מדף קצר ב-{rules.shelfSetback}. הדפנות חובקות את העליון והתחתון. משנים בהגדרות. המידות בס״מ.</div>
+          <div className="sh-rules">כללי בנייה בחישוב: לוח {rules.board}, גב {rules.back} על הגוף מבחוץ, רווח חזיתות {rules.frontGap}, מדף קצר ב-{rules.shelfSetback}. הדפנות חובקות את העליון והתחתון. עומק הוא של הגוף, החזית 2 מעליו. דופן גלויה 2. משנים בהגדרות. המידות בס״מ.</div>
           <div className="sh-warn">החישוב אוטומטי. לבדוק מול הסטנדרט שלך לפני הזמנה וחיתוך.</div>
         </div>
         <PrintButton />
