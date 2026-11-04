@@ -403,11 +403,9 @@ function buildKitchen(three: Three, l: KitchenLayout) {
   return { root, box: bb, ready: Promise.all(loading) };
 }
 
-/** shotRef: takes a picture from the angle now on screen. paint: while set, a touch on a front paints it.
- *  trace: the free render, light calculated on this very model in the browser; onTrace reports how far it got (-1 = preparing). */
-export default function Kitchen3D({ layout, still = false, height = 420, shotRef, paint, trace = false, onTrace }: {
+/** shotRef: takes a 16:9 picture from the angle now on screen. paint: while set, a touch on a front paints it. */
+export default function Kitchen3D({ layout, still = false, height = 420, shotRef, paint }: {
   layout: KitchenLayout; still?: boolean; height?: number; shotRef?: MutableRefObject<(() => string) | null>; paint?: (ref: string) => void;
-  trace?: boolean; onTrace?: (samples: number) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [img, setImg] = useState("");
@@ -418,14 +416,6 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
   const paintRef = useRef(paint);
   paintRef.current = paint;
   const swap = useRef<((k: string) => void) | null>(null);
-  // turning the render off starts the 3D afresh, which gives all its memory back; the view stays where it was
-  const [fresh, setFresh] = useState(0);
-  const view = useRef<{ pos: number[]; target: number[] } | null>(null);
-  const setTrace = useRef<((on: boolean) => void) | null>(null);
-  const traceOn = useRef(trace);
-  traceOn.current = trace;
-  const onTraceRef = useRef(onTrace);
-  onTraceRef.current = onTrace;
 
   useEffect(() => {
     let disposed = false;
@@ -531,10 +521,6 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
       controls.maxPolarAngle = Math.PI * 0.49;
       controls.minDistance = 0.4;
       controls.maxDistance = size * 3 + 3;
-      if (view.current) {
-        cam.position.fromArray(view.current.pos);
-        controls.target.fromArray(view.current.target);
-      }
       controls.update();
 
       // what a touch can paint, and the glow on the front under the mouse
@@ -548,57 +534,6 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
       const invalidate = () => { dirty = true; };
       controls.addEventListener("change", invalidate);
 
-      // The free render: a path tracer on the same model, so nothing is invented and every angle is free.
-      // Daylight comes in from the sky through the room's open sides, and it gets cleaner the longer the view stays still.
-      let tracer: import("three-gpu-pathtracer").WebGLPathTracer | null = null;
-      let traceSky: T.Texture | null = null;
-      let tracedSamples = -2;
-      const MAX_SAMPLES = 500;
-      // One sample at a time with a breath in between: the screens share this graphics card with the render,
-      // and a queue of unfinished work makes all of them stutter.
-      const SAMPLE_GAP = 40;
-      const gl = renderer.getContext() as WebGL2RenderingContext;
-      let sampleDone: WebGLSync | null = null, sampledAt = 0;
-      const loadTrace = () => {
-        if (!tracer) return;
-        scene.remove(hl);
-        tracer.setScene(scene, cam);
-        tracedSamples = -2;
-      };
-      const stopTrace = () => {
-        tracer = null;
-        view.current = { pos: cam.position.toArray(), target: controls.target.toArray() };
-        setFresh((n) => n + 1);
-      };
-      const startTrace = async () => {
-        onTraceRef.current?.(-1);
-        const { WebGLPathTracer, GradientEquirectTexture } = await import("three-gpu-pathtracer");
-        if (disposed || !traceOn.current || tracer) return;
-        const sky = new GradientEquirectTexture();
-        sky.topColor.set("#ffffff");
-        sky.bottomColor.set("#f1ece4");
-        sky.update();
-        traceSky = sky;
-        scene.environment = sky;
-        scene.environmentIntensity = 1.7;
-        sun.intensity = 0.5;
-        fill.intensity = 0;
-        const pt = new WebGLPathTracer(renderer);
-        pt.tiles.set(3, 3);
-        pt.bounces = 6;
-        pt.filterGlossyFactor = 0.5;
-        pt.minSamples = 2;
-        pt.fadeDuration = 200;
-        pt.renderScale = Math.min(1, 1.25 / ratio);
-        await kitchen.ready;
-        if (disposed || !traceOn.current) return;
-        tracer = pt;
-        loadTrace();
-      };
-      setTrace.current = (on) => {
-        if (on && !tracer) startTrace().catch(() => { tracer = null; onTraceRef.current?.(-1); });
-        else if (!on && (tracer || scene.environment !== envMap)) stopTrace();
-      };
       kitchen.ready.then(invalidate);
 
       const dispose3D = (root: T.Object3D) => root.traverse((o) => {
@@ -616,35 +551,16 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
         kitchen = buildKitchen(three, JSON.parse(k));
         scene.add(kitchen.root);
         hl.visible = false;
-        kitchen.ready.then(() => { invalidate(); loadTrace(); });
+        kitchen.ready.then(invalidate);
         invalidate();
       };
       swap.current(keyRef.current); // it may have changed while the 3D was loading
-      setTrace.current(traceOn.current);
 
       let raf = 0;
       const loop = () => {
         controls.update();
         const now = performance.now();
-        if (tracer) {
-          if (dirty) {
-            tracer.updateCamera();
-            dirty = false;
-          }
-          const busy = sampleDone && gl.getSyncParameter(sampleDone, gl.SYNC_STATUS) !== gl.SIGNALED;
-          if (!busy && tracer.samples < MAX_SAMPLES && now - sampledAt >= SAMPLE_GAP) {
-            if (sampleDone) gl.deleteSync(sampleDone);
-            tracer.renderSample();
-            sampleDone = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
-            gl.flush();
-            sampledAt = now;
-          }
-          const n = Math.floor(tracer.samples);
-          if (n !== tracedSamples) {
-            tracedSamples = n;
-            onTraceRef.current?.(n);
-          }
-        } else if (dirty) {
+        if (dirty) {
           renderer.render(scene, cam);
           dirty = false;
           fine = false;
@@ -710,11 +626,6 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
       window.addEventListener("pointerup", onUp);
 
       if (shotRef) shotRef.current = () => {
-        if (tracer) {
-          // the render as it stands now, at the size of the view
-          tracer.renderSample();
-          return renderer.domElement.toDataURL("image/jpeg", 0.92);
-        }
         const w = el.clientWidth;
         const SW = 1920, SH = 1080;
         hl.visible = false;
@@ -757,30 +668,24 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
         el.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
         swap.current = null;
-        setTrace.current = null;
-        tracer = null;
-        traceSky?.dispose();
         if (shotRef) shotRef.current = null;
         controls.dispose();
         dispose3D(kitchen.root);
         composer?.dispose();
         pmrem.dispose();
         envMap.dispose();
-        renderer.forceContextLoss(); // everything on the graphics card goes, also what the render engine holds
+        renderer.forceContextLoss(); // gives the graphics card's memory back at once
         renderer.dispose();
         renderer.domElement.remove();
       };
     })().catch(() => setFailed(true));
     return () => { disposed = true; cleanup(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [still ? key : "", still, height, fresh]);
+  }, [still ? key : "", still, height]);
 
   useEffect(() => {
     if (!still) swap.current?.(key);
   }, [key, still]);
-  useEffect(() => {
-    setTrace.current?.(trace);
-  }, [trace]);
 
   if (failed && still) return <div className="nqp-3d still" data-ready="1" />; // the PDF goes out with the drawings only
   if (failed) return <div className="nqp-3d-fail">התצוגה בתלת-ממד לא נתמכת בדפדפן הזה. השרטוט עם המידות מופיע למטה.</div>;

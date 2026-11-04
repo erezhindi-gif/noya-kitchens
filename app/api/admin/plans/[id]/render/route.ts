@@ -23,7 +23,7 @@ const HANDLES = { bar: "slim metal bar handles", integral: "integral handles: a 
 // A picture of the 3D view from the angle Erez chose (taken in the browser). raw: it is kept as it is, for free.
 // Otherwise it becomes a photorealistic render of the same kitchen; that is paid for, so it is kept on the plan at once.
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const b = (await req.json().catch(() => null)) as { image?: string; notes?: string; raw?: boolean } | null;
+  const b = (await req.json().catch(() => null)) as { image?: string; notes?: string; raw?: boolean; matchShown?: boolean } | null;
   if (!b?.image || b.image.length > 4_000_000) return NextResponse.json({ error: "bad-request" }, { status: 400 });
   const plan = await getPlan(params.id);
   if (!plan) return NextResponse.json({ error: "not-found" }, { status: 404 });
@@ -44,7 +44,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     "It must look like a real photograph, not a render: real optics, natural light falloff, believable reflections. No text, no watermark, no brand names or logos on any appliance or anywhere else.",
   ].filter(Boolean).join("\n");
 
-  const r = await generateImage(geminiKey, [{ inlineData: { mimeType: "image/jpeg", data: b.image.replace(/^data:image\/\w+;base64,/, "") } }, { text: prompt }], "16:9", true);
+  // the render chosen for the client guides this one, so every angle looks like the same room
+  const sample = b.matchShown && plan.shownRender
+    ? await fetch(`${plan.shownRender}?w=1280&fm=jpg`).then(async (x) => (x.ok ? Buffer.from(await x.arrayBuffer()).toString("base64") : null)).catch(() => null)
+    : null;
+  const r = await generateImage(geminiKey, [
+    { inlineData: { mimeType: "image/jpeg", data: b.image.replace(/^data:image\/\w+;base64,/, "") } },
+    ...(sample ? [{ inlineData: { mimeType: "image/jpeg", data: sample } }] : []),
+    { text: sample ? `${prompt}\nThe first image is the 3D model: the layout, the camera angle and every wall and cabinet come ONLY from it. The second image is a photograph of this same finished kitchen from another angle: match its light, its wall and floor finishes, its materials and its accessories, but never copy walls or spaces from it that the model doesn't have.` : prompt },
+  ], "16:9", true);
   if (!r.ok) return NextResponse.json({ error: r.error, detail: r.detail }, { status: r.error === "blocked" ? 422 : 502 });
 
   return keep(plan.id, r.image, true);

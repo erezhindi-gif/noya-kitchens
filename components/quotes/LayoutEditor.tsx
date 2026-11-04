@@ -119,9 +119,8 @@ function colorLabel(v: string | undefined, empty: string) {
 }
 
 /** shotRef and viewTools: the picture from the angle on screen, and what is done with it (only under the 3D view) */
-export default function LayoutEditor({ layout, onChange, claudeHref, shotRef, viewTools, trace, onTrace }: {
+export default function LayoutEditor({ layout, onChange, claudeHref, shotRef, viewTools }: {
   layout: KitchenLayout; onChange: (l: KitchenLayout) => void; claudeHref: string; shotRef?: MutableRefObject<(() => string) | null>; viewTools?: ReactNode;
-  /** the free render on the 3D itself; it pauses while painting */ trace?: boolean; onTrace?: (samples: number) => void;
 }) {
   const [tab, setTab] = useState<"3d" | "plan">("3d");
   const [showH, setShowH] = useState(false);
@@ -196,7 +195,7 @@ export default function LayoutEditor({ layout, onChange, claudeHref, shotRef, vi
         />
       )}
       {tab === "3d"
-        ? <><Kitchen3D layout={layout} height={460} shotRef={shotRef} paint={brush ? paintOn : undefined} trace={!!trace && !brush} onTrace={onTrace} />{viewTools}</>
+        ? <><Kitchen3D layout={layout} height={460} shotRef={shotRef} paint={brush ? paintOn : undefined} />{viewTools}</>
         : <div className={brush ? "nqp-paint" : undefined} onPointerDown={drawingPaint} onPointerOver={drawingPaint}><KitchenPlan layout={layout} /></div>}
       {warns.length > 0 && <div className="nq-back nq-warn" role="alert" style={{ marginTop: 10 }}><span>⚠️ {warns.join(" · ")}</span></div>}
 
