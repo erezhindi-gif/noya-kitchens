@@ -235,6 +235,11 @@ export function layoutWarnings(l: KitchenLayout) {
   return out;
 }
 
+/** Where each sink's center falls, from the left end of its wall. */
+export function sinkCenters(l: KitchenLayout) {
+  return l.walls.flatMap((w, i) => placed(w.base).filter((u) => u.kind === "sink").map((u) => ({ wall: wallName(l, i), from: u.a + u.w / 2 })));
+}
+
 /** Plain-text summary for Claude. */
 export function describeLayout(l: KitchenLayout) {
   const h = heightsOf(l);
@@ -245,6 +250,7 @@ export function describeLayout(l: KitchenLayout) {
   שורה עליונה: ${w.top.map((x) => u(x, UPPER_LABEL)).join(" | ")}` : ""}`);
   if (l.island) lines.push(`אי ${l.island.w}×${l.island.d}, מרחק ${l.island.gap} מהארונות: ${l.island.base.map((x) => u(x, BASE_LABEL)).join(" | ") || "—"}`);
   lines.push(`גבהים: משטח ${h.base}, עליונים מ-${h.upperFrom} בגובה ${h.upper} ועומק ${h.upperDepth}, שורה עליונה בעומק ${h.topDepth}, ארון גבוה ${h.tall}, תקרה ${h.ceiling}`);
+  for (const s of sinkCenters(l)) lines.push(`מרכז כיור: ${s.wall}, ${s.from} ס״מ מהקצה השמאלי של הקיר`);
   const c = l.colors || {};
   lines.push(`צבעים: חזיתות ${colorName(c.front)}${c.upper ? `, עליונים ${colorName(c.upper)}` : ""}, משטח ${COUNTER_COLORS[c.counter || "white_stone"]?.name || c.counter}${c.handles === "none" ? ", בלי ידיות" : c.handles === "integral" ? ", ידית אינטגרלית" : ""}`);
   if (l.ends?.left || l.ends?.right) lines.push(`קיר ניצב בקצה: ${[l.ends.left && `שמאל ${endWallLen(l, "left")}`, l.ends.right && `ימין ${endWallLen(l, "right")}`].filter(Boolean).join(", ")}`);

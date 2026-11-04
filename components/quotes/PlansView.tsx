@@ -25,6 +25,7 @@ export function PlansView({ data, onOpen, onNew, onQuote, onOpenQuote, onDelete 
         <div><h1>תכנונים</h1><div className="sub">שרטוט בקנה מידה ותלת-ממד. כשהתכנון מוכן, פותחים ממנו הצעת מחיר</div></div>
         <div className="nq-head-acts">
           <a className="nq-btn" href={claudeLink("תכנון מטבח חדש במערכת נויה. הנה הסקיצה עם המידות ושם הלקוח: ")} target="_blank" rel="noopener">✨ תכנון בקלוד</a>
+          <a className="nq-btn" href={claudeLink("תתכנן לי כמה אופציות למטבח במערכת נויה ממידות החדר. קודם תשאל אותי מה שצריך. מה שאני יודע כרגע: ")} target="_blank" rel="noopener">✨ אופציות ממידות חדר</a>
           <button className="nq-btn pri" onClick={onNew}>+ תכנון חדש</button>
         </div>
       </div>

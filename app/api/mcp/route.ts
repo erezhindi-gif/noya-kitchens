@@ -10,6 +10,7 @@ import { monthName, monthRange, per, report } from "@/lib/marketing/report";
 import { SOURCE_LABEL, STAGE_LABEL, ago, findPhone, leadStage } from "@/lib/quotes/leads";
 import { syncLeads } from "@/lib/quotes/lead-sync";
 import { describeLayout, layoutWarnings, normalizeLayout } from "@/lib/quotes/layout";
+import { DESIGN_BRIEF } from "@/lib/quotes/design-brief";
 import { passwordStamp, verifyPayload } from "@/lib/quotes/auth";
 import type { CatNode, Lead, Plan, Quote } from "@/lib/quotes/types";
 import { MAIL_ERRORS, sendQuoteMail, validEmail } from "@/lib/quotes/send-quote";
@@ -620,6 +621,17 @@ const handler = createMcpHandler(
     );
 
     server.registerTool(
+      "kitchen_design_brief",
+      {
+        title: "תכנון אופציות למטבח ממידות חדר",
+        description: "לקרוא לפני שמתכננים מטבח ממידות חדר, כשארז מבקש שתתכנן לו או תבנה כמה אופציות. מחזיר את השאלות שחובה לשאול אותו לפני שמתחילים (מדיח, כיריים, מקרר, תנור ועוד), את כללי התכנון, ואיך לשמור ולהציג את האופציות.",
+        inputSchema: {},
+        annotations: { readOnlyHint: true },
+      },
+      async () => text(DESIGN_BRIEF)
+    );
+
+    server.registerTool(
       "set_kitchen_layout",
       {
         title: "שרטוט ותלת-ממד למטבח",
@@ -627,7 +639,7 @@ const handler = createMcpHandler(
           "שומר תכנון מטבח (בלשונית 'תכנונים' במערכת), בס״מ. ממנו נבנים שרטוט בקנה מידה עם קווי מידה ותצוגת תלת-ממד. תכנון נבנה לפני ההצעה; כשהוא מוכן, בונים ממנו הצעה עם create_quote_draft ו-plan_id, והשרטוט מוצג ללקוח עם ההצעה וב-PDF. " +
           "תכנון חדש: בלי plan_id, עם client_name (וטלפון אם ידוע). תיקון תכנון קיים: plan_id מ-list_plans (או מ-get_quote של הצעה שנבנתה ממנו) — שלח את כל התכנון המעודכן, לא רק את השינוי. " +
           "לרוב ארז שולח צילום של סקיצה ידנית: קרא ממנה את אורכי הקירות, את הארונות לפי הסדר ואת הרוחב של כל אחד. " +
-          "כל מידה חייבת להגיע מהסקיצה או מארז. אם מידה חסרה או לא קריאה, שאל לפני השמירה (שאלה אחת מרוכזת) — לא מנחשים. " +
+          "כל מידה חייבת להגיע מהסקיצה או מארז. אם מידה חסרה או לא קריאה, שאל לפני השמירה (שאלה אחת מרוכזת) — לא מנחשים. היוצא מן הכלל: כשארז מבקש שתתכנן אופציות ממידות חדר, קרא קודם ל-kitchen_design_brief ופעל לפיו; שם מותר לבחור רוחבי ארונות, אבל לא את מידות החדר. " +
           "walls: קיר אחד = מטבח ישר, שניים = ר׳ (הראשי ואז הימני), שלושה = ח׳ (שמאלי, ראשי, ימני). " +
           "ארונות בכל קיר מסודרים משמאל לימין כשעומדים מול הקיר. סכום הרוחבות לא יעלה על אורך הקיר (שטח שנשאר פנוי — gap). " +
           "בפינה שבה הארונות ממשיכים, הקיר שאחרי הפינה מתחיל ב-corner ברוחב עומק הארונות (60 בתחתון, 35 בעליון). " +
@@ -682,13 +694,13 @@ const handler = createMcpHandler(
     );
   },
   {
-    serverInfo: { name: "noya-quotes", version: "1.10.2" },
+    serverInfo: { name: "noya-quotes", version: "1.11.0" },
     instructions:
       "מערכת הצעות המחיר של נויה מטבחים (ארז). תהליך: 1) search_catalog כדי למצוא את הפריטים. " +
       "2) אם חסרה כמות לרכיב כלשהו (למשל ידית לחזיתות), או שיש כמה פריטים אפשריים, שאל את ארז שאלה אחת מרוכזת עם כל החסרים — לפני שבונים. " +
       "3) create_quote_draft רק כשהכול ברור. אל תנחש כמויות ואל תעתיק כמות בין רכיבים. " +
       "כל טיוטה מקבלת אוטומטית את העמלה הקבועה; remove_commission=true רק אם ארז ביקש במפורש בלי עמלה. " +
-      "להוספה להצעה קיימת: add_to_quote. לשינוי כמויות, תיאורים, הסרת שורות או פרטים: get_quote ואז update_quote. לא בונים הצעה חדשה כשארז ביקש לשנות קיימת. אם ארז רוצה לשנות הצעה ולא אמר איזו: list_quotes, הצג לו רשימה ממוספרת קצרה (מספר, לקוח, פרויקט, סכום) ושאל איזו, ורק אחר כך get_quote.  לשליחה ללקוח: whatsapp_link, או email_quote למייל עם PDF (גם כתשובה למייל שבו הלקוח ביקש הצעה) — תמיד אחרי שארז אישר נמען ונוסח. לעריכת הקטלוג (פריטים, תתי-פריטים, מחירים): search_catalog עם full_tree=true ואז edit_catalog, אחרי שארז אישר את השינויים. פניות (בקשות להצעה): כשארז משתף הודעה מלקוח או אומר 'תוסיף פנייה' — add_lead (לא create_quote_draft! פנייה היא לא הצעה; אחרי השמירה תן לארז את הקישור למסך הפניות שהכלי מחזיר). 'מה מחכה?' — list_leads. שרטוט או הדמיה של מטבח (לרוב מצילום של סקיצה ידנית): set_kitchen_layout — נשמר כתכנון בלשונית 'תכנונים', רק עם מידות שמופיעות בסקיצה או שארז אמר. 'מה התכנונים?' — list_plans. הצעה מתכנון: create_quote_draft עם plan_id. כשבונים הצעה לפנייה, העבר lead_id ואת פרטי הלקוח מהפנייה ל-create_quote_draft. שיווק: 'שילמתי על פרסום' — add_ad_spend; 'איך היה החודש?' / 'מה עובד?' — marketing_report; כשידוע מאיפה לקוח שמע עלינו — channel ב-add_lead או set_lead_channel. דבר עם ארז בעברית.",
+      "להוספה להצעה קיימת: add_to_quote. לשינוי כמויות, תיאורים, הסרת שורות או פרטים: get_quote ואז update_quote. לא בונים הצעה חדשה כשארז ביקש לשנות קיימת. אם ארז רוצה לשנות הצעה ולא אמר איזו: list_quotes, הצג לו רשימה ממוספרת קצרה (מספר, לקוח, פרויקט, סכום) ושאל איזו, ורק אחר כך get_quote.  לשליחה ללקוח: whatsapp_link, או email_quote למייל עם PDF (גם כתשובה למייל שבו הלקוח ביקש הצעה) — תמיד אחרי שארז אישר נמען ונוסח. לעריכת הקטלוג (פריטים, תתי-פריטים, מחירים): search_catalog עם full_tree=true ואז edit_catalog, אחרי שארז אישר את השינויים. פניות (בקשות להצעה): כשארז משתף הודעה מלקוח או אומר 'תוסיף פנייה' — add_lead (לא create_quote_draft! פנייה היא לא הצעה; אחרי השמירה תן לארז את הקישור למסך הפניות שהכלי מחזיר). 'מה מחכה?' — list_leads. שרטוט או הדמיה של מטבח (לרוב מצילום של סקיצה ידנית): set_kitchen_layout — נשמר כתכנון בלשונית 'תכנונים', רק עם מידות שמופיעות בסקיצה או שארז אמר. כשארז נותן מידות חדר ומבקש שתתכנן או שתבנה אופציות: קודם kitchen_design_brief, שואלים את השאלות שלו, ורק אחרי התשובות בונים. 'מה התכנונים?' — list_plans. הצעה מתכנון: create_quote_draft עם plan_id. כשבונים הצעה לפנייה, העבר lead_id ואת פרטי הלקוח מהפנייה ל-create_quote_draft. שיווק: 'שילמתי על פרסום' — add_ad_spend; 'איך היה החודש?' / 'מה עובד?' — marketing_report; כשידוע מאיפה לקוח שמע עלינו — channel ב-add_lead או set_lead_channel. דבר עם ארז בעברית.",
   }
 );
 
