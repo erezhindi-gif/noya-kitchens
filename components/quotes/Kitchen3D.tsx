@@ -418,6 +418,9 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
   const paintRef = useRef(paint);
   paintRef.current = paint;
   const swap = useRef<((k: string) => void) | null>(null);
+  // turning the render off starts the 3D afresh, which gives all its memory back; the view stays where it was
+  const [fresh, setFresh] = useState(0);
+  const view = useRef<{ pos: number[]; target: number[] } | null>(null);
   const setTrace = useRef<((on: boolean) => void) | null>(null);
   const traceOn = useRef(trace);
   traceOn.current = trace;
@@ -528,6 +531,10 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
       controls.maxPolarAngle = Math.PI * 0.49;
       controls.minDistance = 0.4;
       controls.maxDistance = size * 3 + 3;
+      if (view.current) {
+        cam.position.fromArray(view.current.pos);
+        controls.target.fromArray(view.current.target);
+      }
       controls.update();
 
       // what a touch can paint, and the glow on the front under the mouse
@@ -546,7 +553,12 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
       let tracer: import("three-gpu-pathtracer").WebGLPathTracer | null = null;
       let traceSky: T.Texture | null = null;
       let tracedSamples = -2;
-      const MAX_SAMPLES = 1000;
+      const MAX_SAMPLES = 500;
+      // One sample at a time with a breath in between: the screens share this graphics card with the render,
+      // and a queue of unfinished work makes all of them stutter.
+      const SAMPLE_GAP = 40;
+      const gl = renderer.getContext() as WebGL2RenderingContext;
+      let sampleDone: WebGLSync | null = null, sampledAt = 0;
       const loadTrace = () => {
         if (!tracer) return;
         scene.remove(hl);
@@ -554,14 +566,9 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
         tracedSamples = -2;
       };
       const stopTrace = () => {
-        try { tracer?.dispose(); } catch { /* the library's dispose can fail; the renderer below stays usable */ }
         tracer = null;
-        scene.environment = envMap;
-        scene.environmentIntensity = 0.95;
-        sun.intensity = 1.25;
-        fill.intensity = 0.45;
-        scene.add(hl);
-        invalidate();
+        view.current = { pos: cam.position.toArray(), target: controls.target.toArray() };
+        setFresh((n) => n + 1);
       };
       const startTrace = async () => {
         onTraceRef.current?.(-1);
@@ -577,7 +584,7 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
         sun.intensity = 0.5;
         fill.intensity = 0;
         const pt = new WebGLPathTracer(renderer);
-        pt.tiles.set(2, 2);
+        pt.tiles.set(3, 3);
         pt.bounces = 6;
         pt.filterGlossyFactor = 0.5;
         pt.minSamples = 2;
@@ -590,7 +597,7 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
       };
       setTrace.current = (on) => {
         if (on && !tracer) startTrace().catch(() => { tracer = null; onTraceRef.current?.(-1); });
-        else if (!on && tracer) stopTrace();
+        else if (!on && (tracer || scene.environment !== envMap)) stopTrace();
       };
       kitchen.ready.then(invalidate);
 
@@ -624,7 +631,14 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
             tracer.updateCamera();
             dirty = false;
           }
-          if (tracer.samples < MAX_SAMPLES) tracer.renderSample();
+          const busy = sampleDone && gl.getSyncParameter(sampleDone, gl.SYNC_STATUS) !== gl.SIGNALED;
+          if (!busy && tracer.samples < MAX_SAMPLES && now - sampledAt >= SAMPLE_GAP) {
+            if (sampleDone) gl.deleteSync(sampleDone);
+            tracer.renderSample();
+            sampleDone = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+            gl.flush();
+            sampledAt = now;
+          }
           const n = Math.floor(tracer.samples);
           if (n !== tracedSamples) {
             tracedSamples = n;
@@ -744,7 +758,7 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
         window.removeEventListener("pointerup", onUp);
         swap.current = null;
         setTrace.current = null;
-        try { tracer?.dispose(); } catch { /* see stopTrace */ }
+        tracer = null;
         traceSky?.dispose();
         if (shotRef) shotRef.current = null;
         controls.dispose();
@@ -752,13 +766,14 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
         composer?.dispose();
         pmrem.dispose();
         envMap.dispose();
+        renderer.forceContextLoss(); // everything on the graphics card goes, also what the render engine holds
         renderer.dispose();
         renderer.domElement.remove();
       };
     })().catch(() => setFailed(true));
     return () => { disposed = true; cleanup(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [still ? key : "", still, height]);
+  }, [still ? key : "", still, height, fresh]);
 
   useEffect(() => {
     if (!still) swap.current?.(key);
