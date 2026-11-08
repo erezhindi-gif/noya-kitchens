@@ -10,11 +10,11 @@ import { HERO, getImageOverrides, swap } from "@/lib/site-images";
 
 // The page the Google Ads kitchen campaign sends people to, in the site's own look (hero photos,
 // gold labels, Playfair titles). Someone who searched "נגר מטבחים" sees on the first phone screen
-// that this is a kitchen carpenter in the Sharon, his ratings, and a button to call. No menu to
+// that this is a kitchen carpenter from the center to Pardes Hanna, his ratings, and a button to call. No menu to
 // wander off into. Not indexed: the home page stays the page for organic search.
 export const metadata: Metadata = {
-  title: "נגר מטבחים בשרון | מטבח בהתאמה אישית — NOYA מטבחים, ארז הנדי",
-  description: "מטבחים בהתאמה אישית בשרון: ארז הנדי מתכנן, מייצר ומתקין בעצמו. דירוג 5.0 מ-42 ביקורות בגוגל. 050-2808180",
+  title: "נגר מטבחים בהתאמה אישית — מהמרכז ועד פרדס חנה | NOYA מטבחים, ארז הנדי",
+  description: "מטבחים בהתאמה אישית מהמרכז ועד פרדס חנה: ארז הנדי מתכנן, מייצר ומתקין בעצמו. דירוג 5.0 מ-42 ביקורות בגוגל. 050-2808180",
   robots: { index: false, follow: true },
   alternates: { canonical: "/lp/kitchens" },
 };
@@ -23,7 +23,7 @@ const PHONE = "050-2808180";
 const TEL = "tel:0502808180";
 const WA = "https://wa.me/972502808180?text=" + encodeURIComponent("שלום ארז, אני מתעניין/ת במטבח בהתאמה אישית");
 const MIDRAG = "https://www.midrag.co.il/SpCard/Sp/52824?areaId=4&serviceId=216";
-const TOWNS = "נתניה · רעננה · כפר סבא · הוד השרון · הרצליה · רמת השרון · אבן יהודה · קדימה צורן · תל מונד · עמק חפר";
+const TOWNS = "נתניה · רעננה · כפר סבא · הוד השרון · הרצליה · רמת השרון · ראש העין · גבעת שמואל · אבן יהודה · כפר יונה · תל מונד · קדימה צורן · עמק חפר · פרדס חנה-כרכור · קיסריה";
 
 const STEPS = [
   ["תכנון והצעת מחיר", "לפי המידות והרצונות שלכם: תוכנית בקנה מידה ותלת-ממד של המטבח"],
@@ -39,7 +39,7 @@ const Check = () => (
 export default async function KitchenLanding() {
   const [ov, reviews] = await Promise.all([getImageOverrides(), getReviewsView()]);
   const img = swap(ov);
-  const gallery = [HERO[1], "/images/kitchens/kitchen-5.jpg", "/images/kitchens/kitchen-1.jpg", "/images/kitchens/kitchen-4.jpg", "/images/kitchens/kitchen-6.jpg", HERO[0]];
+  const gallery = [HERO[1], "/images/kitchens/kitchen-5.jpg", HERO[3], "/images/kitchens/kitchen-3.jpg", "/images/kitchens/kitchen-6.jpg", HERO[0]];
 
   return (
     <>
@@ -60,12 +60,12 @@ export default async function KitchenLanding() {
         <HeroSlider srcs={HERO.map(img)} />
         <div className="relative z-10 max-w-7xl mx-auto px-5 md:px-8 w-full">
           <div className="max-w-xl md:max-w-2xl">
-            <p className="text-[#C9A96E] text-xs tracking-[0.35em] uppercase mb-4 font-semibold">נגרות בוטיק · השרון</p>
+            <p className="text-[#C9A96E] text-xs tracking-[0.35em] uppercase mb-4 font-semibold">נגרות בוטיק · מהמרכז ועד פרדס חנה</p>
             <h1 className="font-['Playfair_Display'] text-4xl md:text-6xl font-bold text-white leading-tight mb-4">
-              נגר מטבחים בשרון
+              נגר מטבחים<br />בהתאמה אישית
             </h1>
             <p className="text-white/85 text-base md:text-lg leading-relaxed mb-5">
-              מטבח בהתאמה אישית מארז הנדי, 30 שנות ניסיון.<br />מתכנן, מייצר בנגרייה שלו ומתקין בעצמו.
+              ארז הנדי, 30 שנות ניסיון.<br />מתכנן, מייצר בנגרייה שלו ומתקין בעצמו.
             </p>
             <a href={GOOGLE_REVIEWS_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-white/90 text-sm md:text-base mb-7">
               <span className="text-[#E2A33B] tracking-wider text-lg" aria-hidden>★★★★★</span>
