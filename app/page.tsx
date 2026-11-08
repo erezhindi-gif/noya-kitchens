@@ -8,6 +8,15 @@ import ContactForm from "@/components/ContactForm";
 import { HERO, getImageOverrides, swap } from "@/lib/site-images";
 import { getSiteSettings } from "@/lib/sanity";
 
+const GOOGLE_REVIEWS = "https://www.google.com/maps?cid=18053665565514135117";
+const MIDRAG_REVIEWS = "https://www.midrag.co.il/SpCard/Sp/52824?areaId=4&serviceId=216";
+/** Real Google reviews of NOYA, word for word. */
+const REVIEWS = [
+  { name: "ורדית", text: "הזמנתי מטבח וארון לאמבטיה. העבודה של ארז מקצועית, מדויקת ויפה. ארז עצמו נהדר, אמין ושירותי, עמד בזמנים ובהבטחות ועשה עבודה סופר איכותית. ממליצה מקרב לב, ובטוחה שניפגש שוב בעבודות הבאות." },
+  { name: "זוהרה", text: "ארז בנה עבורנו ארון הזזה מקיר לקיר בהתאמה אישית בשילוב מראה, בנוסף עוד שתי ארונות בגדים בחדרי הילדים. נגרות ברמה גבוהה, משתמש בחומרים איכותיים. ארז נגר מקצועי מאוד ויסודי, נותן שירות מכל הלב, עומד בזמנים, עשה עבודה מושלמת!" },
+  { name: "לקוחה מגוגל", text: "עשה לנו מטבח מהמם, עבודה מקצועית, נקייה ומדויקת. היה סבלני, קשוב לכל בקשה, ועמד בזמנים כמו שהבטיח. תענוג לעבוד עם איש מקצוע כזה – אמין, נעים, ואיכותי." },
+];
+
 export const metadata = { alternates: { canonical: "/" } };
 
 const categories = [
@@ -316,7 +325,7 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* GOOGLE REVIEWS — Elfsight widget */}
+      {/* REVIEWS — real Google reviews of the business, kept here (no third-party widget, no view limits) */}
       <section id="testimonials" className="section-py bg-white">
         <div className="max-w-7xl mx-auto px-5 md:px-8">
           <div className="text-center mb-10">
@@ -325,8 +334,29 @@ export default async function Home() {
             <div className="gold-divider mx-auto mt-3" />
           </div>
 
-          {/* Elfsight Google Reviews widget */}
-          <div className="elfsight-app-3f01dad4-7460-447c-b6a7-24e54ea37518" data-elfsight-app-lazy></div>
+          <div className="flex flex-wrap justify-center gap-3 mb-8">
+            <a href={GOOGLE_REVIEWS} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-2 rounded-full border border-[#8B6F47]/25 px-5 py-2 text-sm hover:border-[#8B6F47]">
+              <span className="text-[#E2A33B] tracking-wider" aria-hidden>★★★★★</span>
+              <b>5.0</b> בגוגל · 42 ביקורות
+            </a>
+            <a href={MIDRAG_REVIEWS} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-2 rounded-full border border-[#8B6F47]/25 px-5 py-2 text-sm hover:border-[#8B6F47]">
+              <b>10</b> במידרג · 20 מדרגים
+            </a>
+          </div>
+          <div className="grid gap-5 md:grid-cols-3">
+            {REVIEWS.map((r) => (
+              <figure key={r.name} className="rounded-2xl bg-[#FAF3EB] p-6 flex flex-col">
+                <div className="text-[#E2A33B] tracking-wider mb-3" aria-label="5 כוכבים">★★★★★</div>
+                <blockquote className="text-[15px] leading-relaxed text-[#2C2C2C] flex-1">{r.text}</blockquote>
+                <figcaption className="mt-4 text-sm text-[#8B6F47]">{r.name} · ביקורת בגוגל</figcaption>
+              </figure>
+            ))}
+          </div>
+          <div className="text-center mt-5">
+            <a href={GOOGLE_REVIEWS} target="_blank" rel="noopener noreferrer" className="text-sm underline text-[#8B6F47]">לכל הביקורות בגוגל</a>
+          </div>
 
           {/* Write a review */}
           <div className="flex justify-center mt-8">

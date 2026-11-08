@@ -81,7 +81,7 @@
 @media print {
   @page { size: A4; margin: 10mm 0 12mm; }
   html, body { background: #fff !important; margin: 0; }
-  .skip-link, [aria-label="פתח תפריט נגישות"], [class*="elfsight"], [class*="eapps"] { display: none !important; }
+  .skip-link, [aria-label="פתח תפריט נגישות"] { display: none !important; }
 }
 /* Chromium repeats a table header on each page only if it is under a quarter of the page,
    so the printed header is a little more compact than the on-screen one. */

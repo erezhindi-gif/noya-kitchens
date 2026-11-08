@@ -26,4 +26,4 @@
 }
 
 /* the workshop's sheets are Erez's own: no site widgets on the page or in print */
-body:has(.sh) .skip-link, body:has(.sh) [aria-label="פתח תפריט נגישות"], body:has(.sh) [class*="elfsight"], body:has(.sh) [class*="eapps"] { display: none; }
+body:has(.sh) .skip-link, body:has(.sh) [aria-label="פתח תפריט נגישות"] { display: none; }

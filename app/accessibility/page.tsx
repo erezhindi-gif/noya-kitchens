@@ -49,7 +49,6 @@ export default function AccessibilityPage() {
               <p className="mb-2">להלן מרכיבים הנמצאים בתהליך שיפור:</p>
               <ul className="list-disc list-inside space-y-2 text-sm">
                 <li>חלק מהתמונות בגלריות הפרויקטים עשויות להכיל תיאורים כלליים בלבד</li>
-                <li>ווידג'ט ביקורות גוגל (Elfsight) — רכיב צד שלישי שאינו בשליטתנו המלאה</li>
               </ul>
             </section>
 

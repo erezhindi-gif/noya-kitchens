@@ -91,7 +91,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AccessibilityWidget />
         <SiteTracker />
         <div id="page-content">{children}</div>
-        <Script src="https://elfsightcdn.com/platform.js" strategy="lazyOnload" />
         {GADS_ID && (
           <>
             <Script src={`https://www.googletagmanager.com/gtag/js?id=${GADS_ID}`} strategy="afterInteractive" />
