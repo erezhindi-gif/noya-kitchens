@@ -22,6 +22,7 @@ export const metadata: Metadata = {
 const PHONE = "050-2808180";
 const TEL = "tel:0502808180";
 const WA = "https://wa.me/972502808180?text=" + encodeURIComponent("שלום ארז, אני מתעניין/ת במטבח בהתאמה אישית");
+const SANITY = "https://cdn.sanity.io/images/5wc1kx4k/production";
 const MIDRAG = "https://www.midrag.co.il/SpCard/Sp/52824?areaId=4&serviceId=216";
 const TOWNS = "נתניה · רעננה · כפר סבא · הוד השרון · הרצליה · רמת השרון · ראש העין · גבעת שמואל · אבן יהודה · כפר יונה · תל מונד · קדימה צורן · עמק חפר · פרדס חנה-כרכור · קיסריה";
 
@@ -39,7 +40,15 @@ const Check = () => (
 export default async function KitchenLanding() {
   const [ov, reviews] = await Promise.all([getImageOverrides(), getReviewsView()]);
   const img = swap(ov);
-  const gallery = [HERO[1], "/images/kitchens/kitchen-5.jpg", HERO[3], "/images/kitchens/kitchen-3.jpg", "/images/kitchens/kitchen-6.jpg", HERO[0]];
+  // Erez's picks: the antique green kitchen, and the white kitchen with the brown oak lift-up (from the kitchens gallery)
+  const gallery = [
+    HERO[1],
+    "/images/kitchens/kitchen-5.jpg",
+    `${SANITY}/1717dfed0ae0bcf5520bffda891d452ab4d29a55-3648x2308.jpg?w=1200`,
+    "/images/kitchens/kitchen-3.jpg",
+    `${SANITY}/f1f69c24cfbf790e5251178c23269fe3391b9702-2528x1696.jpg?w=1200`,
+    HERO[0],
+  ];
 
   return (
     <>
