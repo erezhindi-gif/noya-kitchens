@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOwnerEmail, getSecrets, patchSecrets } from "@/lib/quotes/store";
 import { gmailTransport } from "@/lib/quotes/send-quote";
+import { findPlaceId } from "@/lib/reviews/google";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,15 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
-  const { resendKey, anthropicKey, gmailPass, geminiKey } = await req.json().catch(() => ({}));
+  const { resendKey, anthropicKey, gmailPass, geminiKey, placesKey } = await req.json().catch(() => ({}));
+  if (placesKey !== undefined) {
+    const k = String(placesKey || "").trim();
+    if (k && !/^[A-Za-z0-9_.-]{30,200}$/.test(k)) return NextResponse.json({ error: "bad-key" }, { status: 400 });
+    // Ask Google to find the business with it before saving, so a wrong key shows up now.
+    if (k && !(await findPlaceId(k).then(() => true, () => false))) return NextResponse.json({ error: "bad-key" }, { status: 400 });
+    await patchSecrets({ placesKey: k });
+    return NextResponse.json({ ok: true });
+  }
   if (geminiKey !== undefined) {
     const k = String(geminiKey || "").trim();
     if (k && !/^[A-Za-z0-9_.-]{30,200}$/.test(k)) return NextResponse.json({ error: "bad-key" }, { status: 400 });

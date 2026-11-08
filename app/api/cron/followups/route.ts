@@ -4,6 +4,8 @@ import { calc, fdate, followState, money, qnum, todayIL } from "@/lib/quotes/cal
 import { mailOwner } from "@/lib/quotes/mail";
 import { syncLeads, syncProblem } from "@/lib/quotes/lead-sync";
 import { ago, leadStage, SOURCE_LABEL } from "@/lib/quotes/leads";
+import { revalidateTag } from "next/cache";
+import { syncGoogleReviews } from "@/lib/reviews/google";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -18,6 +20,9 @@ export async function GET(req: NextRequest) {
   if (secrets.lastFollowupMail === today) return NextResponse.json({ ok: true, skipped: "already-sent-today" });
 
   await syncLeads({ force: true }).catch((e) => console.error("lead sync failed", e));
+  // the Google reviews on the home page: new rating, count and reviews once a day
+  const rv = await syncGoogleReviews().catch(() => null);
+  if (rv?.ok) revalidateTag("reviews");
   const d = await getData();
   const due = d.quotes.filter((q) => followState(q, d.settings, today).due);
   const late = d.leads.filter((l) => leadStage(l, d.quotes).overdue);

@@ -14,7 +14,7 @@ const n0 = (n: number) => Math.round(n).toLocaleString("he-IL");
 const orDash = (v: number | null, f: (n: number) => string = money) => (v === null ? "—" : f(v));
 
 type M = Marketing & { hasPhotoKey?: boolean };
-type Section = "report" | "spend" | "photos" | "site";
+type Section = "report" | "spend" | "photos" | "site" | "reviews";
 
 export default function MarketingView({ data, onTagLead, onTagQuote, flash }: {
   data: AppData; onTagLead: (l: Lead, ch: Channel) => void; onTagQuote: (q: Quote, ch: Channel) => void; flash: (m: string) => void;
@@ -48,7 +48,7 @@ export default function MarketingView({ data, onTagLead, onTagQuote, flash }: {
         <div><h1>שיווק</h1><div className="sub">מאיפה מגיעים הלקוחות, כמה זה עולה ומה זה מכניס</div></div>
       </div>
       <div className="nq-chips">
-        {([["report", "דוח"], ["spend", "הוצאות פרסום"], ["photos", "תמונות לקטלוג"], ["site", "תמונות האתר"]] as const).map(([k, l]) => (
+        {([["report", "דוח"], ["spend", "הוצאות פרסום"], ["photos", "תמונות לקטלוג"], ["site", "תמונות האתר"], ["reviews", "ביקורות גוגל"]] as const).map(([k, l]) => (
           <button key={k} className="nq-chip" aria-pressed={section === k} onClick={() => setSection(k)}>{l}</button>
         ))}
       </div>
@@ -57,7 +57,9 @@ export default function MarketingView({ data, onTagLead, onTagQuote, flash }: {
 
       {section === "site" && <SiteImages flash={flash} />}
 
-      {section !== "photos" && section !== "site" && (
+      {section === "reviews" && <ReviewsCard flash={flash} />}
+
+      {section !== "photos" && section !== "site" && section !== "reviews" && (
         <div className="nq-mk-period">
           <label className="f">תקופה
             <select className="in" value={period} onChange={(e) => setPeriod(e.target.value)}>
@@ -345,5 +347,58 @@ function SpendView({ m, range, flash, onAdd, onRemove }: {
         </div>
       </section>
     </div>
+  );
+}
+
+/** The Google reviews on the site: the key, the last daily check, and "check now". */
+function ReviewsCard({ flash }: { flash: (m: string) => void }) {
+  type St = { hasKey: boolean; checkedAt: string | null; error: string; rating: number; count: number; shown: number };
+  const [st, setSt] = useState<St | null>(null);
+  const [key, setKey] = useState("");
+  const [busy, setBusy] = useState(false);
+  const load = () => fetch("/api/admin/reviews", { cache: "no-store" }).then((r) => r.json()).then(setSt).catch(() => {});
+  useEffect(() => { load(); }, []);
+  const saveKey = async () => {
+    setBusy(true);
+    const r = await fetch("/api/admin/mail", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ placesKey: key.trim() }) }).catch(() => null);
+    setBusy(false);
+    if (!r?.ok) return flash("גוגל לא קיבלה את המפתח. בדוק שהעתקת אותו במלואו");
+    setKey("");
+    flash("המפתח נשמר ✓");
+    await checkNow();
+  };
+  const checkNow = async () => {
+    setBusy(true);
+    const r = await fetch("/api/admin/reviews", { method: "POST" }).then((x) => x.json()).catch(() => null);
+    setBusy(false);
+    flash(r?.ok ? (r.added ? `נוספו ${r.added} ביקורות חדשות ✓` : "הביקורות מעודכנות ✓") : "הבדיקה מול גוגל נכשלה");
+    load();
+  };
+  if (!st) return <div className="nq-empty">טוען…</div>;
+  return (
+    <section className="nq-card">
+      <div className="nq-card-h"><h2>ביקורות גוגל באתר</h2></div>
+      <p style={{ margin: "0 0 10px" }}>
+        באתר מוצגות <b>{st.shown}</b> ביקורות · דירוג <b>{st.rating.toFixed(1)}</b> מתוך <b>{st.count}</b> ביקורות בגוגל.
+      </p>
+      {st.hasKey ? (
+        <>
+          <p className="hint" style={{ margin: "0 0 10px" }}>
+            פעם ביום האתר בודק בגוגל ומוסיף לבד ביקורות חדשות.
+            {st.checkedAt ? ` בדיקה אחרונה: ${new Date(st.checkedAt).toLocaleString("he-IL")}.` : ""}
+            {st.error ? " הבדיקה האחרונה נכשלה." : ""}
+          </p>
+          <button className="nq-btn" disabled={busy} onClick={checkNow}>{busy ? "בודק…" : "בדוק עכשיו"}</button>
+        </>
+      ) : (
+        <>
+          <p className="hint" style={{ margin: "0 0 10px" }}>כדי שביקורות חדשות ייכנסו לבד, מדביקים כאן את מפתח הביקורות מ-Google Cloud (פרויקט Noya Kitchens). זה חינם, בתוך המכסה של גוגל.</p>
+          <div className="nq-head-acts">
+            <input className="in ltr" style={{ flex: 1, minWidth: 220, textAlign: "left" }} value={key} onChange={(e) => setKey(e.target.value)} placeholder="מדביקים כאן את המפתח" aria-label="מפתח ביקורות גוגל" autoComplete="off" />
+            <button className="nq-btn pri" disabled={busy || key.trim().length < 30} onClick={saveKey}>{busy ? "בודק…" : "שמור"}</button>
+          </div>
+        </>
+      )}
+    </section>
   );
 }

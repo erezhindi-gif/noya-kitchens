@@ -273,8 +273,25 @@ export async function putSettings(settings: Settings, pros: Pro[]) {
 
 /* ---------- secrets: password hash and mail key ----------
    Kept in their own private document so they never travel with settings to the browser. */
-export type Secrets = { passHash?: string; passSalt?: string; resendKey?: string; lastResetAt?: number; lastFollowupMail?: string; anthropicKey?: string; geminiKey?: string; gmailPass?: string; lastLeadSync?: number; leadSyncOkAt?: number; leadSyncError?: string; leadCronAt?: number };
+export type Secrets = { passHash?: string; passSalt?: string; resendKey?: string; lastResetAt?: number; lastFollowupMail?: string; anthropicKey?: string; geminiKey?: string; placesKey?: string; gmailPass?: string; lastLeadSync?: number; leadSyncOkAt?: number; leadSyncError?: string; leadCronAt?: number };
 const SECRETS_ID = "noyaq.secrets";
+
+/* ---------- Google reviews shown on the site (lib/reviews/google.ts) ---------- */
+const REVIEWS_ID = "noyaq.reviews";
+const REVIEWS_FILE = path.join(process.cwd(), ".data", "reviews.json");
+/** Cached for the home page; the daily check clears the cache by the "reviews" tag. */
+export async function getReviewsDoc(): Promise<import("@/lib/reviews/google").ReviewsDoc | null> {
+  if (sanity) {
+    const doc = await sanity.fetch<Record<string, unknown> | null>(`*[_id == $id][0]`, { id: REVIEWS_ID }, { next: { revalidate: 3600, tags: ["reviews"] } });
+    return doc ? clean(doc) : null;
+  }
+  return fs.readFile(REVIEWS_FILE, "utf8").then(JSON.parse).catch(() => null);
+}
+export async function putReviewsDoc(d: import("@/lib/reviews/google").ReviewsDoc) {
+  if (sanity) return void (await sanity.createOrReplace({ _id: REVIEWS_ID, _type: "nq_reviews", ...d, added: (d.added || []).map((r, i) => ({ ...r, _key: `r${i}` })) }));
+  await fs.mkdir(path.dirname(REVIEWS_FILE), { recursive: true });
+  await fs.writeFile(REVIEWS_FILE, JSON.stringify(d, null, 1));
+}
 
 export async function getSecrets(): Promise<Secrets> {
   if (sanity) {
