@@ -159,7 +159,7 @@ export default async function KitchenLanding() {
       </section>
 
       {/* PROCESS */}
-      <section className="section-py bg-[#FAF3EB]">
+      <section id="process" className="section-py bg-[#FAF3EB]">
         <div className="max-w-7xl mx-auto px-5 md:px-8">
           <div className="text-center mb-12">
             <p className="section-label mb-2">התהליך</p>
