@@ -189,6 +189,25 @@ body {
 }
 .whatsapp-btn:hover { transform: scale(1.12); }
 
+/* Phones: a call button that is always in reach (bottom right; WhatsApp sits bottom left) */
+.call-float {
+  position: fixed;
+  bottom: 30px;
+  right: 16px;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 52px;
+  padding: 0 20px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #a8834f, #8B6F47);
+  color: #fff;
+  font-weight: 700;
+  font-size: 16px;
+  box-shadow: 0 6px 20px rgba(139,111,71,0.45);
+}
+
 @keyframes pulse {
   0% { box-shadow: 0 0 0 0 rgba(37,211,102,0.5); }
   70% { box-shadow: 0 0 0 14px rgba(37,211,102,0); }
