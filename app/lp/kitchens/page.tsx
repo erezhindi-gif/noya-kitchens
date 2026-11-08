@@ -40,15 +40,15 @@ const Check = () => (
 export default async function KitchenLanding() {
   const [ov, reviews] = await Promise.all([getImageOverrides(), getReviewsView()]);
   const img = swap(ov);
-  // Erez's picks: the antique green kitchen, and the white kitchen with the brown oak lift-up (from the kitchens gallery)
+  // the six kitchens Erez picked, in his order (photos from the kitchens gallery)
   const gallery = [
-    HERO[1],
-    "/images/kitchens/kitchen-5.jpg",
-    `${SANITY}/1717dfed0ae0bcf5520bffda891d452ab4d29a55-3648x2308.jpg?w=1200`,
-    "/images/kitchens/kitchen-3.jpg",
-    `${SANITY}/f1f69c24cfbf790e5251178c23269fe3391b9702-2528x1696.jpg?w=1200`,
-    HERO[0],
-  ];
+    "b1a7f7e1385f164a2ae83c3c8cce21e097d2ec9f-2400x1792.jpg", // oak island, Taj Mahal stone
+    "046398599d8e1f58c449b5276d61389130c4e799-2400x1792.jpg", // white gloss with island
+    "f2c26a844cb794e92bf6f86d4f8604455af18086-2400x1792.jpg", // antique green with oak shelves
+    "827725031a67f9194bad82d4a5faafa1c001a4c3-1792x2400.jpg", // sahara with brown oak lift-ups
+    "cd3f142eaa2771679a1caab3d50597b300fa76cc-2400x1792.jpg", // black marble island
+    "c010350adad09cf9978c86ee374603672f9ca3f8-1599x1200.jpg", // anthracite with oak
+  ].map((id) => `${SANITY}/${id}?w=1200`);
 
   return (
     <>
@@ -114,7 +114,7 @@ export default async function KitchenLanding() {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
             {gallery.map((src, i) => (
               <div key={src} className="category-card">
-                <Image src={img(src)} alt={`מטבח בהתאמה אישית ${i + 1} — NOYA מטבחים`} fill className="object-cover" />
+                <Image src={src} alt={`מטבח בהתאמה אישית ${i + 1} — NOYA מטבחים`} fill className="object-cover" />
               </div>
             ))}
           </div>
