@@ -181,6 +181,7 @@ export function PlanScreen({ plan: p, data, upd, saveNow, onBack, onQuote, onOpe
         </section>
         <LayoutEditor layout={p.layout}
           claudeHref={claudeLink(`תיקון התכנון של ${who} במערכת נויה (תכנון ${p.id}): `)}
+          optionsHref={claudeLink(`תתכנן לי כמה אופציות למטבח במערכת נויה מהחדר ששרטטתי בתכנון ${p.id} (${who}). קודם תשאל אותי מה שצריך. `)}
           onChange={(l) => upd((x) => { x.layout = l; })}
           shotRef={shotRef}
           viewTools={
