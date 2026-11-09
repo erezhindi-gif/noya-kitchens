@@ -392,7 +392,8 @@ const handler = createMcpHandler(
         const d = await getData();
         const rows = d.leads
           .map((l) => ({ l, s: leadStage(l, d.quotes) }))
-          .filter(({ s }) => show === "all" || (show === "waiting" ? s.stage === "waiting" : s.stage !== "closed"))
+          // same tabs as the admin's פניות screen: "open" = no quote yet or a quote not sent yet; once sent it lives under הצעות
+          .filter(({ s }) => show === "all" || (show === "waiting" ? s.stage === "waiting" : s.stage === "waiting" || s.stage === "draft"))
           .sort((a, b) => b.l.createdAt.localeCompare(a.l.createdAt))
           .slice(0, 30)
           .map(({ l, s }) =>
