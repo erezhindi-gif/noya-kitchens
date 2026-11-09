@@ -5,11 +5,22 @@ const nextConfig = {
   // Server-only packages (PDF printing, Gmail send and read); keep them out of the bundle.
   experimental: { serverComponentsExternalPackages: ["@sparticuz/chromium", "puppeteer-core", "imapflow", "mailparser", "nodemailer"] },
   async redirects() {
+    // Addresses from the old site that Google still crawls: send each, permanently, to the page that replaced it.
     return [
-      { source: '/contact', destination: '/', permanent: false },
-      { source: '/about', destination: '/', permanent: false },
-      { source: '/gallery', destination: '/projects', permanent: false },
-      { source: '/services', destination: '/', permanent: false },
+      { source: '/contact', destination: '/', permanent: true },
+      { source: '/about', destination: '/', permanent: true },
+      { source: '/gallery', destination: '/projects', permanent: true },
+      { source: '/services', destination: '/', permanent: true },
+      { source: '/index.html', destination: '/', permanent: true },
+      { source: '/newpage', destination: '/', permanent: true },
+      { source: '/movie', destination: '/', permanent: true },
+      { source: '/Kitchens', destination: '/projects/kitchens', permanent: true },
+      { source: '/Kitchenette', destination: '/projects/kitchenette', permanent: true },
+      { source: '/Entrance_cabinets', destination: '/projects/entrance', permanent: true },
+      { source: '/Wall_cases', destination: '/projects/wall-units', permanent: true },
+      { source: '/Bathroom_cabinet', destination: '/projects/bathrooms', permanent: true },
+      { source: '/Buffet', destination: '/projects/buffet', permanent: true },
+      { source: '/Miscellaneous', destination: '/projects', permanent: true },
     ];
   },
   images: {
