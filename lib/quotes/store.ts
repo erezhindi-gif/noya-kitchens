@@ -410,3 +410,20 @@ export async function setGoal(goal: number) {
   d.goal = goal;
   await writeFile(d);
 }
+
+/* ---------- earlier versions of a plan (Sanity keeps the history of every document) ---------- */
+export async function planHistory(id: string): Promise<{ rev: string; at: string }[]> {
+  if (!sanity) return [];
+  const dataset = sanity.config().dataset;
+  const raw = await sanity.request<string>({ uri: `/data/history/${dataset}/transactions/${ID.plan(id)}?excludeContent=true&reverse=true&limit=60`, json: false });
+  return String(raw).split("\n").filter(Boolean).map((line) => JSON.parse(line) as { id: string; timestamp: string })
+    .map((t) => ({ rev: t.id, at: t.timestamp }));
+}
+
+export async function planRevision(id: string, rev: string): Promise<Plan | null> {
+  if (!sanity || !/^[A-Za-z0-9_-]{4,64}$/.test(rev)) return null;
+  const dataset = sanity.config().dataset;
+  const res = await sanity.request<{ documents?: Record<string, unknown>[] }>({ uri: `/data/history/${dataset}/documents/${ID.plan(id)}?revision=${rev}` });
+  const doc = res.documents?.[0];
+  return doc ? clean<Plan>(doc) : null;
+}
