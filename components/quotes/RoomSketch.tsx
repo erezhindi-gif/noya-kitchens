@@ -173,7 +173,9 @@ export default function RoomSketch({ room: saved, layout, onChange }: {
 
   /** Enter in the length box: the line being drawn gets that length, or the chosen wall does */
   const applyLength = () => {
-    const v = Number(vcb.replace(",", "."));
+    // in cm, or in meters like SketchUp: anything under 10 is meters (0.65 = 65 cm)
+    const raw = Number(vcb.replace(",", "."));
+    const v = raw > 0 && raw < 10 ? Math.round(raw * 1000) / 10 : raw;
     setVcb("");
     if (!(v > 0)) return;
     if (drawing && last) {
@@ -256,7 +258,7 @@ export default function RoomSketch({ room: saved, layout, onChange }: {
       <div className="nqs-canvas" dir="ltr">
         <svg ref={svgRef} viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`} preserveAspectRatio="xMidYMid meet"
           style={{ cursor: mode === "select" ? "default" : "crosshair", touchAction: "none" }}
-          onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={() => mode === "walls" && setCursor(null)}>
+          onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp}>
           <defs>
             <pattern id="nqs-grid" width="50" height="50" patternUnits="userSpaceOnUse"><path d="M50 0H0V50" fill="none" stroke="#ece6dc" strokeWidth="1" /></pattern>
           </defs>
@@ -312,7 +314,7 @@ export default function RoomSketch({ room: saved, layout, onChange }: {
         <label className="nqs-vcb">אורך
           <input className="in num" inputMode="decimal" value={vcb} placeholder={drawing ? "הקלד ו-Enter" : selWall ? String(selWall.len) : ""}
             onChange={(e) => setVcb(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyLength(); } }} />
-          <span className="hint">ס״מ</span>
+          <span className="hint">ס״מ, או מטרים (0.65)</span>
         </label>
         <label className="nqs-vcb">עובי קיר
           <input className="in num" type="number" inputMode="decimal" value={room.thick} onChange={(e) => commit({ ...room, thick: Math.max(5, Math.min(60, Number(e.target.value) || 20)) })} />
