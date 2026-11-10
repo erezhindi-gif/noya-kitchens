@@ -65,6 +65,8 @@ function Front({ c, x, y0, w, h, fill, handle, r, glass }: { c: Ctx; x: number; 
         return (
           <>
             {dec.inner && <rect x={rx + dec.inner.x} y={ry + dec.inner.y} width={dec.inner.w} height={dec.inner.h} fill={dec.glass ? "#d7e6ec" : "none"} stroke={LINE} strokeWidth={0.4} />}
+            {dec.inner2 && <rect x={rx + dec.inner2.x} y={ry + dec.inner2.y} width={dec.inner2.w} height={dec.inner2.h} fill="none" stroke={LINE} strokeWidth={0.25} />}
+            {dec.diags.map(([ax, ay, bx, by2], i) => <line key={"dg" + i} x1={rx + ax} y1={ry + ay} x2={rx + bx} y2={ry + by2} stroke={LINE} strokeWidth={Math.min(4, rw / 6)} strokeOpacity={0.25} />)}
             {dec.lines.map((lx, i) => <line key={i} x1={rx + lx} x2={rx + lx} y1={ry + (dec.inner ? dec.inner.y : 0.3)} y2={ry + (dec.inner ? dec.inner.y + dec.inner.h : rh - 0.3)} stroke={LINE} strokeWidth={0.3} />)}
           </>
         );

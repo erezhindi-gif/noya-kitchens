@@ -407,7 +407,7 @@ export default function LayoutEditor({ layout, onChange, claudeHref, shotRef, vi
         />
       )}
       {tab === "3d"
-        ? <><Kitchen3D layout={layout} height={460} shotRef={shotRef} paint={brush ? paintOn : undefined} inside={inside} />
+        ? <><Kitchen3D layout={layout} height={640} shotRef={shotRef} paint={brush ? paintOn : undefined} inside={inside} />
           <button type="button" className="nq-btn sm" style={{ marginTop: 8 }} aria-pressed={inside} onClick={() => setInside(!inside)}>{inside ? "החזר חזיתות" : "🔍 הצג פנים הארונות"}</button>
           {viewTools}</>
         : <div className={brush ? "nqp-paint" : undefined} onPointerDown={drawingPaint} onPointerOver={drawingPaint}><KitchenPlan layout={layout} /></div>}

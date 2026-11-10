@@ -122,3 +122,9 @@
 .nqm-item img { height: 90px; width: auto; }
 .nqm-item[aria-pressed="true"] { border-color: #a8834f; box-shadow: 0 0 0 2px #f4ecdf; }
 .nqm-plain { display: block; width: 60px; height: 90px; background: #f6f4ef; border: 1px solid #ddd5c8; }
+
+/* the 3D view: bigger, with standard views like SketchUp */
+.nqp-3d-wrap { position: relative; }
+.nqp-views { position: absolute; top: 10px; inset-inline-start: 10px; display: flex; flex-wrap: wrap; gap: 6px; z-index: 2; }
+.nqp-views .nq-chip { background: rgba(255, 255, 255, 0.92); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12); }
+@media (max-width: 640px) { .nqp-3d { max-height: 70vh; } }

@@ -228,6 +228,21 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
           p.add(pane);
         }
       }
+      if (dec.inner2) {
+        // the second line of a stepped frame
+        const q = dec.inner2, sz2 = fz + 0.1;
+        box(p, mats.groove, q.w, 0.3, 0.05, x0 + q.x + q.w / 2, y0 + q.y, sz2);
+        box(p, mats.groove, q.w, 0.3, 0.05, x0 + q.x + q.w / 2, y0 + q.y + q.h, sz2);
+        box(p, mats.groove, 0.3, q.h, 0.05, x0 + q.x, y0 + q.y + q.h / 2, sz2);
+        box(p, mats.groove, 0.3, q.h, 0.05, x0 + q.x + q.w, y0 + q.y + q.h / 2, sz2);
+      }
+      for (const [ax, ay, bx, by2] of dec.diags) {
+        // a barn door brace, raised like the frame
+        const len = Math.hypot(bx - ax, by2 - ay), br = new three.Mesh(new three.BoxGeometry(len * M, Math.min(9, w / 5) * M, 0.6 * M), mat);
+        br.position.set((x0 + (ax + bx) / 2) * M, (y0 + (ay + by2) / 2) * M, (fz + 0.3) * M);
+        br.rotation.z = Math.atan2(by2 - ay, bx - ax);
+        p.add(br);
+      }
       const gy = dec.inner ? dec.inner.y : 0.4, gh = dec.inner ? dec.inner.h : hh - 0.8;
       for (const lx of dec.lines) box(p, mats.groove, 0.35, gh, 0.2, x0 + lx, y0 + gy + gh / 2, fz + 0.05);
     }
@@ -776,6 +791,7 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
   /** the fronts off, to see what's inside the cabinets */ inside?: boolean;
 }) {
   const host = useRef<HTMLDivElement>(null);
+  const [view, setView] = useState<View>("3d");
   const [img, setImg] = useState("");
   const [failed, setFailed] = useState(false);
   const key = JSON.stringify(layout);
@@ -786,6 +802,8 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
   const paintRef = useRef(paint);
   paintRef.current = paint;
   const swap = useRef<((k: string) => void) | null>(null);
+  /** jump to a standard view, like SketchUp's: front, top, left, right, or back to the 3D one */
+  const viewTo = useRef<((v: View) => void) | null>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -875,6 +893,22 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
       controls.minDistance = 0.4;
       controls.maxDistance = size * 3 + 3;
       controls.update();
+      let dirty = true;
+      const home = cam.position.clone();
+      viewTo.current = (v) => {
+        const d = size * 1.25 + 1.2 * back;
+        const at = center.clone();
+        const pos = v === "3d" ? home.clone()
+          : v === "front" ? new three.Vector3(at.x, at.y, at.z + d)
+          : v === "top" ? new three.Vector3(at.x, at.y + d * 1.15, at.z + 0.001)
+          : v === "left" ? new three.Vector3(at.x - d, at.y, at.z)
+          : new three.Vector3(at.x + d, at.y, at.z);
+        controls.target.copy(at);
+        cam.position.copy(pos);
+        cam.lookAt(at);
+        controls.update();
+        dirty = true;
+      };
 
       // what a touch can paint, and the glow on the front under the mouse
       const hl = new three.Mesh(new three.BufferGeometry(), new three.MeshBasicMaterial({ color: "#b5835a", transparent: true, opacity: 0.35, depthTest: false }));
@@ -883,7 +917,6 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
       hl.renderOrder = 10;
       scene.add(hl);
 
-      let dirty = true;
       const invalidate = () => { dirty = true; };
       controls.addEventListener("change", invalidate);
 
@@ -1034,5 +1067,17 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
         {img && <img src={img} alt="המטבח בתלת-ממד" />}
       </div>
     );
-  return <div ref={host} className="nqp-3d" style={{ height }} />;
+  return (
+    <div className="nqp-3d-wrap">
+      <div ref={host} className="nqp-3d" style={{ height }} />
+      <div className="nqp-views" role="group" aria-label="מבטים">
+        {VIEWS.map(([v, label]) => (
+          <button key={v} type="button" className="nq-chip" aria-pressed={view === v} onClick={() => { setView(v); viewTo.current?.(v); }}>{label}</button>
+        ))}
+      </div>
+    </div>
+  );
 }
+
+type View = "3d" | "front" | "top" | "left" | "right";
+const VIEWS: [View, string][] = [["3d", "תלת-ממד"], ["front", "חזית"], ["top", "מלמעלה"], ["left", "משמאל"], ["right", "מימין"]];
