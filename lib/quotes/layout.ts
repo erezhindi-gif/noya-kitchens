@@ -661,10 +661,36 @@ export function counterSpans(us: BaseUnit[], depth = DEFAULT_HEIGHTS.depth) {
   return spans;
 }
 
-/** Fronts of the tall oven unit, bottom up: drawers (30 each), the oven (60), a lift-up door for
- *  the microwave (60, handle at its bottom), and whatever is left up to the top as one more door. */
+/** Erez's guide line for the fronts of tall cabinets: the top of the fridge. Tall doors and the microwave flap end
+ *  there, and above it one more door up to the top, in line with the cabinet over the fridge. */
+export const FRIDGE_LINE = FRIDGE_H + 1;
+const lineFits = (from: number, top: number) => top - FRIDGE_LINE >= 15 && FRIDGE_LINE - from >= 150;
+
+/** Fronts of the tall oven unit, bottom up: drawers, the oven (60), a lift-up door for the microwave (60, never
+ *  more, handle at its bottom) ending at the fridge line, and one more door above it up to the top. */
 export function tallOvenParts(u: BaseUnit, h: LayoutHeights) {
   const drawers = partsOf("tall_oven", u.w, u.n);
-  const d0 = frontsFrom(h), d1 = d0 + drawers * 30, o1 = d1 + 60, m1 = Math.min(h.tall, o1 + 60);
+  const d0 = frontsFrom(h);
+  if (lineFits(d0, h.tall)) {
+    const m1 = FRIDGE_LINE, o1 = m1 - 60, d1 = o1 - 60;
+    return { drawers, d0, d1, o1, m1, rest: true };
+  }
+  const d1 = d0 + drawers * 30, o1 = d1 + 60, m1 = Math.min(h.tall, o1 + 60);
   return { drawers, d0, d1, o1, m1, rest: h.tall - m1 > 2 };
+}
+
+/** The doors of a tall cabinet, bottom up: up to the fridge line and above it (unless a number of doors was set) */
+export function tallDoors(u: BaseUnit, h: LayoutHeights) {
+  const by = u.y ?? frontsFrom(h), top = baseUnitTop(u, h), n = partsOf(u.kind, u.w, u.n);
+  if (u.n === undefined && u.h === undefined && lineFits(by, top)) return [FRIDGE_LINE - by, top - FRIDGE_LINE];
+  return Array.from({ length: n }, () => (top - by) / n);
+}
+
+/** An open unit standing on the counter (no bottom of its own): the first shelf 45 cm up so a Thermomix and a mixer
+ *  fit under it, more shelves share what is left. Elsewhere shelves are evenly spaced. Heights above the unit's bottom. */
+export const onCounter = (y0: number, h: LayoutHeights) => Math.abs(y0 - h.base) < 3;
+export function shelfYs(hh: number, n: number, counter: boolean) {
+  if (n <= 0) return [];
+  if (counter && hh > 60) return [45, ...Array.from({ length: n - 1 }, (_, i) => 45 + ((hh - 45) * (i + 1)) / n)];
+  return Array.from({ length: n }, (_, i) => (hh * (i + 1)) / (n + 1));
 }

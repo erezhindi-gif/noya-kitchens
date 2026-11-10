@@ -2,7 +2,7 @@
 // hardware to buy, panels and quantities for the quote. Everything is worked out from the same centimeters
 // as the drawing. The building rules below are defaults Erez can change in the settings.
 import {
-  BASE_LABEL, PART_LABEL, UPPER_LABEL, applianceText, baseUnitTop, colorName, columnParts, cornerPart, corniceBoxes, frontsFrom, hasCounter, heightsOf, panelHeights, partsOf, placed, sidesOf, tallOvenParts, tvSize, upperBox, wallName, SIDE_PANEL, FRONT_THICK, fridgeNiche, wallSides, WALL_FILLER,
+  BASE_LABEL, PART_LABEL, UPPER_LABEL, applianceText, baseUnitTop, colorName, columnParts, cornerPart, corniceBoxes, frontsFrom, hasCounter, heightsOf, panelHeights, partsOf, placed, sidesOf, tallOvenParts, tallDoors, onCounter, tvSize, upperBox, wallName, SIDE_PANEL, FRONT_THICK, fridgeNiche, wallSides, WALL_FILLER,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperUnit,
 } from "./layout";
 
@@ -202,9 +202,10 @@ export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Tak
           break;
         }
         case "tall": {
-          add(bh, n, u.inside?.pull === "pantry" ? "מזווה" : "");
-          for (let k = 0; k < n; k++) addFront(no, "דלת", u.w, bh / n, 1, colorAt(u, k, front));
-          hw("ציר", n * hinges(bh / n), no);
+          // doors up to the fridge line and above it (fronts numbered from the top)
+          const ds = tallDoors(u, h);
+          add(bh, ds.length, u.inside?.pull === "pantry" ? "מזווה" : "");
+          ds.forEach((dh, i) => { addFront(no, i === ds.length - 1 && ds.length === 2 ? "דלת עליונה" : "דלת", u.w, dh, 1, colorAt(u, ds.length - 1 - i, front)); hw("ציר", hinges(dh), no); });
           break;
         }
         case "tall_oven": {
@@ -242,7 +243,7 @@ export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Tak
       box(no, u.w, b.hh, b.d, u.kind === "open" ? n : u.inside?.shelves || 0);
       inside(no, u);
       sidePanels(no, sidesOf(l, at, row, idx), b.d, b.hh, u.color || upperColor, b.y0 + b.hh);
-      if (u.kind === "open") { add(0, "מדפים פתוחים"); continue; }
+      if (u.kind === "open") { add(0, onCounter(b.y0, h) ? "פתוח על השיש: דפנות, תקרה וגב בלבד, בלי תחתית. מדף ראשון 45 מהשיש" : "מדפים פתוחים"); continue; }
       add(n);
       if (u.kind === "doors") {
         for (let k = 0; k < n; k++) addFront(no, u.glass ? "דלת ויטרינה" : "דלת", u.w / n, b.hh, 1, colorAt(u, k, upperColor));

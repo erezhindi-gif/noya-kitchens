@@ -3,7 +3,7 @@
 // is in cm), so proportions are exact at any size. No hooks: renders on the server for the PDF too.
 import "./plan.css";
 import {
-  BASE_LABEL, COUNTER_COLORS, PART_LABEL, POINT_LABEL, beamHeight, handleOf, sidesOf, SIDE_PANEL, FRONT_THICK, openingBox, FRONT_COLORS, baseUnitTop, colorOf, corniceBoxes, columnParts, cornerPart, counterSpans, counterSpansOver, wallFillers, WALL_FILLER, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, partsOf, placed, tvSize, tallOvenParts, upperBox, wallGeometry, wallName,
+  BASE_LABEL, COUNTER_COLORS, PART_LABEL, POINT_LABEL, beamHeight, handleOf, sidesOf, SIDE_PANEL, FRONT_THICK, openingBox, FRONT_COLORS, baseUnitTop, colorOf, corniceBoxes, columnParts, cornerPart, counterSpans, counterSpansOver, wallFillers, WALL_FILLER, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, partsOf, placed, tvSize, tallOvenParts, tallDoors, shelfYs, onCounter, upperBox, wallGeometry, wallName,
   type BaseUnit, type LayoutWall, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
   fridgeNiche, FRIDGE_BLACK,
 } from "@/lib/quotes/layout";
@@ -195,8 +195,12 @@ function BaseShape({ c, u, x, units, index, at }: { c: Ctx; u: BaseUnit; x: numb
         </>
       );
     }
-    case "tall":
-      return <>{plinth}<Stack c={c} x={x} y0={by} w={u.w} h={bh} n={n} fill={fr} fills={pf} handle="mid" r={r} /></>;
+    case "tall": {
+      // doors up to the fridge line and above it; fronts are numbered from the top
+      const ds = tallDoors(u, h);
+      let yy = by;
+      return <>{plinth}{ds.map((dh, i) => { const y = yy; yy += dh; const k = ds.length - 1 - i; return <Front key={i} c={c} x={x} y0={y} w={u.w} h={dh} fill={pf[k] || fr} handle="mid" r={`${r}.${k}`} />; })}</>;
+    }
     case "tall_oven": {
       const t = tallOvenParts(u, h);
       return (
@@ -245,9 +249,9 @@ function upperFront(c: Ctx, u: UpperUnit, x: number, y0: number, uh: number, n: 
       if (u.recess || u.frame) return <Niche c={c} x={x} y0={y0} w={u.w} h={uh} frame={u.frame ?? 2} fill={fu} r={`${r}.-1`} n={n} label={`נישה ${cm(uh)}`} tv={u.tv} tvGap={u.tvGap} />;
       return (
         <g>
-          <rect x={x + 0.3} y={Y(c, y0 + uh)} width={u.w - 0.6} height={uh} fill="#e9e4da" stroke={LINE} strokeWidth={0.6} />
-          {Array.from({ length: n }, (_, i) => {
-            const yy = Y(c, y0 + (uh * (i + 1)) / (n + 1));
+          <rect x={x + 0.3} y={Y(c, y0 + uh)} width={u.w - 0.6} height={uh} fill={u.color ? colorOf(u.color, FRONT_COLORS, "#e9e4da") : "#e9e4da"} stroke={LINE} strokeWidth={0.6} />
+          {shelfYs(uh, n, onCounter(y0, c.h)).map((sy, i) => {
+            const yy = Y(c, y0 + sy);
             return <line key={i} x1={x + 0.3} x2={x + u.w - 0.3} y1={yy} y2={yy} stroke={LINE} strokeWidth={0.8} />;
           })}
         </g>

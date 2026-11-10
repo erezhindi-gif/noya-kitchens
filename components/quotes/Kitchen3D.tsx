@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type * as T from "three";
 import {
-  COUNTER_COLORS, FRONT_COLORS, FRONT_THICK, SIDE_PANEL, FRIDGE_BLACK, fridgeNiche, beamHeight, sidesOf, colorOf, corniceBoxes, handleOf, columnParts, openingBox, cornerPart, counterSpans, counterSpansOver, wallFillers, WALL_FILLER, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, tvSize, mainWallIndex, partsOf, placed, tallOvenParts, upperBox, wallGeometry,
+  COUNTER_COLORS, FRONT_COLORS, FRONT_THICK, SIDE_PANEL, FRIDGE_BLACK, fridgeNiche, beamHeight, sidesOf, colorOf, corniceBoxes, handleOf, columnParts, openingBox, cornerPart, counterSpans, counterSpansOver, wallFillers, WALL_FILLER, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, tvSize, mainWallIndex, partsOf, placed, tallOvenParts, tallDoors, shelfYs, onCounter, upperBox, wallGeometry,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 import { bluranImg, bluranOf } from "@/lib/quotes/bluran";
@@ -457,9 +457,13 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
           oven(p, x, f0 + dr, w, fh - dr, z);
           break;
         }
-        case "tall":
-          for (let i = 0; i < n; i++) frontPanel(p, fm(n - 1 - i), x, by + (i * bh) / n, w, bh / n, zz, "mid", r(n - 1 - i));
+        case "tall": {
+          // doors up to the fridge line and above it
+          const ds = tallDoors(u, hs);
+          let yy = by;
+          ds.forEach((dh, i) => { frontPanel(p, fm(ds.length - 1 - i), x, yy, w, dh, zz, "mid", r(ds.length - 1 - i)); yy += dh; });
           break;
+        }
         case "tall_oven": {
           const t = tallOvenParts(u, hs);
           const dh = (t.d1 - t.d0) / t.drawers;
@@ -519,11 +523,14 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
         continue;
       }
       if (u.kind === "open") {
-        box(p, mats.shelf, w, 1.8, d, x + w / 2, y0 + 0.9, d / 2);
-        box(p, mats.shelf, w, 1.8, d, x + w / 2, y0 + uh - 0.9, d / 2);
-        box(p, mats.shelf, 1.8, uh, d, x + 0.9, y0 + uh / 2, d / 2);
-        box(p, mats.shelf, 1.8, uh, d, x + w - 0.9, y0 + uh / 2, d / 2);
-        for (let i = 1; i <= n; i++) box(p, mats.shelf, w - 3.6, 1.8, d - 2, x + w / 2, y0 + (uh * i) / (n + 1), d / 2);
+        // standing on the counter it has no bottom of its own: the counter is its floor
+        const om = matOf(u.color, mats.shelf), counter = onCounter(y0, h);
+        if (!counter) box(p, om, w, 1.8, d, x + w / 2, y0 + 0.9, d / 2);
+        box(p, om, w, 1.8, d, x + w / 2, y0 + uh - 0.9, d / 2);
+        box(p, om, 1.8, uh, d, x + 0.9, y0 + uh / 2, d / 2);
+        box(p, om, 1.8, uh, d, x + w - 0.9, y0 + uh / 2, d / 2);
+        box(p, om, w - 3.6, uh, 0.8, x + w / 2, y0 + uh / 2, 0.4);
+        for (const sy of shelfYs(uh, n, counter)) box(p, om, w - 3.6, 1.8, d - 2, x + w / 2, y0 + sy, d / 2);
         continue;
       }
       body(p, mats.upperCarcass, x, y0, w, uh, d, u);
