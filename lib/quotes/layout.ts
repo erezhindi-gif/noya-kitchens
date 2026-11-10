@@ -72,7 +72,7 @@ export type KitchenLayout = {
   island?: { w: number; d: number; gap: number; base: BaseUnit[] };
   h?: Partial<LayoutHeights>;
   /** handles: "bar" a handle on every front, "integral" a grip groove cut into the front's edge, "none" push-open */
-  colors?: { front?: string; upper?: string; counter?: string; handles?: "bar" | "integral" | "none"; /** the plinth: a Bluran shade, "front" = like the fronts; missing = dark */ plinth?: string };
+  colors?: { front?: string; upper?: string; counter?: string; handles?: "bar" | "integral" | "none"; /** integral handle's color: like the cabinet, black (default) or aluminum */ grip?: "front" | "black" | "alu"; /** the plinth: a Bluran shade, "front" = like the fronts; missing = dark */ plinth?: string };
   /** the counter's edge: over = how far it comes past the fronts (default 2); fallLeft/fallRight = it runs down to the floor at the
    *  kitchen's free end; splash = height of the same stone on the wall above it, 0 or missing = none */
   counter?: { over?: number; fallLeft?: boolean; fallRight?: boolean; splash?: number };
@@ -163,7 +163,7 @@ export function fridgeNiche(u: BaseUnit, h: LayoutHeights) {
   const top = baseUnitTop(u, h);
   const inner = u.w;
   const fh = Math.min(FRIDGE_H, top);
-  const over = top - fh - 1 >= 15 ? { y0: fh + 1, hh: top - fh - 1 } : null;
+  const over = top - fh >= 15 ? { y0: fh, hh: top - fh } : null;
   return { top, inner, fh, over };
 }
 
@@ -246,7 +246,8 @@ export function partsOf(kind: BaseKind | UpperKind, w: number, n?: number, upper
   if (kind === "open") return 2;
   if (kind === "shelf") return 1;
   if (kind === "tall" || kind === "fridge") return 2;
-  return w <= (upper ? 50 : 55) ? 1 : 2;
+  // Erez: a door is up to 60 wide, so up to 60 is one door (a sink unit of 60 looks like the dishwasher next to it)
+  return w <= 60.5 ? 1 : 2;
 }
 
 const BASE_KINDS = Object.keys(BASE_LABEL) as BaseKind[];
@@ -331,6 +332,7 @@ export function normalizeLayout(raw: unknown): KitchenLayout | null {
       ...(str(c.upper) ? { upper: str(c.upper) } : {}),
       ...(str(c.counter) ? { counter: str(c.counter) } : {}),
       ...(c.handles === "none" || c.handles === "integral" ? { handles: c.handles } : {}),
+      ...(c.grip === "front" || c.grip === "alu" ? { grip: c.grip } : {}),
       ...(str(c.plinth) ? { plinth: str(c.plinth) } : {}),
     };
   }
@@ -473,7 +475,7 @@ export function describeLayout(l: KitchenLayout) {
   if (l.cornice) lines.push(`קרניז: ${l.cornice.toCeiling ? "עד התקרה" : `גובה ${l.cornice.h}`}, בליטה ${l.cornice.over ?? 2}`);
   if (l.counter) lines.push(`משטח: בליטה ${l.counter.over ?? 2}${l.counter.fallLeft ? ", מפל משמאל" : ""}${l.counter.fallRight ? ", מפל מימין" : ""}${l.counter.splash ? `, חיפוי קיר בגובה ${l.counter.splash}` : ""}`);
   const c = l.colors || {};
-  lines.push(`צבעים: חזיתות ${colorName(c.front)}${c.upper ? `, עליונים ${colorName(c.upper)}` : ""}${hasCounter(l) ? `, משטח ${COUNTER_COLORS[c.counter || "white_stone"]?.name || c.counter}` : ", בלי משטח"}${c.handles === "none" ? ", בלי ידיות" : c.handles === "integral" ? ", ידית אינטגרלית" : ""}`);
+  lines.push(`צבעים: חזיתות ${colorName(c.front)}${c.upper ? `, עליונים ${colorName(c.upper)}` : ""}${hasCounter(l) ? `, משטח ${COUNTER_COLORS[c.counter || "white_stone"]?.name || c.counter}` : ", בלי משטח"}${c.handles === "none" ? ", בלי ידיות" : c.handles === "integral" ? `, ידית אינטגרלית${c.grip === "front" ? " בצבע הארון" : c.grip === "alu" ? " אלומיניום" : " שחורה"}` : ""}`);
   if (l.ends?.left || l.ends?.right) lines.push(`קיר ניצב בקצה: ${[l.ends.left && `שמאל ${endWallLen(l, "left")}`, l.ends.right && `ימין ${endWallLen(l, "right")}`].filter(Boolean).join(", ")}`);
   return lines.join("\n");
 }
@@ -663,7 +665,7 @@ export function counterSpans(us: BaseUnit[], depth = DEFAULT_HEIGHTS.depth) {
 
 /** Erez's guide line for the fronts of tall cabinets: the top of the fridge. Tall doors and the microwave flap end
  *  there, and above it one more door up to the top, in line with the cabinet over the fridge. */
-export const FRIDGE_LINE = FRIDGE_H + 1;
+export const FRIDGE_LINE = FRIDGE_H;
 const lineFits = (from: number, top: number) => top - FRIDGE_LINE >= 15 && FRIDGE_LINE - from >= 150;
 
 /** Fronts of the tall oven unit, bottom up: drawers, the oven (60), a lift-up door for the microwave (60, never

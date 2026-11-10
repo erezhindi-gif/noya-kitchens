@@ -139,7 +139,8 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
     floor: std("#ffffff", 0.5, 0, { map: drawnTexture(three, "oak", oakFloor) }),
     shelf: std("#e3ddd2", 0.7),
     sink: std("#b4babe", 0.3, 0.35),
-    grip: std("#2b2724", 0.85),
+    // the integral handle's groove: black, aluminum, or the cabinet's own color (set per front below)
+    grip: l.colors?.grip === "alu" ? std("#b9bcbf", 0.35, 0.7) : std("#2b2724", 0.85),
     black: std("#141414", 0.4, 0.2),
     zone: std("#3a3a3c", 0.25, 0.1),
     display: std("#0b1a22", 0.2, 0.1, { emissive: new three.Color("#16384a"), emissiveIntensity: 0.6 }),
@@ -194,8 +195,9 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
     const panel = tag(box(p, mat, w - 0.4, hh - 0.4, 1.8, x0 + w / 2, y0 + hh / 2, z + 0.9), ref);
     if (grip && handle) {
       // integral handle: a grip groove milled into the edge of the front
-      if (handle === "mid") tag(box(p, mats.grip, 1.6, hh - 0.4, 0.5, x0 + 1.2, y0 + hh / 2, z + 1.6), ref, panel);
-      else tag(box(p, mats.grip, w - 0.4, 1.6, 0.5, x0 + w / 2, handle === "top" ? y0 + hh - 1.2 : y0 + 1.2, z + 1.6), ref, panel);
+      const gm = l.colors?.grip === "front" ? mat : mats.grip;
+      if (handle === "mid") tag(box(p, gm, 1.6, hh - 0.4, 0.5, x0 + 1.2, y0 + hh / 2, z + 1.6), ref, panel);
+      else tag(box(p, gm, w - 0.4, 1.6, 0.5, x0 + w / 2, handle === "top" ? y0 + hh - 1.2 : y0 + 1.2, z + 1.6), ref, panel);
       return;
     }
     if (!handles || !handle) return;

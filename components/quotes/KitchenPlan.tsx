@@ -15,7 +15,7 @@ const STEEL = "#cfd3d6";
 const GLASS = "#2c2c2c";
 const GAP = 0.5; // gap between fronts, cm
 
-type Ctx = { hl: ReturnType<typeof handleOf>; h: LayoutHeights; top: number; front: string; upper: string; counter: string; handles: boolean; grip: boolean; f: number; plinth: string };
+type Ctx = { hl: ReturnType<typeof handleOf>; h: LayoutHeights; top: number; front: string; upper: string; counter: string; handles: boolean; grip: boolean; gripColor?: "front" | "black" | "alu"; f: number; plinth: string };
 
 /** Dark fronts (anthracite, black, walnut…) get light writing on them. */
 const isDark = (hex: string) => {
@@ -35,9 +35,12 @@ function Front({ c, x, y0, w, h, fill, handle, r, glass }: { c: Ctx; x: number; 
   if (c.grip && handle) {
     // integral handle: a dark grip groove along the front's edge (top for base units, bottom for uppers, the inner side for tall doors)
     const t = 1.4;
-    bar = handle === "top" ? <rect x={rx} y={ry} width={rw} height={t} fill="#2f2a26" opacity={0.75} />
-      : handle === "bottom" ? <rect x={rx} y={ry + rh - t} width={rw} height={t} fill="#2f2a26" opacity={0.75} />
-      : <rect x={handle === "side-r" ? rx + rw - t : rx} y={ry} width={t} height={rh} fill="#2f2a26" opacity={0.75} />;
+    // black by default, aluminum, or the cabinet's own color (shown as a thin outlined groove)
+    const gf = c.gripColor === "alu" ? "#b9bcbf" : c.gripColor === "front" ? fill : "#2f2a26";
+    const gs = c.gripColor === "front" ? { stroke: "#8b8378", strokeWidth: 0.3 } : {};
+    bar = handle === "top" ? <rect x={rx} y={ry} width={rw} height={t} fill={gf} opacity={0.85} {...gs} />
+      : handle === "bottom" ? <rect x={rx} y={ry + rh - t} width={rw} height={t} fill={gf} opacity={0.85} {...gs} />
+      : <rect x={handle === "side-r" ? rx + rw - t : rx} y={ry} width={t} height={rh} fill={gf} opacity={0.85} {...gs} />;
   } else if (c.handles && handle) {
     if (handle === "top" || handle === "bottom" || handle === "mid") {
       const hy = handle === "top" ? ry + 4 : handle === "bottom" ? ry + rh - 4 : ry + rh / 2;
@@ -310,6 +313,7 @@ function ctxOf(l: KitchenLayout, length: number): Ctx {
     handles: !l.colors?.handles || l.colors.handles === "bar",
     hl: handleOf(l),
     grip: l.colors?.handles === "integral",
+    gripColor: l.colors?.grip,
     plinth: !l.colors?.plinth ? "#5b544d" : l.colors.plinth === "front" ? front : colorOf(l.colors.plinth, FRONT_COLORS, "#5b544d"),
     f: Math.min(11, Math.max(6, length * 0.024)),
   };

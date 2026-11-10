@@ -456,6 +456,15 @@ export default function LayoutEditor({ layout, onChange, claudeHref, shotRef, vi
             <option value="none">בלי ידיות (פתיחה בלחיצה)</option>
           </select>
         </label>
+        {c.handles === "integral" && (
+          <label className="f">צבע הידית האינטגרלית
+            <select className="in" value={c.grip || "black"} onChange={(e) => up((l) => { const v = e.target.value; l.colors = { ...l.colors, grip: v === "black" ? undefined : (v as "front" | "alu") }; })}>
+              <option value="black">שחור</option>
+              <option value="alu">אלומיניום</option>
+              <option value="front">בצבע הארון</option>
+            </select>
+          </label>
+        )}
       </div>
       <div className="nqp-box nqp-counter">
         <label>קרניז בגובה<input className="in num" type="number" inputMode="decimal" placeholder="בלי" value={layout.cornice?.h ?? ""} onChange={(e) => up((l) => { const h = Number(e.target.value) || undefined; l.cornice = h || l.cornice?.toCeiling ? { ...l.cornice, h } : undefined; })} /></label>
