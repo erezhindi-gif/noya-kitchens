@@ -5,18 +5,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { KitchenLayout } from "@/lib/quotes/layout";
 import { STARTER_LAYOUT } from "./LayoutEditor";
 import {
-  ITEM_DEFAULT, ITEM_LABEL, emptyRoom, fromLeft, isOpening, layoutToRoom, movePoints, roomToLayout, sFromLeft, setWallLength, wallCount, wallInfo,
+  ITEM_DEFAULT, ITEM_LABEL, emptyRoom, kitchenWalls, toggleKitchen, fromLeft, isOpening, layoutToRoom, movePoints, roomToLayout, sFromLeft, setWallLength, wallCount, wallInfo,
   type Pt, type RoomItem, type RoomItemKind, type RoomSketch,
 } from "@/lib/quotes/room";
 
-type Mode = "select" | "walls" | RoomItemKind;
+type Mode = "select" | "walls" | "kitchen" | RoomItemKind;
 type Sel = { t: "wall"; i: number } | { t: "item"; i: number } | null;
 const SNAP = 5;
 const snap = (v: number) => Math.round(v / SNAP) * SNAP;
 const r1 = (v: number) => Math.round(v * 10) / 10;
 const POINT_COLOR: Record<string, string> = { water: "#2f7fd1", drain: "#6b7a8c", power: "#d4a017", gas: "#d0463b" };
 const POINT_LETTER: Record<string, string> = { water: "מ", drain: "נ", power: "ח", gas: "ג" };
-const MODES: [Mode, string][] = [["select", "בחירה והזזה"], ["walls", "✏️ קירות"], ["window", "+ חלון"], ["door", "+ דלת"], ["water", "+ מים"], ["power", "+ חשמל"], ["gas", "+ גז"], ["drain", "+ ניקוז"]];
+const MODES: [Mode, string][] = [["select", "בחירה והזזה"], ["walls", "✏️ קירות"], ["kitchen", "🟨 קירות המטבח"], ["window", "+ חלון"], ["door", "+ דלת"], ["water", "+ מים"], ["power", "+ חשמל"], ["gas", "+ גז"], ["drain", "+ ניקוז"]];
 
 /** a new plan still has the sample kitchen; once the room is drawn its cabinets are not kept */
 const isStarter = (l: KitchenLayout) => JSON.stringify(l.walls) === JSON.stringify(STARTER_LAYOUT().walls);
@@ -47,6 +47,12 @@ export default function RoomSketch({ room: saved, layout, onChange, optionsHref 
     return "error" in res ? res.error : "הקירות בתכנון מעודכנים מהשרטוט ✓";
   }, [room, n]); // eslint-disable-line react-hooks/exhaustive-deps
   const ready = !!n && status.endsWith("✓");
+  // a drawing saved before its walls could go into the plan (for example before all walls counted as the kitchen): put them in now
+  useEffect(() => {
+    if (!saved) return;
+    const res = roomToLayout(saved, base());
+    if ("layout" in res && JSON.stringify(res.layout.walls) !== JSON.stringify(layoutRef.current.walls)) onChange(saved, res.layout);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const commit = (next: RoomSketch) => {
     setHistory((h) => [...h.slice(-40), room]);
@@ -118,6 +124,11 @@ export default function RoomSketch({ room: saved, layout, onChange, optionsHref 
   const onDown = (e: React.PointerEvent) => {
     const p = world(e);
     if (mode === "walls") return addCorner(ortho(p));
+    if (mode === "kitchen") {
+      const wi = wallAt(p);
+      if (wi >= 0) commit(toggleKitchen(room, wi));
+      return;
+    }
     if (mode !== "select") {
       const wi = wallAt(p);
       if (wi < 0) return;
@@ -232,6 +243,7 @@ export default function RoomSketch({ room: saved, layout, onChange, optionsHref 
   const fs = Math.max(13, vb.w / 55);
 
   const t = room.thick;
+  const kw = kitchenWalls(room);
   const walls = Array.from({ length: n }, (_, i) => {
     const w = wallInfo(room, i);
     const hasPrev = room.closed || i > 0, hasNext = room.closed || i < n - 1;
@@ -257,6 +269,7 @@ export default function RoomSketch({ room: saved, layout, onChange, optionsHref 
       <p className="hint" style={{ margin: "0 0 8px" }}>
         {mode === "walls"
           ? room.closed ? "החדר סגור. כדי לשנות, בוחרים קיר וגוררים אותו או מקלידים אורך." : room.pts.length ? "מושכים לכיוון הקיר הבא ולוחצים, או מקלידים אורך ו-Enter. לחיצה על הנקודה הראשונה סוגרת את החדר. Esc מסיים." : "לחץ במקום שבו מתחיל הקיר הראשון."
+          : mode === "kitchen" ? "הקירות שהמטבח עומד עליהם צבועים בזהב. לחיצה על קיר מוסיפה או מורידה אותו (עד 3 קירות)."
           : mode === "select" ? "לחיצה על קיר בוחרת אותו: אפשר לגרור אותו או להקליד אורך ו-Enter. לחיצה על חלון, דלת או נקודה בוחרת אותם, וגרירה מזיזה לאורך הקיר."
           : `לחץ על הקיר במקום של ה${ITEM_LABEL[mode]}.`}
       </p>
@@ -274,7 +287,7 @@ export default function RoomSketch({ room: saved, layout, onChange, optionsHref 
           </defs>
           <rect x={vb.x} y={vb.y} width={vb.w} height={vb.h} fill="url(#nqs-grid)" />
           {walls.map(({ i, poly }) => {
-            const k = room.kitchen.includes(i), s = sel?.t === "wall" && sel.i === i;
+            const k = kw.includes(i), s = sel?.t === "wall" && sel.i === i;
             return <polygon key={i} points={poly.map((p) => `${p.x},${p.y}`).join(" ")} fill={s ? (k ? "#b8925a" : "#a99f90") : k ? "#d9bd8c" : "#cfc8bc"} stroke={s ? "#5c4526" : "#7d7466"} strokeWidth={s ? 3 : 1} />;
           })}
           {room.items.map((it, j) => {
@@ -337,7 +350,7 @@ export default function RoomSketch({ room: saved, layout, onChange, optionsHref 
       {selWall && sel?.t === "wall" && (
         <div className="nqs-panel">
           <b>קיר {selWall.len} ס״מ</b>
-          <label className="nq-check"><input type="checkbox" checked={room.kitchen.includes(sel.i)} onChange={(e) => commit({ ...room, kitchen: e.target.checked ? [...room.kitchen, sel.i] : room.kitchen.filter((k) => k !== sel.i) })} /> קיר מטבח</label>
+          <label className="nq-check"><input type="checkbox" checked={kw.includes(sel.i)} onChange={() => commit(toggleKitchen(room, sel.i))} /> קיר מטבח</label>
           <span className="hint">להקליד אורך ו-Enter משנה את הקיר. גרירה מזיזה אותו.</span>
         </div>
       )}

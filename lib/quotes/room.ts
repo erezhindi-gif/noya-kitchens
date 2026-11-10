@@ -9,6 +9,7 @@ export type Pt = { x: number; y: number };
 export type RoomItemKind = "window" | "door" | RoomPoint["kind"];
 /** s = from the wall's first drawn point: an opening's start, a point's center */
 export type RoomItem = { kind: RoomItemKind; wall: number; s: number; w?: number; y?: number; h?: number };
+/** kitchen: the walls Erez chose; empty = every wall, when there are up to 3 */
 export type RoomSketch = { pts: Pt[]; closed?: boolean; thick: number; items: RoomItem[]; kitchen: number[] };
 
 export const ITEM_LABEL: Record<RoomItemKind, string> = { window: "חלון", door: "דלת", water: "נקודת מים", drain: "ניקוז", power: "חשמל", gas: "גז" };
@@ -19,6 +20,18 @@ export const ITEM_DEFAULT: Record<RoomItemKind, { w?: number; y: number }> = {
 
 export const emptyRoom = (): RoomSketch => ({ pts: [], thick: 20, items: [], kitchen: [] });
 export const wallCount = (r: RoomSketch) => (r.pts.length < 2 ? 0 : r.closed ? r.pts.length : r.pts.length - 1);
+/** the kitchen walls: the ones chosen, or all of them when none were chosen and there are up to 3 */
+export function kitchenWalls(r: RoomSketch) {
+  const n = wallCount(r);
+  const chosen = r.kitchen.filter((i, j) => i < n && r.kitchen.indexOf(i) === j);
+  if (chosen.length) return chosen;
+  return n <= 3 ? Array.from({ length: n }, (_, i) => i) : [];
+}
+/** one wall in or out of the kitchen */
+export function toggleKitchen(r: RoomSketch, i: number): RoomSketch {
+  const k = kitchenWalls(r);
+  return { ...r, kitchen: k.includes(i) ? k.filter((x) => x !== i) : [...k, i].sort((a, b) => a - b) };
+}
 const round = (v: number) => Math.round(v * 10) / 10;
 
 /** 1 when the walls go clockwise on screen (the room is on their right), -1 otherwise */
@@ -89,9 +102,9 @@ export function setWallLength(r: RoomSketch, i: number, len: number): RoomSketch
  */
 export function roomToLayout(r: RoomSketch, layout: KitchenLayout): { layout: KitchenLayout } | { error: string } {
   const n = wallCount(r);
-  const ks = r.kitchen.filter((i, j) => i < n && r.kitchen.indexOf(i) === j);
-  if (!ks.length) return { error: "לחץ על הקירות של המטבח ובחר 'קיר מטבח'" };
-  if (ks.length > 3) return { error: "עד 3 קירות מטבח (קיר אחד, ר׳ או ח׳)" };
+  const ks = kitchenWalls(r);
+  if (!ks.length) return { error: "בחדר יש יותר מ-3 קירות: לחץ 'קירות המטבח' וסמן עליהם את הקירות שהמטבח עומד עליהם (עד 3)" };
+  if (ks.length > 3) return { error: "מטבח יכול לעמוד על עד 3 קירות (ישר, ר׳ או ח׳). לחץ 'קירות המטבח' והורד קיר" };
   const info = new Map(ks.map((i) => [i, wallInfo(r, i)]));
   const ends = (i: number) => { const w = info.get(i)!; return w.leftIsP ? { L: w.P, R: w.Q } : { L: w.Q, R: w.P }; };
   const same = (a: Pt, b: Pt) => Math.abs(a.x - b.x) < 1 && Math.abs(a.y - b.y) < 1;
