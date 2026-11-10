@@ -74,12 +74,13 @@ export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Tak
 
   /** a finished 2 cm panel on every side nothing covers */
   /** topY: where the panels end; beside a lower unit a panel starts on its counter (leftFrom/rightFrom) */
-  const sidePanels = (of: string, sides: { left: boolean; right: boolean; leftFrom?: number; rightFrom?: number }, d: number, hh: number, color?: string, topY?: number) => {
-    const froms: (number | undefined)[] = [];
-    if (sides.left) froms.push(sides.leftFrom);
-    if (sides.right) froms.push(sides.rightFrom);
-    for (const from of froms) {
-      const ph = r1(from !== undefined && topY !== undefined ? topY - from : hh);
+  const sidePanels = (of: string, sides: { left: boolean; right: boolean; leftFrom?: number; rightFrom?: number; leftTo?: number; rightTo?: number }, d: number, hh: number, color?: string, topY?: number) => {
+    const spans: [number | undefined, number | undefined][] = [];
+    if (sides.left) spans.push([sides.leftFrom, sides.leftTo]);
+    if (sides.right) spans.push([sides.rightFrom, sides.rightTo]);
+    for (const [from, to] of spans) {
+      // from the counter (or the floor) up to the top, or only up to an upper cabinet standing beside it
+      const ph = r1(topY === undefined ? hh : Math.min(topY, to ?? topY) - (from ?? topY - hh));
       const same = out.panels.find((x) => x.of === of && x.name.startsWith("דופן גלויה") && x.h === ph);
       if (same) same.qty += 1;
       else out.panels.push({ of, name: `דופן גלויה ${SIDE_PANEL} ס״מ`, w: r1(d + FRONT_THICK), h: ph, qty: 1, color: colorName(color) });

@@ -394,10 +394,10 @@ export function Elevation({ layout, title, length, base, upper, top = [], island
           const y0 = b ? b.y0 : bu.y === undefined ? 0 : bu.y, y1 = b ? b.y0 + b.hh : baseUnitTop(bu, h) - (["doors", "drawers", "sink", "cooktop", "dishwasher"].includes(u.kind) && bu.h === undefined ? h.counter : 0);
           const fr = u.color ? colorOf(u.color, FRONT_COLORS, c.front) : c.front;
           // beside a lower unit the panel starts on the counter, not at the floor
-          const sideList: [number, number | undefined][] = [];
-          if (s.left) sideList.push([u.a - SIDE_PANEL, s.leftFrom]);
-          if (s.right) sideList.push([u.a + u.w, s.rightFrom]);
-          return sideList.map(([sx, from]) => { const yb = Math.max(y0, from ?? y0); return <rect key={`sd${row}${i}-${sx}`} x={sx} y={Y(c, y1)} width={SIDE_PANEL} height={Math.max(0, y1 - yb)} fill={fr} stroke={INK} strokeWidth={0.5} />; });
+          const sideList: [number, number | undefined, number | undefined][] = [];
+          if (s.left) sideList.push([u.a - SIDE_PANEL, s.leftFrom, s.leftTo]);
+          if (s.right) sideList.push([u.a + u.w, s.rightFrom, s.rightTo]);
+          return sideList.map(([sx, from, to]) => { const yb = Math.max(y0, from ?? y0), yt = Math.min(y1, to ?? y1); return <rect key={`sd${row}${i}-${sx}`} x={sx} y={Y(c, yt)} width={SIDE_PANEL} height={Math.max(0, yt - yb)} fill={fr} stroke={INK} strokeWidth={0.5} />; });
         }))}
         {splash > 0 && spans.map((s, i) => <rect key={"sp" + i} x={s.a} y={Y(c, h.base + splash)} width={s.w} height={splash} fill={c.counter} stroke={LINE} strokeWidth={0.3} opacity={0.8} />)}
         {spans.map((s, i) => <rect key={"c" + i} x={s.a} y={Y(c, h.base)} width={s.w} height={h.counter} fill={c.counter} stroke={LINE} strokeWidth={0.4} />)}

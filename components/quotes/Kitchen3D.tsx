@@ -350,15 +350,15 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
     return undefined;
   };
   /** A finished panel on the exposed side of a cabinet. */
-  const sidePanels = (p: T.Object3D, mat: T.Material, sides: { left: boolean; right: boolean; leftFrom?: number; rightFrom?: number }, x: number, w: number, y0: number, hh: number, z: number) => {
-    const deep = z + FRONT_THICK, top = y0 + hh;
-    // beside a lower unit the panel sits on the counter and doesn't go down to the floor
-    const one = (from: number | undefined, cx: number) => {
-      const yb = Math.max(y0, from ?? y0);
+  const sidePanels = (p: T.Object3D, mat: T.Material, sides: { left: boolean; right: boolean; leftFrom?: number; rightFrom?: number; leftTo?: number; rightTo?: number }, x: number, w: number, y0: number, hh: number, z: number) => {
+    const deep = z + FRONT_THICK;
+    // beside a lower unit the panel sits on the counter; under an upper cabinet beside it, it stops
+    const one = (from: number | undefined, to: number | undefined, cx: number) => {
+      const yb = Math.max(y0, from ?? y0), top = Math.min(y0 + hh, to ?? y0 + hh);
       if (top - yb > 0.5) box(p, mat, SIDE_PANEL, top - yb, deep, cx, yb + (top - yb) / 2, deep / 2);
     };
-    if (sides.left) one(sides.leftFrom, x - SIDE_PANEL / 2);
-    if (sides.right) one(sides.rightFrom, x + w + SIDE_PANEL / 2);
+    if (sides.left) one(sides.leftFrom, sides.leftTo, x - SIDE_PANEL / 2);
+    if (sides.right) one(sides.rightFrom, sides.rightTo, x + w + SIDE_PANEL / 2);
   };
   /** A niche: a frame in the plane of the fronts, its back `recess` behind it. */
   const niche = (p: T.Object3D, mat: T.Material, x: number, y0: number, w: number, hh: number, front: number, recess: number, frame: number, shelves: number, ref?: string, tv?: boolean, tvGap?: number) => {
