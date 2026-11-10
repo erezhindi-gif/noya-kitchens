@@ -66,7 +66,7 @@ export default async function ShopPage({ params }: { params: { id: string } }) {
         <div>
           <h1>דפי ייצור · {p.title || "מטבח"}</h1>
           <div>{p.client.name}{p.client.phone ? ` · ${p.client.phone}` : ""}</div>
-          <div className="sh-rules">כללי בנייה בחישוב: לוח {rules.board}, גב {rules.back} על הגוף מבחוץ, רווח חזיתות {rules.frontGap}, מדף קצר ב-{rules.shelfSetback}. הדפנות חובקות את העליון והתחתון. עומק הוא של הגוף, החזית 2 מעליו. דופן גלויה 2. משנים בהגדרות. המידות בס״מ.</div>
+          <div className="sh-rules">כללי בנייה בחישוב: לוח {rules.board}, גב {rules.back} על הגוף מבחוץ, רווח חזיתות {rules.frontGap}, מדף קצר ב-{rules.shelfSetback}. הדפנות חובקות את העליון והתחתון. עומק הוא של הגוף, החזית 2 מעליו. דופן גלויה 2 בסוף מטבח, הלבשה 2 במפגש עם קיר (הארון קטן ב-2), בנישת מקרר פורמייקה על דפנות הארונות שליד. משנים בהגדרות. המידות בס״מ.</div>
           <div className="sh-warn">החישוב אוטומטי. לבדוק מול הסטנדרט שלך לפני הזמנה וחיתוך.</div>
         </div>
         <PrintButton />

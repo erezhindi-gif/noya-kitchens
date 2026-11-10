@@ -2,7 +2,7 @@
 // hardware to buy, panels and quantities for the quote. Everything is worked out from the same centimeters
 // as the drawing. The building rules below are defaults Erez can change in the settings.
 import {
-  BASE_LABEL, PART_LABEL, UPPER_LABEL, applianceText, baseUnitTop, colorName, columnParts, cornerPart, corniceBoxes, frontsFrom, hasCounter, heightsOf, panelHeights, partsOf, placed, sidesOf, tallOvenParts, tvSize, upperBox, wallName, SIDE_PANEL, FRONT_THICK, fridgeNiche,
+  BASE_LABEL, PART_LABEL, UPPER_LABEL, applianceText, baseUnitTop, colorName, columnParts, cornerPart, corniceBoxes, frontsFrom, hasCounter, heightsOf, panelHeights, partsOf, placed, sidesOf, tallOvenParts, tvSize, upperBox, wallName, SIDE_PANEL, FRONT_THICK, fridgeNiche, wallSides, WALL_FILLER,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperUnit,
 } from "./layout";
 
@@ -76,9 +76,13 @@ export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Tak
   const doBase = (units: BaseUnit[], letter: string, wall: string, depth: number, at: number | "island") => {
     const f0 = frontsFrom(h), f1 = h.base - h.counter;
     let seq = 0;
-    placed(units).forEach((u, i) => {
-      if (u.kind === "gap") return;
-      const no = `${letter}${++seq}`, by = u.y ?? f0, d = u.d ?? depth, top = baseUnitTop(u, h), label = BASE_LABEL[u.kind];
+    placed(units).forEach((u0, i) => {
+      if (u0.kind === "gap") return;
+      const no = `${letter}${++seq}`, by = u0.y ?? f0, d = u0.d ?? depth, top = baseUnitTop(u0, h), label = BASE_LABEL[u0.kind];
+      // against a wall: a 2 cm filler on that side, and the cabinet is built that much narrower
+      const ws = wallSides(l, at, "base", i), wn = (ws.left ? 1 : 0) + (ws.right ? 1 : 0);
+      if (wn) out.panels.push({ of: no, name: `הלבשה לקיר ${WALL_FILLER} ס״מ`, w: r1(d + FRONT_THICK), h: r1(top - by + (u0.y === undefined ? h.plinth + h.floorGap : 0)), qty: wn, color: colorName(u0.color || front) });
+      const u = wn ? { ...u0, a: u0.a + (ws.left ? WALL_FILLER : 0), w: r1(u0.w - wn * WALL_FILLER) } : u0;
       if (applianceText(u)) out.appliances.push({ of: no, text: applianceText(u) });
       const add = (hh: number, fronts: number, note = "") => out.cabinets.push({ no, wall, row: "תחתון", kind: label, from: u.a, bottom: by, w: u.w, h: r1(hh), d, fronts, note });
       if (u.kind === "corner") {
@@ -211,10 +215,14 @@ export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Tak
 
   const doUpper = (units: UpperUnit[], row: "upper" | "top", letter: string, wall: string, start: number, at: number) => {
     let seq = start;
-    for (const [idx, u] of Array.from(placed(units).entries())) {
-      if (u.kind === "hood") out.appliances.push({ of: "עליון", text: applianceText(u) });
-      if (["gap", "corner", "hood"].includes(u.kind)) continue;
-      const no = `${letter}${++seq}`, b = upperBox(u, h, row), label = UPPER_LABEL[u.kind], rowName = row === "upper" ? "עליון" : "שורה עליונה";
+    for (const [idx, u0] of Array.from(placed(units).entries())) {
+      if (u0.kind === "hood") out.appliances.push({ of: "עליון", text: applianceText(u0) });
+      if (["gap", "corner", "hood"].includes(u0.kind)) continue;
+      const no = `${letter}${++seq}`, b = upperBox(u0, h, row), label = UPPER_LABEL[u0.kind], rowName = row === "upper" ? "עליון" : "שורה עליונה";
+      // against a wall: a 2 cm filler on that side, and the cabinet is built that much narrower
+      const ws = wallSides(l, at, row, idx), wn = (ws.left ? 1 : 0) + (ws.right ? 1 : 0);
+      if (wn) out.panels.push({ of: no, name: `הלבשה לקיר ${WALL_FILLER} ס״מ`, w: r1(b.d + FRONT_THICK), h: r1(b.hh), qty: wn, color: colorName(u0.color || upperColor) });
+      const u = wn ? { ...u0, a: u0.a + (ws.left ? WALL_FILLER : 0), w: r1(u0.w - wn * WALL_FILLER) } : u0;
       const n = partsOf(u.kind, u.w, u.n, true);
       const add = (fronts: number, note = "") => out.cabinets.push({ no, wall, row: rowName, kind: label, from: u.a, bottom: b.y0, w: u.w, h: b.hh, d: b.d, fronts, note });
       if (u.kind === "shelf") {

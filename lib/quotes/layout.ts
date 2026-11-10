@@ -576,6 +576,24 @@ export function sidesOf(l: KitchenLayout, at: number | "island", row: "base" | U
   return { left: !wallAtLeft && !covered(a, "b"), right: !wallAtRight && !covered(b, "a") };
 }
 
+/** Erez's filler where a cabinet meets a wall ("הלבשה"): 2 cm, the cabinet is built 2 cm narrower */
+export const WALL_FILLER = 2;
+/** which sides of a unit stand against a wall and get the filler (not gaps, corners, hoods, open shelves, panels or a fridge niche) */
+export function wallSides(l: KitchenLayout, at: number | "island", row: "base" | UpperRow, index: number) {
+  const none = { left: false, right: false };
+  if (at === "island") return none;
+  const wall = l.walls[at];
+  const list = (row === "base" ? wall.base : row === "upper" ? wall.upper : wall.top || []) as (BaseUnit | UpperUnit)[];
+  const u = list[index] as (BaseUnit & UpperUnit) | undefined;
+  if (!u || ["gap", "corner", "hood", "shelf", "panel", "open", "fridge"].includes(u.kind as string)) return none;
+  const me = placed<{ w: number }>(list)[index];
+  const a = me.a, b = me.a + me.w;
+  return {
+    left: a < 0.6 && (at > 0 || !!l.ends?.left),
+    right: b > wall.length - 0.6 && (at < l.walls.length - 1 || !!l.ends?.right),
+  };
+}
+
 /** Pieces of the counter: runs of units that carry a counter (not tall units or gaps). */
 export function counterSpans(us: BaseUnit[], depth = DEFAULT_HEIGHTS.depth) {
   const spans: { a: number; w: number }[] = [];
