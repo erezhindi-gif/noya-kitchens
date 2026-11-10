@@ -1069,12 +1069,13 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
     );
   return (
     <div className="nqp-3d-wrap">
-      <div ref={host} className="nqp-3d" style={{ height }} />
+      {/* the views sit above the 3D, next to the other buttons, not on the picture */}
       <div className="nqp-views" role="group" aria-label="מבטים">
         {VIEWS.map(([v, label]) => (
           <button key={v} type="button" className="nq-chip" aria-pressed={view === v} onClick={() => { setView(v); viewTo.current?.(v); }}>{label}</button>
         ))}
       </div>
+      <div ref={host} className="nqp-3d" style={{ height }} />
     </div>
   );
 }

@@ -125,6 +125,5 @@
 
 /* the 3D view: bigger, with standard views like SketchUp */
 .nqp-3d-wrap { position: relative; }
-.nqp-views { position: absolute; top: 10px; inset-inline-start: 10px; display: flex; flex-wrap: wrap; gap: 6px; z-index: 2; }
-.nqp-views .nq-chip { background: rgba(255, 255, 255, 0.92); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12); }
+.nqp-views { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
 @media (max-width: 640px) { .nqp-3d { max-height: 70vh; } }
