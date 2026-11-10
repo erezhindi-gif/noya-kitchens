@@ -265,7 +265,7 @@ export function normalizeLayout(raw: unknown): KitchenLayout | null {
       .map((u) => u as Record<string, unknown>)
       .filter((u) => u && kinds.includes(u.kind as K))
       .map((u) => ({
-        kind: u.kind as K, w: num(u.w, 5, 400, 60), ...(u.n ? { n: num(u.n, 1, 8, 1) } : u.n === 0 && u.kind === "open" ? { n: 0 } : {}),
+        kind: u.kind as K, w: num(u.w, u.kind === "gap" ? 0.5 : 5, 400, 60), ...(u.n ? { n: num(u.n, 1, 8, 1) } : u.n === 0 && u.kind === "open" ? { n: 0 } : {}),
         ...(typeof u.color === "string" && u.color.trim() ? { color: u.color.trim().slice(0, 30) } : {}),
         ...(Array.isArray(u.fronts) && u.fronts.some((f: unknown) => typeof f === "string" && f) ? { fronts: (u.fronts as unknown[]).slice(0, 8).map((f) => (typeof f === "string" ? f.slice(0, 30) : "")) } : {}),
         ...(u.d ? { d: num(u.d, 5, 120, 35) } : {}), ...(u.h ? { h: num(u.h, 5, 300, 70) } : {}),
