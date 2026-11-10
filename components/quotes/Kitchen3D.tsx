@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type * as T from "three";
 import {
-  COUNTER_COLORS, FRONT_COLORS, FRONT_THICK, SIDE_PANEL, fridgeNiche, beamHeight, sidesOf, colorOf, corniceBoxes, handleOf, columnParts, openingBox, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, tvSize, mainWallIndex, partsOf, placed, tallOvenParts, upperBox, wallGeometry,
+  COUNTER_COLORS, FRONT_COLORS, FRONT_THICK, SIDE_PANEL, FRIDGE_BLACK, fridgeNiche, beamHeight, sidesOf, colorOf, corniceBoxes, handleOf, columnParts, openingBox, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, tvSize, mainWallIndex, partsOf, placed, tallOvenParts, upperBox, wallGeometry,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 import { bluranImg, bluranOf } from "@/lib/quotes/bluran";
@@ -362,16 +362,14 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
       }
       if (u.kind === "fridge") {
         const built = u.fridgeType === "built";
-        const skin = built ? matOf(u.color, mats.front) : matOf(u.color, mats.inox);
+        const skin = built ? matOf(u.color, mats.front) : matOf(u.color || FRIDGE_BLACK, mats.inox);
         const fd = depth + FRONT_THICK;
-        // a standing fridge stands in a niche: a 2 cm panel on each side and a cabinet above it up to the tall cabinets
+        // a standing fridge stands in a niche (formica on the neighbors' sides) with a cabinet above it up to the
+        // tall cabinets; where it ends the kitchen, a 2 cm side panel closes it
         const nn = fridgeNiche(u, hs);
-        const fx = built ? x : x + SIDE_PANEL, fw = built ? w : nn.inner, fh = built ? hs.tall : nn.fh;
+        const fx = x, fw = built ? w : nn.inner, fh = built ? hs.tall : nn.fh;
         if (!built) {
-          // the panels and the cabinet are in the kitchen's front color; u.color is the fridge's own
-          const pm = mats.front;
-          box(p, pm, SIDE_PANEL, nn.top, fd, x + SIDE_PANEL / 2, nn.top / 2, fd / 2);
-          box(p, pm, SIDE_PANEL, nn.top, fd, x + w - SIDE_PANEL / 2, nn.top / 2, fd / 2);
+          sidePanels(p, mats.front, sidesOf(l, atNum, "base", idx), x, w, 0, nn.top, depth);
           if (nn.over) {
             body(p, mats.carcass, fx, nn.over.y0, fw, nn.over.hh, depth);
             frontPanel(p, matOf(u.fronts?.[0], mats.front), fx, nn.over.y0, fw, nn.over.hh, depth, "bottom", r(0));

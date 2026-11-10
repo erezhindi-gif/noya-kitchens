@@ -5,7 +5,7 @@ import "./plan.css";
 import {
   BASE_LABEL, COUNTER_COLORS, PART_LABEL, POINT_LABEL, beamHeight, handleOf, sidesOf, SIDE_PANEL, FRONT_THICK, openingBox, FRONT_COLORS, baseUnitTop, colorOf, corniceBoxes, columnParts, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, partsOf, placed, tvSize, tallOvenParts, upperBox, wallGeometry, wallName,
   type BaseUnit, type LayoutWall, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
-  fridgeNiche,
+  fridgeNiche, FRIDGE_BLACK,
 } from "@/lib/quotes/layout";
 
 const INK = "#3a3530";
@@ -179,15 +179,13 @@ function BaseShape({ c, u, x, units, index, at }: { c: Ctx; u: BaseUnit; x: numb
     }
     case "fridge": {
       const built = u.fridgeType === "built";
-      const body = built ? fr : u.color ? colorOf(u.color, FRONT_COLORS, STEEL) : STEEL;
-      // a standing fridge: 2 cm panels on both sides and a cabinet above it up to the tall cabinets (Erez's standard)
+      const body = built ? fr : colorOf(u.color || FRIDGE_BLACK, FRONT_COLORS, STEEL);
+      // a standing fridge: black, 192 high, a cabinet above it up to the tall cabinets (Erez's standard)
       const nn = fridgeNiche(u, h);
-      const fx = built ? x : x + SIDE_PANEL, fw = built ? u.w : nn.inner, fh = built ? h.tall : nn.fh;
+      const fx = x, fw = built ? u.w : nn.inner, fh = built ? h.tall : nn.fh;
       const freezer = fh * 0.36;
       return (
         <>
-          {!built && <rect x={x} y={Y(c, nn.top)} width={SIDE_PANEL} height={nn.top} fill={fr} stroke={LINE} strokeWidth={0.35} />}
-          {!built && <rect x={x + u.w - SIDE_PANEL} y={Y(c, nn.top)} width={SIDE_PANEL} height={nn.top} fill={fr} stroke={LINE} strokeWidth={0.35} />}
           {!built && nn.over && <Front c={c} x={fx} y0={nn.over.y0} w={fw} h={nn.over.hh} fill={pf[0] || fr} handle="bottom" r={`${r}.0`} />}
           <rect data-front={`${r}.-1`} x={fx + 0.3} y={Y(c, fh)} width={fw - 0.6} height={fh} fill={body} stroke={LINE} strokeWidth={0.35} />
           <line x1={fx + 0.3} x2={fx + fw - 0.3} y1={Y(c, freezer)} y2={Y(c, freezer)} stroke={LINE} strokeWidth={0.5} />

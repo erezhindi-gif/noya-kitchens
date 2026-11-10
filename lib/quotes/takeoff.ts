@@ -104,11 +104,15 @@ export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Tak
         return;
       }
       if (u.kind === "fridge") {
-        // Erez's standard niche: a 2 cm panel on each side, a cabinet with a flap above the fridge up to the tall cabinets
+        // Erez's standard niche: formica on the neighbors' sides, a 2 cm side panel where the fridge ends the kitchen,
+        // a cabinet with a flap above the fridge up to the tall cabinets
         const nn = fridgeNiche(u, h);
-        out.panels.push({ of: no, name: `דופן נישת מקרר ${SIDE_PANEL} ס״מ`, w: r1(d + FRONT_THICK), h: r1(nn.top), qty: 2, color: colorName(front) });
-        if (!nn.over) return add(nn.top, 0, `נישה למקרר עד ${nn.inner} רוחב`);
-        out.cabinets.push({ no, wall, row: "תחתון", kind: "ארון מעל מקרר", from: u.a, bottom: nn.over.y0, w: nn.inner, h: r1(nn.over.hh), d, fronts: 1, note: `נישה למקרר עד ${nn.inner} רוחב ו-${nn.fh} גובה` });
+        const sides = sidesOf(l, at, "base", i);
+        sidePanels(no, sides, d, nn.top, front);
+        const formica = 2 - (sides.left ? 1 : 0) - (sides.right ? 1 : 0);
+        const niche = `נישה למקרר ${nn.inner} רוחב ו-${nn.fh} גובה${formica ? `, פורמייקה על ${formica === 2 ? "שתי הדפנות" : "הדופן"} של הארון שליד` : ""}`;
+        if (!nn.over) return add(nn.top, 0, niche);
+        out.cabinets.push({ no, wall, row: "תחתון", kind: "ארון מעל מקרר", from: u.a, bottom: nn.over.y0, w: nn.inner, h: r1(nn.over.hh), d, fronts: 1, note: niche });
         box(no, nn.inner, nn.over.hh, d);
         addFront(no, "קלפה מעל מקרר", nn.inner, nn.over.hh, 1, u.fronts?.[0] || front);
         hw("מנגנון קלפה", 1, no);

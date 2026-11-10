@@ -150,13 +150,16 @@ export const DOOR_MAX = 60;
 export const FRONT_THICK = 2;
 /** The finished side panel on a side nothing covers */
 export const SIDE_PANEL = 2;
-/** Erez's standard: the fridge itself is up to 192 cm high; its niche (95 for a 91 fridge) is closed by a 2 cm
- *  panel on each side and a cabinet above it up to the tall cabinets, so a bigger fridge fits later. */
+/** Erez's standard: a 95 niche, the fridge itself up to 192 cm high and a cabinet above it up to the tall cabinets,
+ *  so a bigger fridge fits later. The niche's sides are the neighbors' sides with formica glued on (no panels of its
+ *  own); where the fridge ends the kitchen it gets the usual 2 cm side panel. */
 export const FRIDGE_H = 192;
-/** a standing fridge's niche: side panels, the fridge, and the cabinet above it (null when there is no room for one) */
+/** a standing fridge is black unless another color was chosen */
+export const FRIDGE_BLACK = "#1e1e1e";
+/** a standing fridge's niche: the fridge and the cabinet above it (null when there is no room for one) */
 export function fridgeNiche(u: BaseUnit, h: LayoutHeights) {
   const top = baseUnitTop(u, h);
-  const inner = Math.max(10, u.w - 2 * SIDE_PANEL);
+  const inner = u.w;
   const fh = Math.min(FRIDGE_H, top);
   const over = top - fh - 1 >= 15 ? { y0: fh + 1, hh: top - fh - 1 } : null;
   return { top, inner, fh, over };
@@ -552,8 +555,7 @@ export function sidesOf(l: KitchenLayout, at: number | "island", row: "base" | U
   if (!u) return none;
   if (u.side === "none") return none;
   if (u.side) return { left: u.side !== "right", right: u.side !== "left" };
-  // a standing fridge has its own side panels (fridgeNiche)
-  if (["gap", "corner", "hood", "shelf", "panel", "open", "oven"].includes(u.kind as string) || ((u.kind as string) === "fridge" && u.fridgeType !== "built")) return none;
+  if (["gap", "corner", "hood", "shelf", "panel", "open", "oven"].includes(u.kind as string)) return none;
   const range = (x: BaseUnit | UpperUnit, r: "base" | UpperRow) => {
     if (r !== "base") { const b = upperBox(x as UpperUnit, h, r); return { y0: b.y0, y1: b.y0 + b.hh }; }
     const bu = x as BaseUnit;

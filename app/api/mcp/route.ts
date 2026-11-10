@@ -588,7 +588,7 @@ const handler = createMcpHandler(
         tvGap: z.number().optional().describe("niche: רווח בין המסך למסגרת מכל צד, ברירת מחדל 4"),
       })).optional().describe("column: החלקים מלמטה למעלה; fronts רץ על כל החזיתות של העמודה, מהחלק התחתון"),
       n: z.number().optional().describe("מספר דלתות/מגירות (ב-tall_oven: מספר המגירות מתחת לתנור, 30 ס״מ כל אחת). ריק = ברירת מחדל"),
-      color: z.string().optional().describe("צבע משלו לארון או למכשיר: גוון בלורן bl:CODE (למשל bl:ZA02SM, מצא עם bluran_colors), או black/#hex למקרר. ריק = כמו שאר המטבח (מקרר: נירוסטה)"),
+      color: z.string().optional().describe("צבע משלו לארון או למכשיר: גוון בלורן bl:CODE (למשל bl:ZA02SM, מצא עם bluran_colors), או black/#hex למקרר. ריק = כמו שאר המטבח (מקרר: שחור)"),
       fronts: z.array(z.string()).optional().describe("צבע לכל דלת/מגירה בארון בנפרד (דלתות משמאל לימין, מגירות מלמעלה למטה), למשל [\"\", \"bl:ZA03SM\"] = רק הדלת השנייה בצבע אחר. ריק = כמו הארון"),
     });
     const upperUnit = z.object({
