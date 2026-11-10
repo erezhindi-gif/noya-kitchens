@@ -2,7 +2,7 @@
 // hardware to buy, panels and quantities for the quote. Everything is worked out from the same centimeters
 // as the drawing. The building rules below are defaults Erez can change in the settings.
 import {
-  BASE_LABEL, PART_LABEL, UPPER_LABEL, applianceText, baseUnitTop, colorName, columnParts, cornerPart, corniceBoxes, frontsFrom, hasCounter, heightsOf, panelHeights, partsOf, placed, sidesOf, tallOvenParts, tvSize, upperBox, wallName, SIDE_PANEL, FRONT_THICK,
+  BASE_LABEL, PART_LABEL, UPPER_LABEL, applianceText, baseUnitTop, colorName, columnParts, cornerPart, corniceBoxes, frontsFrom, hasCounter, heightsOf, panelHeights, partsOf, placed, sidesOf, tallOvenParts, tvSize, upperBox, wallName, SIDE_PANEL, FRONT_THICK, fridgeNiche,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperUnit,
 } from "./layout";
 
@@ -103,7 +103,17 @@ export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Tak
         addFront(no, "חזית מקפיא", u.w, fz, 1, u.color || front);
         return;
       }
-      if (u.kind === "fridge") return add(h.tall, 0, "מקום למקרר, בלי ארון");
+      if (u.kind === "fridge") {
+        // Erez's standard niche: a 2 cm panel on each side, a cabinet with a flap above the fridge up to the tall cabinets
+        const nn = fridgeNiche(u, h);
+        out.panels.push({ of: no, name: `דופן נישת מקרר ${SIDE_PANEL} ס״מ`, w: r1(d + FRONT_THICK), h: r1(nn.top), qty: 2, color: colorName(front) });
+        if (!nn.over) return add(nn.top, 0, `נישה למקרר עד ${nn.inner} רוחב`);
+        out.cabinets.push({ no, wall, row: "תחתון", kind: "ארון מעל מקרר", from: u.a, bottom: nn.over.y0, w: nn.inner, h: r1(nn.over.hh), d, fronts: 1, note: `נישה למקרר עד ${nn.inner} רוחב ו-${nn.fh} גובה` });
+        box(no, nn.inner, nn.over.hh, d);
+        addFront(no, "קלפה מעל מקרר", nn.inner, nn.over.hh, 1, u.fronts?.[0] || front);
+        hw("מנגנון קלפה", 1, no);
+        return;
+      }
       if (u.kind === "panel") {
         panelHeights(u, h).forEach((ph, k) => out.panels.push({ of: no, name: "חיפוי", w: r1(u.w), h: r1(ph), qty: 1, color: colorName(colorAt(u, k, front)) }));
         return add(top - by, 0, `עומק ${d}`);

@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type * as T from "three";
 import {
-  COUNTER_COLORS, FRONT_COLORS, FRONT_THICK, SIDE_PANEL, beamHeight, sidesOf, colorOf, corniceBoxes, handleOf, columnParts, openingBox, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, tvSize, mainWallIndex, partsOf, placed, tallOvenParts, upperBox, wallGeometry,
+  COUNTER_COLORS, FRONT_COLORS, FRONT_THICK, SIDE_PANEL, fridgeNiche, beamHeight, sidesOf, colorOf, corniceBoxes, handleOf, columnParts, openingBox, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, tvSize, mainWallIndex, partsOf, placed, tallOvenParts, upperBox, wallGeometry,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 import { bluranImg, bluranOf } from "@/lib/quotes/bluran";
@@ -362,19 +362,33 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
       }
       if (u.kind === "fridge") {
         const built = u.fridgeType === "built";
-        const body = built ? matOf(u.color, mats.front) : matOf(u.color, mats.inox);
+        const skin = built ? matOf(u.color, mats.front) : matOf(u.color, mats.inox);
+        const fd = depth + FRONT_THICK;
+        // a standing fridge stands in a niche: a 2 cm panel on each side and a cabinet above it up to the tall cabinets
+        const nn = fridgeNiche(u, hs);
+        const fx = built ? x : x + SIDE_PANEL, fw = built ? w : nn.inner, fh = built ? hs.tall : nn.fh;
+        if (!built) {
+          // the panels and the cabinet are in the kitchen's front color; u.color is the fridge's own
+          const pm = mats.front;
+          box(p, pm, SIDE_PANEL, nn.top, fd, x + SIDE_PANEL / 2, nn.top / 2, fd / 2);
+          box(p, pm, SIDE_PANEL, nn.top, fd, x + w - SIDE_PANEL / 2, nn.top / 2, fd / 2);
+          if (nn.over) {
+            body(p, mats.carcass, fx, nn.over.y0, fw, nn.over.hh, depth);
+            frontPanel(p, matOf(u.fronts?.[0], mats.front), fx, nn.over.y0, fw, nn.over.hh, depth, "bottom", r(0));
+          }
+        }
         // a real fridge: one or two columns (a wide one is two), freezer below, bar handles, a small display
-        const cols = w >= 100 ? 2 : 1, cw = (w - 0.6) / cols, fz = hs.tall * 0.36, fd = depth + FRONT_THICK;
-        box(p, mats.black, w - 0.6, hs.tall - 1, fd - 4, x + w / 2, (hs.tall - 1) / 2, (fd - 4) / 2);
+        const cols = fw >= 100 ? 2 : 1, cw = (fw - 0.6) / cols, fz = fh * 0.36;
+        box(p, mats.black, fw - 0.6, fh - 1, fd - 4, fx + fw / 2, (fh - 1) / 2, (fd - 4) / 2);
         for (let k = 0; k < cols; k++) {
-          const cx = x + 0.3 + cw * k + cw / 2;
-          tag(box(p, body, cw - 0.5, hs.tall - fz - 1.2, 3, cx, fz + (hs.tall - fz) / 2, fd - 1.5), r(-1));
-          tag(box(p, body, cw - 0.5, fz - 2, 3, cx, 1 + (fz - 2) / 2, fd - 1.5), r(-1));
-          const hx = cols === 2 ? (k === 0 ? cx + cw / 2 - 5 : cx - cw / 2 + 5) : x + 5;
+          const cx = fx + 0.3 + cw * k + cw / 2;
+          tag(box(p, skin, cw - 0.5, fh - fz - 1.2, 3, cx, fz + (fh - fz) / 2, fd - 1.5), r(-1));
+          tag(box(p, skin, cw - 0.5, fz - 2, 3, cx, 1 + (fz - 2) / 2, fd - 1.5), r(-1));
+          const hx = cols === 2 ? (k === 0 ? cx + cw / 2 - 5 : cx - cw / 2 + 5) : fx + 5;
           if (built) { if (handles) { box(p, mats.handle, 1.4, 30, 1.8, hx, fz + 30, fd + 0.8); box(p, mats.handle, 1.4, 22, 1.8, hx, fz - 16, fd + 0.8); } continue; }
           box(p, mats.inox, 1.6, 45, 2.4, hx, fz + 40, fd + 1);
           box(p, mats.inox, 1.6, 30, 2.4, hx, fz - 22, fd + 1);
-          box(p, mats.display, 6, 9, 0.3, cx, fz + (hs.tall - fz) * 0.62, fd + 0.1);
+          box(p, mats.display, 6, 9, 0.3, cx, fz + (fh - fz) * 0.62, fd + 0.1);
         }
         continue;
       }

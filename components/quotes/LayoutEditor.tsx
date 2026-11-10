@@ -75,7 +75,7 @@ function UnitRows<K extends string>({ units, labels, onChange, addKind, box }: {
       {units.map((u, i) => (
         <div key={i} className="nqp-row">
           <span className="num nqp-i">{i + 1}</span>
-          <select className="in" value={u.kind} onChange={(e) => set(i, { kind: e.target.value as K })} aria-label="סוג">
+          <select className="in" value={u.kind} onChange={(e) => { const k = e.target.value as K; set(i, { kind: k, ...((k as string) === "fridge" && u.kind !== k ? { w: 95 } : {}) }); }} aria-label="סוג">
             {(Object.keys(labels) as K[]).map((k) => <option key={k} value={k}>{labels[k]}</option>)}
           </select>
           <input className="in num" type="number" inputMode="decimal" aria-label="רוחב בס״מ" value={u.w || ""} onChange={(e) => set(i, { w: Number(e.target.value) || 0 })} />

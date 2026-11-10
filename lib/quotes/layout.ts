@@ -150,6 +150,17 @@ export const DOOR_MAX = 60;
 export const FRONT_THICK = 2;
 /** The finished side panel on a side nothing covers */
 export const SIDE_PANEL = 2;
+/** Erez's standard: the fridge itself is up to 192 cm high; its niche (95 for a 91 fridge) is closed by a 2 cm
+ *  panel on each side and a cabinet above it up to the tall cabinets, so a bigger fridge fits later. */
+export const FRIDGE_H = 192;
+/** a standing fridge's niche: side panels, the fridge, and the cabinet above it (null when there is no room for one) */
+export function fridgeNiche(u: BaseUnit, h: LayoutHeights) {
+  const top = baseUnitTop(u, h);
+  const inner = Math.max(10, u.w - 2 * SIDE_PANEL);
+  const fh = Math.min(FRIDGE_H, top);
+  const over = top - fh - 1 >= 15 ? { y0: fh + 1, hh: top - fh - 1 } : null;
+  return { top, inner, fh, over };
+}
 
 /** Named colors Erez and Claude can use; any #hex works too. */
 export const FRONT_COLORS: Record<string, { name: string; hex: string }> = {
@@ -541,13 +552,14 @@ export function sidesOf(l: KitchenLayout, at: number | "island", row: "base" | U
   if (!u) return none;
   if (u.side === "none") return none;
   if (u.side) return { left: u.side !== "right", right: u.side !== "left" };
+  // a standing fridge has its own side panels (fridgeNiche)
   if (["gap", "corner", "hood", "shelf", "panel", "open", "oven"].includes(u.kind as string) || ((u.kind as string) === "fridge" && u.fridgeType !== "built")) return none;
   const range = (x: BaseUnit | UpperUnit, r: "base" | UpperRow) => {
     if (r !== "base") { const b = upperBox(x as UpperUnit, h, r); return { y0: b.y0, y1: b.y0 + b.hh }; }
     const bu = x as BaseUnit;
     return { y0: bu.y ?? frontsFrom(h), y1: baseUnitTop(bu, h) - (["fridge", "tall", "tall_oven", "panel", "column"].includes(bu.kind) || bu.h !== undefined ? 0 : h.counter) };
   };
-  const covers = (x: { kind: string; fridgeType?: string }) => !["gap", "hood"].includes(x.kind) && !(x.kind === "fridge" && x.fridgeType !== "built") && x.kind !== "shelf";
+  const covers = (x: { kind: string; fridgeType?: string }) => !["gap", "hood"].includes(x.kind) && x.kind !== "shelf";
   const all = [
     ...placed(base).filter(covers).map((x) => ({ a: x.a, b: x.a + x.w, ...range(x, "base") })),
     ...placed(upper).filter(covers).map((x) => ({ a: x.a, b: x.a + x.w, ...range(x, "upper") })),
