@@ -112,5 +112,6 @@
 .nqs-panel { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin-top: 10px; padding: 10px; border-radius: 10px; background: #f4ecdf; }
 .nqs-panel label:not(.nq-check) { display: grid; gap: 2px; font-size: 13px; }
 .nqs-panel .in { width: 100px; }
-.nqs-status { margin: 8px 0 0; color: #b0503c; }
+.nqs-status { margin: 8px 0 0; font-size: 14px; }
 .nqs-status.ok { color: #3c7d4a; }
+.nqs-status.warn { color: #8a4a1c; background: #fdf0dc; border: 1px solid #f0d2a4; padding: 8px 12px; border-radius: 10px; font-weight: 600; }

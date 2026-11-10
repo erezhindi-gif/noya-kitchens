@@ -327,8 +327,8 @@ function colorLabel(v: string | undefined, empty: string) {
 }
 
 /** shotRef and viewTools: the picture from the angle on screen, and what is done with it (only under the 3D view) */
-export default function LayoutEditor({ layout, onChange, claudeHref, optionsHref, shotRef, viewTools }: {
-  layout: KitchenLayout; onChange: (l: KitchenLayout) => void; claudeHref: string; optionsHref?: string; shotRef?: MutableRefObject<(() => string) | null>; viewTools?: ReactNode;
+export default function LayoutEditor({ layout, onChange, claudeHref, shotRef, viewTools }: {
+  layout: KitchenLayout; onChange: (l: KitchenLayout) => void; claudeHref: string; shotRef?: MutableRefObject<(() => string) | null>; viewTools?: ReactNode;
 }) {
   const [tab, setTab] = useState<"3d" | "plan">("3d");
   const [inside, setInside] = useState(false);
@@ -567,7 +567,6 @@ export default function LayoutEditor({ layout, onChange, claudeHref, optionsHref
 
       <div className="nq-head-acts" style={{ marginTop: 12 }}>
         <a className="nq-btn sm" href={claudeHref} target="_blank" rel="noopener">✨ תיקון בקלוד</a>
-        {optionsHref && <a className="nq-btn sm" href={optionsHref} target="_blank" rel="noopener" title="משרטטים כאן את הקירות, הפתחים ונקודת המים, וקלוד בונה מהם כמה אופציות">✨ אופציות מהחדר הזה</a>}
       </div>
     </section>
   );

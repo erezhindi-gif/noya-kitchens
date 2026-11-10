@@ -18,11 +18,14 @@ const POINT_COLOR: Record<string, string> = { water: "#2f7fd1", drain: "#6b7a8c"
 const POINT_LETTER: Record<string, string> = { water: "מ", drain: "נ", power: "ח", gas: "ג" };
 const MODES: [Mode, string][] = [["select", "בחירה והזזה"], ["walls", "✏️ קירות"], ["window", "+ חלון"], ["door", "+ דלת"], ["water", "+ מים"], ["power", "+ חשמל"], ["gas", "+ גז"], ["drain", "+ ניקוז"]];
 
-export default function RoomSketch({ room: saved, layout, onChange }: {
-  room?: RoomSketch; layout: KitchenLayout; onChange: (room: RoomSketch, layout: KitchenLayout | null) => void;
+/** a new plan still has the sample kitchen; once the room is drawn its cabinets are not kept */
+const isStarter = (l: KitchenLayout) => JSON.stringify(l.walls) === JSON.stringify(STARTER_LAYOUT().walls);
+
+export default function RoomSketch({ room: saved, layout, onChange, optionsHref }: {
+  room?: RoomSketch; layout: KitchenLayout; onChange: (room: RoomSketch, layout: KitchenLayout | null) => void; optionsHref: string;
 }) {
   // a new plan (still the sample walls) starts on an empty sheet; an older plan shows the walls it has
-  const fresh = !saved && JSON.stringify(layout.walls) === JSON.stringify(STARTER_LAYOUT().walls);
+  const fresh = !saved && isStarter(layout);
   const [room, setRoom] = useState<RoomSketch>(() => saved || (fresh ? emptyRoom() : layoutToRoom(layout)));
   const [mode, setMode] = useState<Mode>(() => ((saved || !fresh) && (saved?.pts.length ?? 1) ? "select" : "walls"));
   const [sel, setSel] = useState<Sel>(null);
@@ -34,19 +37,21 @@ export default function RoomSketch({ room: saved, layout, onChange }: {
   const drag = useRef<{ kind: "item" | "wall"; i: number; start: Pt; base: RoomSketch; moved: boolean } | null>(null);
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
+  const base = () => (isStarter(layoutRef.current) ? { ...layoutRef.current, walls: [] } : layoutRef.current);
 
   const n = wallCount(room);
   const drawing = mode === "walls" && !room.closed && room.pts.length > 0;
   const status = useMemo(() => {
     if (!n) return "";
-    const res = roomToLayout(room, layoutRef.current);
+    const res = roomToLayout(room, base());
     return "error" in res ? res.error : "הקירות בתכנון מעודכנים מהשרטוט ✓";
-  }, [room, n]);
+  }, [room, n]); // eslint-disable-line react-hooks/exhaustive-deps
+  const ready = !!n && status.endsWith("✓");
 
   const commit = (next: RoomSketch) => {
     setHistory((h) => [...h.slice(-40), room]);
     setRoom(next);
-    const res = roomToLayout(next, layoutRef.current);
+    const res = roomToLayout(next, base());
     onChange(next, "layout" in res ? res.layout : null);
   };
   const undo = () => {
@@ -55,7 +60,7 @@ export default function RoomSketch({ room: saved, layout, onChange }: {
     setHistory((h) => h.slice(0, -1));
     setRoom(prev);
     setSel(null);
-    const res = roomToLayout(prev, layoutRef.current);
+    const res = roomToLayout(prev, base());
     onChange(prev, "layout" in res ? res.layout : null);
   };
 
@@ -166,7 +171,7 @@ export default function RoomSketch({ room: saved, layout, onChange }: {
     drag.current = null;
     if (g?.moved) {
       setHistory((h) => [...h.slice(-40), g.base]);
-      const res = roomToLayout(room, layoutRef.current);
+      const res = roomToLayout(room, base());
       onChange(room, "layout" in res ? res.layout : null);
     }
   };
@@ -243,7 +248,12 @@ export default function RoomSketch({ room: saved, layout, onChange }: {
 
   return (
     <section className="nq-card nqs">
-      <div className="nq-card-h"><h2>שרטוט החדר</h2></div>
+      <div className="nq-card-h">
+        <h2>שרטוט החדר</h2>
+        {ready
+          ? <a className="nq-btn pri" href={optionsHref} target="_blank" rel="noopener" title="קלוד קורא את הקירות שסימנת כמטבח, החלונות, הדלתות ונקודת המים, ובונה כמה אופציות">✨ אופציות מהחדר הזה</a>
+          : <button type="button" className="nq-btn" disabled title={n ? status : "קודם משרטטים את הקירות"}>✨ אופציות מהחדר הזה</button>}
+      </div>
       <p className="hint" style={{ margin: "0 0 8px" }}>
         {mode === "walls"
           ? room.closed ? "החדר סגור. כדי לשנות, בוחרים קיר וגוררים אותו או מקלידים אורך." : room.pts.length ? "מושכים לכיוון הקיר הבא ולוחצים, או מקלידים אורך ו-Enter. לחיצה על הנקודה הראשונה סוגרת את החדר. Esc מסיים." : "לחץ במקום שבו מתחיל הקיר הראשון."
@@ -353,7 +363,7 @@ export default function RoomSketch({ room: saved, layout, onChange }: {
           <span className="hint">המרחק נמדד מהקצה השמאלי של הקיר כשעומדים מולו בתוך החדר</span>
         </div>
       )}
-      {!!n && <p className={`hint nqs-status ${status.endsWith("✓") ? "ok" : ""}`}>{status}</p>}
+      {!!n && <p className={`nqs-status ${ready ? "ok" : "warn"}`}>{ready ? status : `שלב אחרון: ${status}`}</p>}
     </section>
   );
 }

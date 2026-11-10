@@ -180,10 +180,10 @@ export function PlanScreen({ plan: p, data, upd, saveNow, onBack, onQuote, onOpe
             <label className="f full">הערות (רק לך)<textarea className="in" rows={2} value={p.notes || ""} onChange={(e) => upd((x) => { x.notes = e.target.value; })} /></label>
           </div>
         </section>
-        <RoomSketch key={p.id} room={p.room} layout={p.layout} onChange={(room, layout) => upd((x) => { x.room = room; if (layout) x.layout = layout; })} />
+        <RoomSketch key={p.id} room={p.room} layout={p.layout} onChange={(room, layout) => upd((x) => { x.room = room; if (layout) x.layout = layout; })}
+          optionsHref={claudeLink(`תתכנן לי כמה אופציות למטבח במערכת נויה מהחדר ששרטטתי בתכנון ${p.id} (${who}). קודם תשאל אותי מה שצריך. `)} />
         <LayoutEditor layout={p.layout}
           claudeHref={claudeLink(`תיקון התכנון של ${who} במערכת נויה (תכנון ${p.id}): `)}
-          optionsHref={claudeLink(`תתכנן לי כמה אופציות למטבח במערכת נויה מהחדר ששרטטתי בתכנון ${p.id} (${who}). קודם תשאל אותי מה שצריך. `)}
           onChange={(l) => upd((x) => { x.layout = l; })}
           shotRef={shotRef}
           viewTools={
