@@ -549,7 +549,10 @@ export function corniceBoxes(l: KitchenLayout, w: Pick<LayoutWall, "length" | "b
 }
 
 /** Which sides of a unit get a 2 cm side panel: those with no wall and no cabinet beside them, unless the unit says otherwise. */
-export function sidesOf(l: KitchenLayout, at: number | "island", row: "base" | UpperRow, index: number) {
+/** Which sides of a unit get a finished 2 cm side panel; leftFrom/rightFrom = where that panel starts when a
+ *  lower unit stands beside it (the panel sits on the counter, it doesn't go down to the floor) */
+export type Sides = { left: boolean; right: boolean; leftFrom?: number; rightFrom?: number };
+export function sidesOf(l: KitchenLayout, at: number | "island", row: "base" | UpperRow, index: number): Sides {
   const none = { left: false, right: false };
   const h = heightsOf(l), wall = at === "island" ? null : l.walls[at];
   const base = at === "island" ? l.island?.base || [] : wall!.base, upper = wall?.upper || [], top = wall?.top || [];
@@ -564,10 +567,11 @@ export function sidesOf(l: KitchenLayout, at: number | "island", row: "base" | U
     return { y0: bu.y ?? frontsFrom(h), y1: baseUnitTop(bu, h) - (["fridge", "tall", "tall_oven", "panel", "column"].includes(bu.kind) || bu.h !== undefined ? 0 : h.counter) };
   };
   const covers = (x: { kind: string; fridgeType?: string }) => !["gap", "hood"].includes(x.kind) && x.kind !== "shelf";
+  // cap: how high a neighbor reaches, with the counter on it
   const all = [
-    ...placed(base).filter(covers).map((x) => ({ a: x.a, b: x.a + x.w, ...range(x, "base") })),
-    ...placed(upper).filter(covers).map((x) => ({ a: x.a, b: x.a + x.w, ...range(x, "upper") })),
-    ...placed(top).filter(covers).map((x) => ({ a: x.a, b: x.a + x.w, ...range(x, "top") })),
+    ...placed(base).filter(covers).map((x) => ({ a: x.a, b: x.a + x.w, ...range(x, "base"), cap: baseUnitTop(x, h) })),
+    ...placed(upper).filter(covers).map((x) => { const r = range(x, "upper"); return { a: x.a, b: x.a + x.w, ...r, cap: r.y1 }; }),
+    ...placed(top).filter(covers).map((x) => { const r = range(x, "top"); return { a: x.a, b: x.a + x.w, ...r, cap: r.y1 }; }),
   ];
   const me = placed<{ w: number }>(row === "base" ? base : row === "upper" ? upper : top)[index];
   const mine = range(u, row), tall = mine.y1 - mine.y0;
@@ -575,7 +579,27 @@ export function sidesOf(l: KitchenLayout, at: number | "island", row: "base" | U
   const a = me.a, b = me.a + me.w;
   const wallAtLeft = at !== "island" && a < 0.6 && (at > 0 || !!l.ends?.left);
   const wallAtRight = at !== "island" && !!wall && b > wall.length - 0.6 && (at < l.walls.length - 1 || !!l.ends?.right);
-  return { left: !wallAtLeft && !covered(a, "b"), right: !wallAtRight && !covered(b, "a") };
+  // a lower neighbor beside a taller unit: its panel starts on top of that neighbor (on the counter)
+  const from = (x: number, side: "a" | "b") => {
+    const cs = all.filter((o) => Math.abs(o[side] - x) < 0.6 && o.y0 <= mine.y0 + 1 && o.cap > mine.y0 + 1 && o.cap < mine.y1 - 1);
+    return cs.length ? Math.max(...cs.map((o) => o.cap)) : undefined;
+  };
+  const left = !wallAtLeft && !covered(a, "b"), right = !wallAtRight && !covered(b, "a");
+  const lf = left ? from(a, "b") : undefined, rf = right ? from(b, "a") : undefined;
+  return { left, right, ...(lf !== undefined ? { leftFrom: lf } : {}), ...(rf !== undefined ? { rightFrom: rf } : {}) };
+}
+
+/** The counter pieces of a wall, running 2 cm further over a finished side panel at their ends (Erez: the counter
+ *  always goes over the side panel and the wall filler) */
+export function counterSpansOver(l: KitchenLayout, at: number | "island", units: BaseUnit[], depth = DEFAULT_HEIGHTS.depth) {
+  const pl = placed(units);
+  return counterSpans(units, depth).map((s) => {
+    const first = pl.findIndex((u) => Math.abs(u.a - s.a) < 0.01 && u.kind !== "corner");
+    const last = pl.findIndex((u) => Math.abs(u.a + u.w - (s.a + s.w)) < 0.01 && u.kind !== "corner");
+    const L = first >= 0 && sidesOf(l, at, "base", first).left ? SIDE_PANEL : 0;
+    const R = last >= 0 && sidesOf(l, at, "base", last).right ? SIDE_PANEL : 0;
+    return { a: s.a - L, w: s.w + L + R };
+  });
 }
 
 /** Erez's filler where a cabinet meets a wall ("הלבשה"): 2 cm, the cabinet is built 2 cm narrower */

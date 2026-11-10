@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type * as T from "three";
 import {
-  COUNTER_COLORS, FRONT_COLORS, FRONT_THICK, SIDE_PANEL, FRIDGE_BLACK, fridgeNiche, beamHeight, sidesOf, colorOf, corniceBoxes, handleOf, columnParts, openingBox, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, tvSize, mainWallIndex, partsOf, placed, tallOvenParts, upperBox, wallGeometry,
+  COUNTER_COLORS, FRONT_COLORS, FRONT_THICK, SIDE_PANEL, FRIDGE_BLACK, fridgeNiche, beamHeight, sidesOf, colorOf, corniceBoxes, handleOf, columnParts, openingBox, cornerPart, counterSpans, counterSpansOver, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, tvSize, mainWallIndex, partsOf, placed, tallOvenParts, upperBox, wallGeometry,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 import { bluranImg, bluranOf } from "@/lib/quotes/bluran";
@@ -315,10 +315,15 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
     return undefined;
   };
   /** A finished panel on the exposed side of a cabinet. */
-  const sidePanels = (p: T.Object3D, mat: T.Material, sides: { left: boolean; right: boolean }, x: number, w: number, y0: number, hh: number, z: number) => {
-    const deep = z + FRONT_THICK;
-    if (sides.left) box(p, mat, SIDE_PANEL, hh, deep, x - SIDE_PANEL / 2, y0 + hh / 2, deep / 2);
-    if (sides.right) box(p, mat, SIDE_PANEL, hh, deep, x + w + SIDE_PANEL / 2, y0 + hh / 2, deep / 2);
+  const sidePanels = (p: T.Object3D, mat: T.Material, sides: { left: boolean; right: boolean; leftFrom?: number; rightFrom?: number }, x: number, w: number, y0: number, hh: number, z: number) => {
+    const deep = z + FRONT_THICK, top = y0 + hh;
+    // beside a lower unit the panel sits on the counter and doesn't go down to the floor
+    const one = (from: number | undefined, cx: number) => {
+      const yb = Math.max(y0, from ?? y0);
+      if (top - yb > 0.5) box(p, mat, SIDE_PANEL, top - yb, deep, cx, yb + (top - yb) / 2, deep / 2);
+    };
+    if (sides.left) one(sides.leftFrom, x - SIDE_PANEL / 2);
+    if (sides.right) one(sides.rightFrom, x + w + SIDE_PANEL / 2);
   };
   /** A niche: a frame in the plane of the fronts, its back `recess` behind it. */
   const niche = (p: T.Object3D, mat: T.Material, x: number, y0: number, w: number, hh: number, front: number, recess: number, frame: number, shelves: number, ref?: string, tv?: boolean, tvGap?: number) => {
@@ -478,7 +483,7 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
       if (u.kind === "cooktop") cooktop(p, x + w / 2, hs.base, depth / 2 + 1, Math.min(u.hobW || 60, w - 2), u.hob === "gas");
     }
     if (withCounter && hasCounter(l)) {
-      const over = (l.counter?.over ?? 2) + FRONT_THICK, spans = counterSpans(units, depth);
+      const over = (l.counter?.over ?? 2) + FRONT_THICK, spans = counterSpansOver(l, atNum, units, depth);
       spans.forEach((s, k) => {
         box(p, counterMat(s.w, depth + over), s.w, hs.counter, depth + over, s.a + s.w / 2, hs.base - hs.counter / 2, (depth + over) / 2);
         if (l.counter?.splash) box(p, counterMat(s.w, l.counter.splash), s.w, l.counter.splash, 1, s.a + s.w / 2, hs.base + l.counter.splash / 2, 0.5);

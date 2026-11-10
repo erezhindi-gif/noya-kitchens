@@ -3,7 +3,7 @@
 // is in cm), so proportions are exact at any size. No hooks: renders on the server for the PDF too.
 import "./plan.css";
 import {
-  BASE_LABEL, COUNTER_COLORS, PART_LABEL, POINT_LABEL, beamHeight, handleOf, sidesOf, SIDE_PANEL, FRONT_THICK, openingBox, FRONT_COLORS, baseUnitTop, colorOf, corniceBoxes, columnParts, cornerPart, counterSpans, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, partsOf, placed, tvSize, tallOvenParts, upperBox, wallGeometry, wallName,
+  BASE_LABEL, COUNTER_COLORS, PART_LABEL, POINT_LABEL, beamHeight, handleOf, sidesOf, SIDE_PANEL, FRONT_THICK, openingBox, FRONT_COLORS, baseUnitTop, colorOf, corniceBoxes, columnParts, cornerPart, counterSpans, counterSpansOver, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, partsOf, placed, tvSize, tallOvenParts, upperBox, wallGeometry, wallName,
   type BaseUnit, type LayoutWall, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
   fridgeNiche, FRIDGE_BLACK,
 } from "@/lib/quotes/layout";
@@ -332,7 +332,7 @@ export function Elevation({ layout, title, length, base, upper, top = [], island
   const left = f * (hasTall ? 4.6 : 3.2), right = f * 1.2, topPad = f * (hasTop ? 3 : 1.6), bottom = f * 4.4;
   const vb = `${-left} ${-topPad} ${length + left + right} ${shownTop + topPad + bottom}`;
   const pb = placed(base), pu = placed(upper), pt = placed(top);
-  const spans = counterSpans(base, h.depth);
+  const spans = counterSpansOver(layout, at === "island" ? "island" : Number(at), base, h.depth);
   return (
     <figure className="nqp-fig">
       <figcaption>{title} · {cm(length)} ס״מ</figcaption>
@@ -368,8 +368,11 @@ export function Elevation({ layout, title, length, base, upper, top = [], island
           const bu = u as BaseUnit, b = row === "base" ? null : upperBox(u as UpperUnit, h, row);
           const y0 = b ? b.y0 : bu.y === undefined ? 0 : bu.y, y1 = b ? b.y0 + b.hh : baseUnitTop(bu, h) - (["doors", "drawers", "sink", "cooktop", "dishwasher"].includes(u.kind) && bu.h === undefined ? h.counter : 0);
           const fr = u.color ? colorOf(u.color, FRONT_COLORS, c.front) : c.front;
-          return [s.left ? u.a - SIDE_PANEL : null, s.right ? u.a + u.w : null].filter((v): v is number => v !== null)
-            .map((sx) => <rect key={`sd${row}${i}-${sx}`} x={sx} y={Y(c, y1)} width={SIDE_PANEL} height={y1 - y0} fill={fr} stroke={INK} strokeWidth={0.5} />);
+          // beside a lower unit the panel starts on the counter, not at the floor
+          const sideList: [number, number | undefined][] = [];
+          if (s.left) sideList.push([u.a - SIDE_PANEL, s.leftFrom]);
+          if (s.right) sideList.push([u.a + u.w, s.rightFrom]);
+          return sideList.map(([sx, from]) => { const yb = Math.max(y0, from ?? y0); return <rect key={`sd${row}${i}-${sx}`} x={sx} y={Y(c, y1)} width={SIDE_PANEL} height={Math.max(0, y1 - yb)} fill={fr} stroke={INK} strokeWidth={0.5} />; });
         }))}
         {splash > 0 && spans.map((s, i) => <rect key={"sp" + i} x={s.a} y={Y(c, h.base + splash)} width={s.w} height={splash} fill={c.counter} stroke={LINE} strokeWidth={0.3} opacity={0.8} />)}
         {spans.map((s, i) => <rect key={"c" + i} x={s.a} y={Y(c, h.base)} width={s.w} height={h.counter} fill={c.counter} stroke={LINE} strokeWidth={0.4} />)}

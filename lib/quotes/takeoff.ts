@@ -69,9 +69,17 @@ export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Tak
   const colorAt = (u: { color?: string; fronts?: string[] }, i: number, base?: string) => u.fronts?.[i] || u.color || base;
 
   /** a finished 2 cm panel on every side nothing covers */
-  const sidePanels = (of: string, sides: { left: boolean; right: boolean }, d: number, hh: number, color?: string) => {
-    const qty = (sides.left ? 1 : 0) + (sides.right ? 1 : 0);
-    if (qty) out.panels.push({ of, name: `דופן גלויה ${SIDE_PANEL} ס״מ`, w: r1(d + FRONT_THICK), h: r1(hh), qty, color: colorName(color) });
+  /** topY: where the panels end; beside a lower unit a panel starts on its counter (leftFrom/rightFrom) */
+  const sidePanels = (of: string, sides: { left: boolean; right: boolean; leftFrom?: number; rightFrom?: number }, d: number, hh: number, color?: string, topY?: number) => {
+    const froms: (number | undefined)[] = [];
+    if (sides.left) froms.push(sides.leftFrom);
+    if (sides.right) froms.push(sides.rightFrom);
+    for (const from of froms) {
+      const ph = r1(from !== undefined && topY !== undefined ? topY - from : hh);
+      const same = out.panels.find((x) => x.of === of && x.name.startsWith("דופן גלויה") && x.h === ph);
+      if (same) same.qty += 1;
+      else out.panels.push({ of, name: `דופן גלויה ${SIDE_PANEL} ס״מ`, w: r1(d + FRONT_THICK), h: ph, qty: 1, color: colorName(color) });
+    }
   };
   const doBase = (units: BaseUnit[], letter: string, wall: string, depth: number, at: number | "island") => {
     const f0 = frontsFrom(h), f1 = h.base - h.counter;
@@ -112,7 +120,7 @@ export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Tak
         // a cabinet with a flap above the fridge up to the tall cabinets
         const nn = fridgeNiche(u, h);
         const sides = sidesOf(l, at, "base", i);
-        sidePanels(no, sides, d, nn.top, front);
+        sidePanels(no, sides, d, nn.top, front, nn.top);
         const formica = 2 - (sides.left ? 1 : 0) - (sides.right ? 1 : 0);
         const niche = `נישה למקרר ${nn.inner} רוחב ו-${nn.fh} גובה${formica ? `, פורמייקה על ${formica === 2 ? "שתי הדפנות" : "הדופן"} של הארון שליד` : ""}`;
         if (!nn.over) return add(nn.top, 0, niche);
@@ -129,7 +137,7 @@ export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Tak
       if (u.kind === "column") {
         const parts = columnParts(u, h);
         add(top - by, parts.reduce((a, p) => a + p.count, 0), "עמודה");
-        sidePanels(no, sidesOf(l, at, "base", i), d, top - by + (u.y === undefined ? h.plinth + h.floorGap : 0), u.color || front);
+        sidePanels(no, sidesOf(l, at, "base", i), d, top - by + (u.y === undefined ? h.plinth + h.floorGap : 0), u.color || front, top);
         parts.forEach((p, k) => {
           const pd = p.d ?? d, ofp = `${no}/${k + 1}`;
           if (p.kind === "niche") {
@@ -164,7 +172,7 @@ export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Tak
       const shelves = u.inside?.shelves || 0;
       inside(no, u);
       box(no, u.w, bh, d, shelves);
-      sidePanels(no, sidesOf(l, at, "base", i), d, bh + (u.y === undefined ? h.plinth + h.floorGap : 0), u.color || front);
+      sidePanels(no, sidesOf(l, at, "base", i), d, bh + (u.y === undefined ? h.plinth + h.floorGap : 0), u.color || front, by + bh);
       switch (u.kind) {
         case "doors":
         case "sink": {
@@ -233,7 +241,7 @@ export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Tak
       }
       box(no, u.w, b.hh, b.d, u.kind === "open" ? n : u.inside?.shelves || 0);
       inside(no, u);
-      sidePanels(no, sidesOf(l, at, row, idx), b.d, b.hh, u.color || upperColor);
+      sidePanels(no, sidesOf(l, at, row, idx), b.d, b.hh, u.color || upperColor, b.y0 + b.hh);
       if (u.kind === "open") { add(0, "מדפים פתוחים"); continue; }
       add(n);
       if (u.kind === "doors") {
