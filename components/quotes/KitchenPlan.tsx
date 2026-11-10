@@ -4,7 +4,7 @@
 import "./plan.css";
 import { polymerDecor, polymerOf, type PolymerModel } from "@/lib/quotes/polymer";
 import {
-  BASE_LABEL, COUNTER_COLORS, PART_LABEL, POINT_LABEL, beamHeight, handleOf, sidesOf, SIDE_PANEL, FRONT_THICK, openingBox, FRONT_COLORS, baseUnitTop, colorOf, corniceBoxes, columnParts, cornerPart, counterSpans, counterSpansOver, wallFillers, WALL_FILLER, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, islandEnds, islandExtras, islandSeat, panelHeights, partsOf, placed, tvSize, tallOvenParts, tallDoors, shelfYs, onCounter, tallHandleRight, upperBox, wallGeometry, wallName,
+  BASE_LABEL, COUNTER_COLORS, PART_LABEL, POINT_LABEL, beamHeight, handleOf, sidesOf, SIDE_PANEL, FRONT_THICK, openingBox, FRONT_COLORS, baseUnitTop, colorOf, corniceBoxes, columnParts, cornerPart, counterSpans, counterSpansOver, wallFillers, WALL_FILLER, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, islandEnds, islandExtras, islandSeat, panelHeights, partsOf, placed, tvSize, drawerHeights, wallSides, tallOvenParts, tallDoors, shelfYs, onCounter, tallHandleRight, upperBox, wallGeometry, wallName,
   type BaseUnit, type LayoutWall, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
   fridgeNiche, FRIDGE_BLACK,
 } from "@/lib/quotes/layout";
@@ -94,9 +94,11 @@ function Doors({ c, x, y0, w, h, n, fill, fills = [], at, r, glass }: { c: Ctx; 
   return <>{Array.from({ length: n }, (_, i) => <Front key={i} c={c} x={x + i * dw} y0={y0} w={dw} h={h} fill={fills[i] || fill} handle={at} r={`${r}.${i}`} glass={glass} />)}</>;
 }
 /** fronts one above the other; fills = a color per front (top to bottom), else fill */
-function Stack({ c, x, y0, w, h, n, fill, fills = [], handle = "top", r }: { c: Ctx; x: number; y0: number; w: number; h: number; n: number; fill: string; fills?: (string | undefined)[]; handle?: "top" | "mid" | "bottom"; r: string }) {
-  const dh = h / n;
-  return <>{Array.from({ length: n }, (_, i) => <Front key={i} c={c} x={x} y0={y0 + h - (i + 1) * dh} w={w} h={dh} fill={fills[i] || fill} handle={handle} r={`${r}.${i}`} />)}</>;
+function Stack({ c, x, y0, w, h, n, fill, fills = [], handle = "top", r, set = false }: { c: Ctx; x: number; y0: number; w: number; h: number; n: number; fill: string; fills?: (string | undefined)[]; handle?: "top" | "mid" | "bottom"; r: string; /** a drawer set: bottom and middle 30, top what is left */ set?: boolean }) {
+  // fronts are numbered from the top
+  const hs = set ? drawerHeights(n, h) : Array.from({ length: n }, () => h / n);
+  let top = y0 + h;
+  return <>{hs.slice().reverse().map((dh, i) => { top -= dh; return <Front key={i} c={c} x={x} y0={top} w={w} h={dh} fill={fills[i] || fill} handle={handle} r={`${r}.${i}`} />; })}</>;
 }
 
 /** A niche seen from the front: the frame around a recessed back */
@@ -177,7 +179,7 @@ function BaseShape({ c, u, x, units, index, at }: { c: Ctx; u: BaseUnit; x: numb
       return <>{plinth}<Doors c={c} x={x} y0={by} w={u.w} h={bh} n={n} fill={fr} fills={pf} at="top" r={r} glass={u.glass} />{u.kind === "sink" && <Label c={c} x={mid} y={Y(c, by + bh / 2)} t={u.sink?.bowls === 2 ? "כיור כפול" : "כיור"} light={isDark(fr)} />}</>;
     case "drawers":
     case "cooktop":
-      return <>{plinth}<Stack c={c} x={x} y0={by} w={u.w} h={bh} n={n} fill={fr} fills={pf} r={r} />{u.kind === "cooktop" && <rect x={x + (u.w - Math.min(u.hobW || u.w - 8, u.w)) / 2} y={Y(c, h.base) - 1.2} width={Math.min(u.hobW || u.w - 8, u.w)} height={1.2} fill={GLASS} />}</>;
+      return <>{plinth}<Stack c={c} x={x} y0={by} w={u.w} h={bh} n={n} fill={fr} fills={pf} r={r} set />{u.kind === "cooktop" && <rect x={x + (u.w - Math.min(u.hobW || u.w - 8, u.w)) / 2} y={Y(c, h.base) - 1.2} width={Math.min(u.hobW || u.w - 8, u.w)} height={1.2} fill={GLASS} />}</>;
     case "dishwasher":
       return <>{plinth}<Front c={c} x={x} y0={f0} w={u.w} h={fh} fill={pf[0] || fr} handle="top" r={`${r}.0`} /><Label c={c} x={mid} y={Y(c, f0 + fh / 2)} t="מדיח" light={isDark(pf[0] || fr)} /></>;
     case "oven": {
@@ -414,7 +416,16 @@ export function Elevation({ layout, title, length, base, upper, top = [], island
         <line x1={length} x2={length} y1={0} y2={shownTop} stroke={wallR ? "#5b544d" : "#b9b1a6"} strokeWidth={wallR ? 3 : 0.6} />
 
         {/* widths of the base units, then the whole wall */}
-        {pb.map((u, i) => <HDim key={"db" + i} c={c} x0={u.a} x1={u.a + u.w} y={shownTop + f * 1.7} t={cm(u.w)} />)}
+        {pb.flatMap((u, i) => {
+          // the 2 cm wall filler gets its own dimension, the cabinet the rest
+          const ws = !island && Number.isFinite(Number(at)) ? wallSides(layout, Number(at), "base", i) : { left: false, right: false };
+          const a0 = u.a + (ws.left ? WALL_FILLER : 0), a1 = u.a + u.w - (ws.right ? WALL_FILLER : 0), yy = shownTop + f * 1.7;
+          return [
+            ...(ws.left ? [<HDim key={"dfl" + i} c={c} x0={u.a} x1={a0} y={yy} t={cm(WALL_FILLER)} />] : []),
+            <HDim key={"db" + i} c={c} x0={a0} x1={a1} y={yy} t={cm(a1 - a0)} />,
+            ...(ws.right ? [<HDim key={"dfr" + i} c={c} x0={a1} x1={u.a + u.w} y={yy} t={cm(WALL_FILLER)} />] : []),
+          ];
+        })}
         <HDim c={c} x0={0} x1={length} y={shownTop + f * 3.6} t={cm(length)} />
         {/* upper widths in the free space between the counter and the uppers; the top row's above it */}
         {hasUpper && pu.map((u, i) => u.kind === "gap" ? null : <HDim key={"du" + i} c={c} x0={u.a} x1={u.a + u.w} y={Y(c, h.upperFrom) + f * (depthTag ? 2.2 : 1.4)} t={cm(u.w)} />)}

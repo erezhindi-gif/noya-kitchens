@@ -3,7 +3,7 @@
 // as the drawing. The building rules below are defaults Erez can change in the settings.
 import { polymerOf } from "./polymer";
 import {
-  BASE_LABEL, PART_LABEL, UPPER_LABEL, applianceText, baseUnitTop, colorName, columnParts, cornerPart, corniceBoxes, frontsFrom, hasCounter, heightsOf, panelHeights, partsOf, placed, sidesOf, tallOvenParts, tallDoors, onCounter, tvSize, upperBox, wallName, SIDE_PANEL, FRONT_THICK, fridgeNiche, wallSides, WALL_FILLER, islandEnds, islandExtras, islandSeat,
+  BASE_LABEL, PART_LABEL, UPPER_LABEL, applianceText, baseUnitTop, colorName, columnParts, cornerPart, corniceBoxes, frontsFrom, hasCounter, heightsOf, panelHeights, partsOf, placed, sidesOf, tallOvenParts, tallDoors, drawerHeights, onCounter, tvSize, upperBox, wallName, SIDE_PANEL, FRONT_THICK, fridgeNiche, wallSides, WALL_FILLER, islandEnds, islandExtras, islandSeat,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperUnit,
 } from "./layout";
 
@@ -190,7 +190,8 @@ export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Tak
         case "drawers":
         case "cooktop": {
           add(bh, n, u.kind === "cooktop" ? "מתחת לכיריים" : "");
-          for (let k = 0; k < n; k++) addFront(no, "מגירה", u.w, bh / n, 1, colorAt(u, k, front));
+          // bottom and middle drawers 30, the top what is left (fronts numbered from the top)
+          drawerHeights(n, bh).slice().reverse().forEach((dh, k) => addFront(no, "מגירה", u.w, dh, 1, colorAt(u, k, front)));
           hw("מגירה", n, no);
           break;
         }

@@ -640,22 +640,22 @@ export function counterSpansOver(l: KitchenLayout, at: number | "island", units:
 export const WALL_FILLER = 2;
 /** the wall fillers of one wall, to draw: where, from what height to what height, how deep, and the unit's color */
 export function wallFillers(l: KitchenLayout, at: number) {
-  const h = heightsOf(l), wall = l.walls[at], out: { x: number; y0: number; y1: number; d: number; color?: string; upper: boolean }[] = [];
+  const h = heightsOf(l), wall = l.walls[at], out: { x: number; y0: number; y1: number; d: number; color?: string; upper: boolean; /** the seam between the filler and the door */ edge: number }[] = [];
   const counterOn = (u: BaseUnit) => hasCounter(l) && !["fridge", "tall", "tall_oven", "gap", "panel", "column", "corner"].includes(u.kind) && u.y === undefined && u.h === undefined;
   placed(wall.base).forEach((u, i) => {
     const s = wallSides(l, at, "base", i);
     if (!s.left && !s.right) return;
     // from the floor up; under the counter when the counter runs over it
     const y1 = baseUnitTop(u, h) - (counterOn(u) ? h.counter : 0), y0 = u.y ?? 0, d = u.d ?? h.depth;
-    if (s.left) out.push({ x: u.a, y0, y1, d, color: u.color, upper: false });
-    if (s.right) out.push({ x: u.a + u.w - WALL_FILLER, y0, y1, d, color: u.color, upper: false });
+    if (s.left) out.push({ x: u.a, y0, y1, d, color: u.color, upper: false, edge: u.a + WALL_FILLER });
+    if (s.right) out.push({ x: u.a + u.w - WALL_FILLER, y0, y1, d, color: u.color, upper: false, edge: u.a + u.w - WALL_FILLER });
   });
   (["upper", "top"] as const).forEach((row) => placed((row === "upper" ? wall.upper : wall.top) || []).forEach((u, i) => {
     const s = wallSides(l, at, row, i);
     if (!s.left && !s.right) return;
     const b = upperBox(u, h, row);
-    if (s.left) out.push({ x: u.a, y0: b.y0, y1: b.y0 + b.hh, d: b.d, color: u.color, upper: true });
-    if (s.right) out.push({ x: u.a + u.w - WALL_FILLER, y0: b.y0, y1: b.y0 + b.hh, d: b.d, color: u.color, upper: true });
+    if (s.left) out.push({ x: u.a, y0: b.y0, y1: b.y0 + b.hh, d: b.d, color: u.color, upper: true, edge: u.a + WALL_FILLER });
+    if (s.right) out.push({ x: u.a + u.w - WALL_FILLER, y0: b.y0, y1: b.y0 + b.hh, d: b.d, color: u.color, upper: true, edge: u.a + u.w - WALL_FILLER });
   }));
   return out;
 }
@@ -703,13 +703,21 @@ export function counterSpans(us: BaseUnit[], depth = DEFAULT_HEIGHTS.depth) {
 export const FRIDGE_LINE = FRIDGE_H;
 const lineFits = (from: number, top: number) => top - FRIDGE_LINE >= 15 && FRIDGE_LINE - from >= 150;
 
+/** Erez's drawer set, bottom up: the bottom and middle drawers 30 each, the top one what is left (3 drawers);
+ *  any other number of drawers is shared evenly. */
+export function drawerHeights(n: number, total: number) {
+  if (n === 3 && total - 60 >= 10) return [30, 30, total - 60];
+  return Array.from({ length: n }, () => total / n);
+}
+
 /** Fronts of the tall oven unit, bottom up: drawers, the oven (60), a lift-up door for the microwave (60, never
  *  more, handle at its bottom) ending at the fridge line, and one more door above it up to the top. */
 export function tallOvenParts(u: BaseUnit, h: LayoutHeights) {
-  const drawers = partsOf("tall_oven", u.w, u.n);
+  const drawers = u.n ?? 2;
   const d0 = frontsFrom(h);
-  if (lineFits(d0, h.tall)) {
-    const m1 = FRIDGE_LINE, o1 = m1 - 60, d1 = o1 - 60;
+  if (lineFits(d0, h.tall) && FRIDGE_LINE - 60 - (d0 + drawers * 30) >= 58) {
+    // Erez: drawers of 30 each under the oven (2 by default); the oven's niche takes what is left up to the microwave
+    const m1 = FRIDGE_LINE, o1 = m1 - 60, d1 = d0 + drawers * 30;
     return { drawers, d0, d1, o1, m1, rest: true };
   }
   const d1 = d0 + drawers * 30, o1 = d1 + 60, m1 = Math.min(h.tall, o1 + 60);

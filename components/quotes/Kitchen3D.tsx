@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type * as T from "three";
 import {
-  COUNTER_COLORS, FRONT_COLORS, FRONT_THICK, SIDE_PANEL, FRIDGE_BLACK, fridgeNiche, beamHeight, sidesOf, colorOf, corniceBoxes, handleOf, columnParts, openingBox, cornerPart, counterSpans, counterSpansOver, wallFillers, WALL_FILLER, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, islandEnds, islandExtras, islandSeat, panelHeights, tvSize, mainWallIndex, partsOf, placed, tallOvenParts, tallDoors, shelfYs, onCounter, tallHandleRight, upperBox, wallGeometry,
+  COUNTER_COLORS, FRONT_COLORS, FRONT_THICK, SIDE_PANEL, FRIDGE_BLACK, fridgeNiche, beamHeight, sidesOf, colorOf, corniceBoxes, handleOf, columnParts, openingBox, cornerPart, counterSpans, counterSpansOver, wallFillers, WALL_FILLER, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, islandEnds, islandExtras, islandSeat, panelHeights, tvSize, mainWallIndex, partsOf, placed, drawerHeights, tallOvenParts, tallDoors, shelfYs, onCounter, tallHandleRight, upperBox, wallGeometry,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 import { bluranImg, bluranOf } from "@/lib/quotes/bluran";
@@ -481,8 +481,13 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
           break;
         case "drawers":
         case "cooktop":
-          for (let i = 0; i < n; i++) frontPanel(p, fm(n - 1 - i), x, by + (i * bh) / n, w, bh / n, zz, "top", r(n - 1 - i));
+        {
+          // bottom and middle drawers 30, the top one what is left
+          const hs3 = drawerHeights(n, bh);
+          let yy = by;
+          hs3.forEach((dh, i) => { frontPanel(p, fm(n - 1 - i), x, yy, w, dh, zz, "top", r(n - 1 - i)); yy += dh; });
           break;
+        }
         case "dishwasher":
           frontPanel(p, fm(0), x, f0, w, fh, z, "top", r(0));
           break;
@@ -651,6 +656,8 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
     for (const f of wallFillers(l, i)) {
       const deep = f.d + FRONT_THICK + 0.3;
       box(grp, matOf(f.color, f.upper ? mats.upper : mats.front), WALL_FILLER, f.y1 - f.y0, deep, f.x + WALL_FILLER / 2, f.y0 + (f.y1 - f.y0) / 2, deep / 2);
+      // the seam between the filler and the door, so the filler shows
+      box(grp, mats.grip, 0.3, f.y1 - f.y0, 0.2, f.edge, f.y0 + (f.y1 - f.y0) / 2, deep + 0.05);
     }
     upperRun(grp, w.upper, "upper", String(i));
     upperRun(grp, w.top || [], "top", String(i));
