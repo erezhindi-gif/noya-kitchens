@@ -557,6 +557,13 @@ export default function LayoutEditor({ layout, onChange, claudeHref, shotRef, vi
               <label className="nqp-num">אורך<input className="in num" type="number" value={layout.island.w || ""} onChange={(e) => up((l) => { l.island!.w = Number(e.target.value) || 0; })} /></label>
               <label className="nqp-num">עומק<input className="in num" type="number" value={layout.island.d || ""} onChange={(e) => up((l) => { l.island!.d = Number(e.target.value) || 0; })} /></label>
               <label className="nqp-num">מעבר עד הארונות<input className="in num" type="number" value={layout.island.gap || ""} onChange={(e) => up((l) => { l.island!.gap = Number(e.target.value) || 0; })} /></label>
+              <label className="nqp-num">מיקום
+                <select className="in" value={layout.island.align || ""} onChange={(e) => up((l) => { const v = e.target.value; if (v === "left" || v === "right") l.island!.align = v; else delete l.island!.align; })}>
+                  <option value="">באמצע הקיר</option>
+                  <option value="left">צמוד לקיר משמאל</option>
+                  <option value="right">צמוד לקיר מימין</option>
+                </select>
+              </label>
             </div>
             <UnitRows<BaseKind> units={layout.island.base} labels={BASE_LABEL} addKind="doors" onChange={(us) => up((l) => { l.island!.base = us as BaseUnit[]; })} />
           </>

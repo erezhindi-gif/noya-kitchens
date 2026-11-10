@@ -771,7 +771,7 @@ const handler = createMcpHandler(
             obstacles: z.array(z.object({ kind: z.enum(["column", "beam"]), a: z.number(), w: z.number(), d: z.number().describe("כמה בולט מהקיר"), h: z.number().optional().describe("קורה: גובה מתחת לתקרה, ברירת מחדל 30") })).optional().describe("עמודים וקורות"),
             points: z.array(z.object({ kind: z.enum(["water", "drain", "power", "gas"]), a: z.number(), y: z.number() })).optional().describe("נקודות מים, ניקוז, חשמל וגז: מרחק מהקצה וגובה"),
           })).min(1).max(3),
-          island: z.object({ w: z.number(), d: z.number().default(90), gap: z.number().default(110).describe("מעבר בין הארונות לאי"), base: z.array(baseUnit) }).optional(),
+          island: z.object({ w: z.number(), d: z.number().default(90), gap: z.number().default(110).describe("מעבר בין הארונות לאי"), base: z.array(baseUnit), align: z.enum(["left", "right"]).optional().describe("אי צמוד לקיר: left = צמוד לקצה השמאלי של הקיר הראשי (כשעומדים מולו), right = לימני. ריק = באמצע. ארונות האי מסודרים משמאל לימין כשעומדים מול חזיתות האי (עם הגב לקיר הראשי): הראשון בצד הימני של הקיר הראשי, האחרון בצד השמאלי שלו") }).optional(),
           h: z.object({
             base: z.number().optional(), upperFrom: z.number().optional(), upper: z.number().optional(), tall: z.number().optional(),
             ceiling: z.number().optional(), depth: z.number().optional(), upperDepth: z.number().optional(), topDepth: z.number().optional(),
@@ -810,7 +810,7 @@ const handler = createMcpHandler(
     );
   },
   {
-    serverInfo: { name: "noya-quotes", version: "1.19.0" },
+    serverInfo: { name: "noya-quotes", version: "1.20.0" },
     instructions:
       "מערכת הצעות המחיר של נויה מטבחים (ארז). תהליך: 1) search_catalog כדי למצוא את הפריטים. " +
       "2) אם חסרה כמות לרכיב כלשהו (למשל ידית לחזיתות), או שיש כמה פריטים אפשריים, שאל את ארז שאלה אחת מרוכזת עם כל החסרים — לפני שבונים. " +

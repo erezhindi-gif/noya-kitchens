@@ -69,7 +69,9 @@ export type KitchenLayout = {
   /** thickness of the room's walls (from the room drawing); the 3D shows it where a wall ends. Default 20 */
   wallThick?: number;
   /** An island facing the main wall, with cabinets on the side toward it */
-  island?: { w: number; d: number; gap: number; base: BaseUnit[] };
+  /** align: where along the main wall (as you face it) — centered by default, or flush with its left or right end,
+   *  against the wall standing there. The island's cabinets run the other way: its first unit is at the main wall's right. */
+  island?: { w: number; d: number; gap: number; base: BaseUnit[]; align?: "left" | "right" };
   h?: Partial<LayoutHeights>;
   /** handles: "bar" a handle on every front, "integral" a grip groove cut into the front's edge, "none" push-open */
   colors?: { front?: string; upper?: string; counter?: string; handles?: "bar" | "integral" | "none"; /** integral handle's color: like the cabinet, black (default) or aluminum */ grip?: "front" | "black" | "alu"; /** the plinth: a Bluran shade, "front" = like the fronts; missing = dark */ plinth?: string };
@@ -315,7 +317,7 @@ export function normalizeLayout(raw: unknown): KitchenLayout | null {
   const out: KitchenLayout = { walls };
   const isl = r.island as Record<string, unknown> | undefined;
   if (isl && typeof isl === "object" && Number(isl.w) > 0)
-    out.island = { w: num(isl.w, 40, 600, 200), d: num(isl.d, 40, 200, 90), gap: num(isl.gap, 60, 300, 110), base: units(isl.base, BASE_KINDS) };
+    out.island = { w: num(isl.w, 40, 600, 200), d: num(isl.d, 40, 200, 90), gap: num(isl.gap, 60, 300, 110), base: units(isl.base, BASE_KINDS), ...(isl.align === "left" || isl.align === "right" ? { align: isl.align } : {}) };
   if (r.h && typeof r.h === "object") {
     const h: Partial<LayoutHeights> = {};
     for (const k of Object.keys(DEFAULT_HEIGHTS) as (keyof LayoutHeights)[]) {
@@ -500,13 +502,13 @@ export function wallGeometry(l: KitchenLayout): WallGeo[] {
 /** The wall the island faces (the back wall of an L or U). */
 export const mainWallIndex = (l: KitchenLayout) => (l.walls.length === 3 ? 1 : 0);
 
-/** Island placement in plan: centered on the main wall's run, `gap` cm in front of the base cabinets. */
+/** Island placement in plan: centered on the main wall's run (or flush with its left/right end), `gap` cm in front of the base cabinets. */
 export function islandBox(l: KitchenLayout) {
   if (!l.island) return null;
   const g = wallGeometry(l)[mainWallIndex(l)];
   const w = l.walls[mainWallIndex(l)];
   const h = heightsOf(l);
-  const along = w.length / 2;
+  const along = l.island.align === "left" ? l.island.w / 2 : l.island.align === "right" ? w.length - l.island.w / 2 : w.length / 2;
   const cx = g.x + g.dx * along + g.nx * (h.depth + FRONT_THICK + l.island.gap + l.island.d / 2);
   const cz = g.z + g.dz * along + g.nz * (h.depth + FRONT_THICK + l.island.gap + l.island.d / 2);
   return { cx, cz, w: l.island.w, d: l.island.d };
