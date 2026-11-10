@@ -101,3 +101,16 @@
 .nqp-more { padding: 6px 8px; background: #f8f4ec; border-radius: 8px; }
 
 .nqp-apps { display: grid; gap: 2px; margin-top: 14px; padding: 8px 10px; background: #f8f4ec; border-radius: 8px; font-size: 14px; }
+
+/* room drawn with the mouse */
+.nqs-modes { margin-bottom: 8px; }
+.nqs-canvas { border: 1px solid #e8e1d6; border-radius: 12px; overflow: hidden; background: #fffdf9; }
+.nqs-canvas svg { display: block; width: 100%; height: min(62vh, 520px); user-select: none; }
+.nqs-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.nqs-vcb { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.nqs-vcb .in { width: 110px; }
+.nqs-panel { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin-top: 10px; padding: 10px; border-radius: 10px; background: #f4ecdf; }
+.nqs-panel label:not(.nq-check) { display: grid; gap: 2px; font-size: 13px; }
+.nqs-panel .in { width: 100px; }
+.nqs-status { margin: 8px 0 0; color: #b0503c; }
+.nqs-status.ok { color: #3c7d4a; }

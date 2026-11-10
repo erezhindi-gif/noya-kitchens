@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { fdate, planMessage, planSubject, planWaText, qnum, waText } from "@/lib/quotes/calc";
 import type { AppData, Lead, Plan, Quote } from "@/lib/quotes/types";
 import LayoutEditor from "./LayoutEditor";
+import RoomSketch from "./RoomSketch";
 import { downloadBlob, sharePdf } from "./pdf";
 
 const claudeLink = (start: string) => `https://claude.ai/new?q=${encodeURIComponent(start)}`;
@@ -179,6 +180,7 @@ export function PlanScreen({ plan: p, data, upd, saveNow, onBack, onQuote, onOpe
             <label className="f full">הערות (רק לך)<textarea className="in" rows={2} value={p.notes || ""} onChange={(e) => upd((x) => { x.notes = e.target.value; })} /></label>
           </div>
         </section>
+        <RoomSketch key={p.id} room={p.room} layout={p.layout} onChange={(room, layout) => upd((x) => { x.room = room; if (layout) x.layout = layout; })} />
         <LayoutEditor layout={p.layout}
           claudeHref={claudeLink(`תיקון התכנון של ${who} במערכת נויה (תכנון ${p.id}): `)}
           optionsHref={claudeLink(`תתכנן לי כמה אופציות למטבח במערכת נויה מהחדר ששרטטתי בתכנון ${p.id} (${who}). קודם תשאל אותי מה שצריך. `)}

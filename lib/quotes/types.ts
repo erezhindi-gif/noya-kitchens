@@ -1,4 +1,5 @@
 import type { KitchenLayout } from "./layout";
+import type { RoomSketch } from "./room";
 import type { Channel } from "../marketing/channels";
 export type Unit = "m" | "u";
 
@@ -167,6 +168,8 @@ export type Plan = {
   title: string;
   client: { name: string; phone: string; email?: string };
   layout: KitchenLayout;
+  /** the room drawn with the mouse; its kitchen walls fill layout.walls */
+  room?: RoomSketch;
   notes?: string;
   /** the quote made from this plan */
   quoteId?: string;
