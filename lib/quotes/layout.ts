@@ -66,6 +66,8 @@ export type LayoutHeights = {
 
 export type KitchenLayout = {
   walls: LayoutWall[];
+  /** thickness of the room's walls (from the room drawing); the 3D shows it where a wall ends. Default 20 */
+  wallThick?: number;
   /** An island facing the main wall, with cabinets on the side toward it */
   island?: { w: number; d: number; gap: number; base: BaseUnit[] };
   h?: Partial<LayoutHeights>;

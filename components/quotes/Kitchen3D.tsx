@@ -576,16 +576,26 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
       if (o.kind === "column") box(grp, mats.wall, o.w, h.ceiling, o.d, o.a + o.w / 2, h.ceiling / 2, o.d / 2);
       else box(grp, mats.wall, o.w, beamHeight(o), o.d, o.a + o.w / 2, h.ceiling - beamHeight(o) / 2, o.d / 2);
     }
-    // a wall standing across the kitchen's free end, if there is one
+    // where a wall ends in the room, its thickness shows: a face as wide as the wall is thick
+    const T = l.wallThick ?? 20;
+    const cap = (x: number, z: number, rotY: number) => {
+      const face = new three.Mesh(new three.PlaneGeometry(T * M, h.ceiling * M), mats.wall);
+      face.position.set(x * M, (h.ceiling / 2) * M, z * M);
+      face.rotation.y = rotY;
+      face.receiveShadow = true;
+      grp.add(face);
+    };
+    // a wall standing across the kitchen's free end, if there is one, with its end face
     const cross = (x: number, facing: 1 | -1, len: number) => {
       const side = new three.Mesh(new three.PlaneGeometry(len * M, h.ceiling * M), mats.wall);
       side.position.set(x * M, (h.ceiling / 2) * M, (len / 2) * M);
       side.rotation.y = (facing * Math.PI) / 2;
       side.receiveShadow = true;
       grp.add(side);
+      cap(x - (facing * T) / 2, len, 0);
     };
-    if (i === 0 && l.ends?.left) cross(0, 1, endWallLen(l, "left"));
-    if (i === geo.length - 1 && l.ends?.right) cross(w.length, -1, endWallLen(l, "right"));
+    if (i === 0) { if (l.ends?.left) cross(0, 1, endWallLen(l, "left")); else cap(0, -T / 2, -Math.PI / 2); }
+    if (i === geo.length - 1) { if (l.ends?.right) cross(w.length, -1, endWallLen(l, "right")); else cap(w.length, -T / 2, Math.PI / 2); }
     baseRun(grp, w.base, h.depth, h, String(i), true, { left: i === 0 && l.counter?.fallLeft, right: i === geo.length - 1 && l.counter?.fallRight });
     upperRun(grp, w.upper, "upper", String(i));
     upperRun(grp, w.top || [], "top", String(i));

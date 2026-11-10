@@ -147,7 +147,7 @@ export function roomToLayout(r: RoomSketch, layout: KitchenLayout): { layout: Ki
   const fw = info.get(order[0])!, lw = info.get(order[order.length - 1])!;
   const leftLen = endWall(ends(order[0]).L, fw.n);
   const rightLen = endWall(ends(order[order.length - 1]).R, lw.n);
-  const out: KitchenLayout = { ...layout, walls };
+  const out: KitchenLayout = { ...layout, walls, wallThick: r.thick };
   if (leftLen || rightLen) out.ends = { ...(leftLen ? { left: "wall" as const, leftLen } : {}), ...(rightLen ? { right: "wall" as const, rightLen } : {}) };
   else delete out.ends;
   return { layout: out };
