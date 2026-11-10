@@ -604,6 +604,28 @@ export function counterSpansOver(l: KitchenLayout, at: number | "island", units:
 
 /** Erez's filler where a cabinet meets a wall ("הלבשה"): 2 cm, the cabinet is built 2 cm narrower */
 export const WALL_FILLER = 2;
+/** the wall fillers of one wall, to draw: where, from what height to what height, how deep, and the unit's color */
+export function wallFillers(l: KitchenLayout, at: number) {
+  const h = heightsOf(l), wall = l.walls[at], out: { x: number; y0: number; y1: number; d: number; color?: string; upper: boolean }[] = [];
+  const counterOn = (u: BaseUnit) => hasCounter(l) && !["fridge", "tall", "tall_oven", "gap", "panel", "column", "corner"].includes(u.kind) && u.y === undefined && u.h === undefined;
+  placed(wall.base).forEach((u, i) => {
+    const s = wallSides(l, at, "base", i);
+    if (!s.left && !s.right) return;
+    // from the floor up; under the counter when the counter runs over it
+    const y1 = baseUnitTop(u, h) - (counterOn(u) ? h.counter : 0), y0 = u.y ?? 0, d = u.d ?? h.depth;
+    if (s.left) out.push({ x: u.a, y0, y1, d, color: u.color, upper: false });
+    if (s.right) out.push({ x: u.a + u.w - WALL_FILLER, y0, y1, d, color: u.color, upper: false });
+  });
+  (["upper", "top"] as const).forEach((row) => placed((row === "upper" ? wall.upper : wall.top) || []).forEach((u, i) => {
+    const s = wallSides(l, at, row, i);
+    if (!s.left && !s.right) return;
+    const b = upperBox(u, h, row);
+    if (s.left) out.push({ x: u.a, y0: b.y0, y1: b.y0 + b.hh, d: b.d, color: u.color, upper: true });
+    if (s.right) out.push({ x: u.a + u.w - WALL_FILLER, y0: b.y0, y1: b.y0 + b.hh, d: b.d, color: u.color, upper: true });
+  }));
+  return out;
+}
+
 /** which sides of a unit stand against a wall and get the filler (not gaps, corners, hoods, open shelves, panels or a fridge niche) */
 export function wallSides(l: KitchenLayout, at: number | "island", row: "base" | UpperRow, index: number) {
   const none = { left: false, right: false };

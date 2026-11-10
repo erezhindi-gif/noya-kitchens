@@ -3,7 +3,7 @@
 // is in cm), so proportions are exact at any size. No hooks: renders on the server for the PDF too.
 import "./plan.css";
 import {
-  BASE_LABEL, COUNTER_COLORS, PART_LABEL, POINT_LABEL, beamHeight, handleOf, sidesOf, SIDE_PANEL, FRONT_THICK, openingBox, FRONT_COLORS, baseUnitTop, colorOf, corniceBoxes, columnParts, cornerPart, counterSpans, counterSpansOver, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, partsOf, placed, tvSize, tallOvenParts, upperBox, wallGeometry, wallName,
+  BASE_LABEL, COUNTER_COLORS, PART_LABEL, POINT_LABEL, beamHeight, handleOf, sidesOf, SIDE_PANEL, FRONT_THICK, openingBox, FRONT_COLORS, baseUnitTop, colorOf, corniceBoxes, columnParts, cornerPart, counterSpans, counterSpansOver, wallFillers, WALL_FILLER, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, partsOf, placed, tvSize, tallOvenParts, upperBox, wallGeometry, wallName,
   type BaseUnit, type LayoutWall, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
   fridgeNiche, FRIDGE_BLACK,
 } from "@/lib/quotes/layout";
@@ -362,6 +362,9 @@ export function Elevation({ layout, title, length, base, upper, top = [], island
         {pt.map((u, i) => <UpperShape key={"t" + i} c={c} u={u} x={u.a} row="top" depthTag={depthTag} r={`${at}.top.${i}`} />)}
         {pb.map((u, i) => <BaseShape key={"b" + i} c={c} u={u} x={u.a} units={base} index={i} at={at} />)}
         {!island && corniceBoxes(layout, { length, base, upper, top }).map((b, i) => <rect key={"cn" + i} x={b.a} y={Y(c, Math.min(shownTop, b.y + b.h))} width={b.w} height={Math.max(0, Math.min(shownTop, b.y + b.h) - b.y)} fill={c.front} stroke={LINE} strokeWidth={0.4} />)}
+        {!island && wall && Number.isFinite(Number(at)) && wallFillers(layout, Number(at)).map((f, i) => (
+          <rect key={"wf" + i} x={f.x} y={Y(c, f.y1)} width={WALL_FILLER} height={f.y1 - f.y0} fill={f.color ? colorOf(f.color, FRONT_COLORS, c.front) : c.front} stroke={INK} strokeWidth={0.5} />
+        ))}
         {(["base", "upper", "top"] as const).flatMap((row) => (row === "base" ? pb : row === "upper" ? pu : pt).flatMap((u, i) => {
           const s = sidesOf(layout, at === "island" ? "island" : Number(at), row, i);
           if (!s.left && !s.right) return [];

@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type * as T from "three";
 import {
-  COUNTER_COLORS, FRONT_COLORS, FRONT_THICK, SIDE_PANEL, FRIDGE_BLACK, fridgeNiche, beamHeight, sidesOf, colorOf, corniceBoxes, handleOf, columnParts, openingBox, cornerPart, counterSpans, counterSpansOver, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, tvSize, mainWallIndex, partsOf, placed, tallOvenParts, upperBox, wallGeometry,
+  COUNTER_COLORS, FRONT_COLORS, FRONT_THICK, SIDE_PANEL, FRIDGE_BLACK, fridgeNiche, beamHeight, sidesOf, colorOf, corniceBoxes, handleOf, columnParts, openingBox, cornerPart, counterSpans, counterSpansOver, wallFillers, WALL_FILLER, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, tvSize, mainWallIndex, partsOf, placed, tallOvenParts, upperBox, wallGeometry,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 import { bluranImg, bluranOf } from "@/lib/quotes/bluran";
@@ -602,6 +602,11 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
     if (i === 0) { if (l.ends?.left) cross(0, 1, endWallLen(l, "left")); else cap(0, -T / 2, -Math.PI / 2); }
     if (i === geo.length - 1) { if (l.ends?.right) cross(w.length, -1, endWallLen(l, "right")); else cap(w.length, -T / 2, Math.PI / 2); }
     baseRun(grp, w.base, h.depth, h, String(i), true, { left: i === 0 && l.counter?.fallLeft, right: i === geo.length - 1 && l.counter?.fallRight });
+    // the 2 cm filler where a cabinet meets a wall, in front of the cabinet's edge (the cabinet is built narrower)
+    for (const f of wallFillers(l, i)) {
+      const deep = f.d + FRONT_THICK + 0.3;
+      box(grp, matOf(f.color, f.upper ? mats.upper : mats.front), WALL_FILLER, f.y1 - f.y0, deep, f.x + WALL_FILLER / 2, f.y0 + (f.y1 - f.y0) / 2, deep / 2);
+    }
     upperRun(grp, w.upper, "upper", String(i));
     upperRun(grp, w.top || [], "top", String(i));
     if (l.lighting?.underCabinet) for (const u of placed(w.upper)) {
