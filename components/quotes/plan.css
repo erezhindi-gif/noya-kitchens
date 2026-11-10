@@ -115,3 +115,10 @@
 .nqs-status { margin: 8px 0 0; font-size: 14px; }
 .nqs-status.ok { color: #3c7d4a; }
 .nqs-status.warn { color: #8a4a1c; background: #fdf0dc; border: 1px solid #f0d2a4; padding: 8px 12px; border-radius: 10px; font-weight: 600; }
+
+/* Bluran polymer door models */
+.nqm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; max-height: 60vh; overflow: auto; }
+.nqm-item { display: grid; justify-items: center; gap: 4px; padding: 6px; border: 1px solid #e8e1d6; border-radius: 10px; background: #fff; font-size: 12px; cursor: pointer; }
+.nqm-item img { height: 90px; width: auto; }
+.nqm-item[aria-pressed="true"] { border-color: #a8834f; box-shadow: 0 0 0 2px #f4ecdf; }
+.nqm-plain { display: block; width: 60px; height: 90px; background: #f6f4ef; border: 1px solid #ddd5c8; }

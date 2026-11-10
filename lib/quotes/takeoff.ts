@@ -1,6 +1,7 @@
 // What a plan means for the workshop: numbered cabinets, fronts to order from Bluran, carcass parts to cut,
 // hardware to buy, panels and quantities for the quote. Everything is worked out from the same centimeters
 // as the drawing. The building rules below are defaults Erez can change in the settings.
+import { polymerOf } from "./polymer";
 import {
   BASE_LABEL, PART_LABEL, UPPER_LABEL, applianceText, baseUnitTop, colorName, columnParts, cornerPart, corniceBoxes, frontsFrom, hasCounter, heightsOf, panelHeights, partsOf, placed, sidesOf, tallOvenParts, tallDoors, onCounter, tvSize, upperBox, wallName, SIDE_PANEL, FRONT_THICK, fridgeNiche, wallSides, WALL_FILLER,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperUnit,
@@ -36,6 +37,8 @@ export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Tak
   const h = heightsOf(l);
   const out: Takeoff = { cabinets: [], fronts: [], carcass: [], panels: [], hardware: [], appliances: [], points: [], meters: { base: 0, upper: 0, top: 0, tall: 0, fridge: 0, corner: 0, frontsArea: 0, panelsArea: 0, counter: 0, plinth: 0, cornice: 0, splashArea: 0 } };
   const front = l.colors?.front, upperColor = l.colors?.upper || front;
+  // the door model goes on every front's name, so the order to Bluran says it
+  const model = polymerOf(l.colors?.model);
 
   const hw = (name: string, qty: number, of: string) => {
     if (qty <= 0) return;
@@ -46,8 +49,9 @@ export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Tak
   const addFront = (of: string, name: string, w: number, hh: number, qty: number, color?: string) => {
     const fw = r1(w - rules.frontGap), fh = r1(hh - rules.frontGap);
     const col = color ? colorName(color) : "";
-    const same = out.fronts.find((x) => x.of === of && x.name === name && x.w === fw && x.h === fh && x.color === col);
-    if (same) same.qty += qty; else out.fronts.push({ of, name, w: fw, h: fh, qty, color: col });
+    const nm = model ? `${name} · דגם ${model.name}` : name;
+    const same = out.fronts.find((x) => x.of === of && x.name === nm && x.w === fw && x.h === fh && x.color === col);
+    if (same) same.qty += qty; else out.fronts.push({ of, name: nm, w: fw, h: fh, qty, color: col });
     out.meters.frontsArea += (fw * fh * qty) / 10000;
   };
   // Erez's rule: no more than 60 cm between hinges

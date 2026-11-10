@@ -2,6 +2,7 @@
 // measurement lines like a carpenter's drawing. Everything is drawn in centimeters (the SVG viewBox
 // is in cm), so proportions are exact at any size. No hooks: renders on the server for the PDF too.
 import "./plan.css";
+import { polymerDecor, polymerOf, type PolymerModel } from "@/lib/quotes/polymer";
 import {
   BASE_LABEL, COUNTER_COLORS, PART_LABEL, POINT_LABEL, beamHeight, handleOf, sidesOf, SIDE_PANEL, FRONT_THICK, openingBox, FRONT_COLORS, baseUnitTop, colorOf, corniceBoxes, columnParts, cornerPart, counterSpans, counterSpansOver, wallFillers, WALL_FILLER, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, partsOf, placed, tvSize, tallOvenParts, tallDoors, shelfYs, onCounter, upperBox, wallGeometry, wallName,
   type BaseUnit, type LayoutWall, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
@@ -15,7 +16,7 @@ const STEEL = "#cfd3d6";
 const GLASS = "#2c2c2c";
 const GAP = 0.5; // gap between fronts, cm
 
-type Ctx = { hl: ReturnType<typeof handleOf>; h: LayoutHeights; top: number; front: string; upper: string; counter: string; handles: boolean; grip: boolean; gripColor?: "front" | "black" | "alu"; f: number; plinth: string };
+type Ctx = { hl: ReturnType<typeof handleOf>; h: LayoutHeights; top: number; front: string; upper: string; counter: string; handles: boolean; grip: boolean; gripColor?: "front" | "black" | "alu"; model?: PolymerModel; f: number; plinth: string };
 
 /** Dark fronts (anthracite, black, walnut…) get light writing on them. */
 const isDark = (hex: string) => {
@@ -57,6 +58,17 @@ function Front({ c, x, y0, w, h, fill, handle, r, glass }: { c: Ctx; x: number; 
     <g data-front={r}>
       <rect x={rx} y={ry} width={rw} height={rh} fill={fill} stroke={LINE} strokeWidth={0.35} />
       {glass && <rect x={rx + 2.5} y={ry + 2.5} width={Math.max(0.5, rw - 5)} height={Math.max(0.5, rh - 5)} fill={glass === "smoked" ? "#8d9499" : "#d7e6ec"} stroke={LINE} strokeWidth={0.3} />}
+      {!glass && (() => {
+        // the door model: the inner panel's outline and the board lines
+        const dec = polymerDecor(c.model, rw, rh);
+        if (!dec) return null;
+        return (
+          <>
+            {dec.inner && <rect x={rx + dec.inner.x} y={ry + dec.inner.y} width={dec.inner.w} height={dec.inner.h} fill={dec.glass ? "#d7e6ec" : "none"} stroke={LINE} strokeWidth={0.4} />}
+            {dec.lines.map((lx, i) => <line key={i} x1={rx + lx} x2={rx + lx} y1={ry + (dec.inner ? dec.inner.y : 0.3)} y2={ry + (dec.inner ? dec.inner.y + dec.inner.h : rh - 0.3)} stroke={LINE} strokeWidth={0.3} />)}
+          </>
+        );
+      })()}
       {bar}
     </g>
   );
@@ -314,6 +326,7 @@ function ctxOf(l: KitchenLayout, length: number): Ctx {
     hl: handleOf(l),
     grip: l.colors?.handles === "integral",
     gripColor: l.colors?.grip,
+    model: polymerOf(l.colors?.model),
     plinth: !l.colors?.plinth ? "#5b544d" : l.colors.plinth === "front" ? front : colorOf(l.colors.plinth, FRONT_COLORS, "#5b544d"),
     f: Math.min(11, Math.max(6, length * 0.024)),
   };

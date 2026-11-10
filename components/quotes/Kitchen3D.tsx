@@ -10,9 +10,10 @@ import {
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 import { bluranImg, bluranOf } from "@/lib/quotes/bluran";
+import { polymerDecor, polymerOf } from "@/lib/quotes/polymer";
 
 type Three = typeof import("three");
-type Mats = Record<"front" | "upper" | "carcass" | "upperCarcass" | "counter" | "plinth" | "steel" | "glass" | "handle" | "wall" | "floor" | "shelf" | "sink" | "grip" | "black" | "zone" | "display" | "inox", T.Material>;
+type Mats = Record<"front" | "upper" | "carcass" | "upperCarcass" | "counter" | "plinth" | "steel" | "glass" | "handle" | "wall" | "floor" | "shelf" | "sink" | "grip" | "black" | "zone" | "display" | "inox" | "groove", T.Material>;
 
 const M = 0.01; // cm → m
 
@@ -100,6 +101,8 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
   const handles = !l.colors?.handles || l.colors.handles === "bar";
   const grip = l.colors?.handles === "integral";
   const hl = handleOf(l);
+  // the door model (Bluran polymer): a raised frame around the panel, board grooves, or glass
+  const model = polymerOf(l.colors?.model);
   const std = (color: T.ColorRepresentation, rough = 0.6, metal = 0, extra: Partial<T.MeshStandardMaterialParameters> = {}) =>
     new three.MeshStandardMaterial({ color, roughness: rough, metalness: metal, ...extra });
   // Bluran shades: the swatch photo laid on the doors (wood, stone, concrete…), or its color; high gloss shines.
@@ -141,6 +144,7 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
     sink: std("#b4babe", 0.3, 0.35),
     // the integral handle's groove: black, aluminum, or the cabinet's own color (set per front below)
     grip: l.colors?.grip === "alu" ? std("#b9bcbf", 0.35, 0.7) : std("#2b2724", 0.85),
+    groove: std("#000000", 0.9, 0, { transparent: true, opacity: 0.22 }),
     black: std("#141414", 0.4, 0.2),
     zone: std("#3a3a3c", 0.25, 0.1),
     display: std("#0b1a22", 0.2, 0.1, { emissive: new three.Color("#16384a"), emissiveIntensity: 0.6 }),
@@ -193,6 +197,31 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
       return;
     }
     const panel = tag(box(p, mat, w - 0.4, hh - 0.4, 1.8, x0 + w / 2, y0 + hh / 2, z + 0.9), ref);
+    const dec = polymerDecor(model, w, hh);
+    if (dec) {
+      const fz = z + 1.8;
+      if (dec.inner) {
+        const { x: ix, y: iy, w: iw, h: ih } = dec.inner;
+        // the frame stands 0.6 proud of the panel
+        tag(box(p, mat, w - 0.4, iy, 0.6, x0 + w / 2, y0 + iy / 2, fz + 0.3), ref, panel);
+        tag(box(p, mat, w - 0.4, hh - iy - ih, 0.6, x0 + w / 2, y0 + iy + ih + (hh - iy - ih) / 2, fz + 0.3), ref, panel);
+        tag(box(p, mat, ix, ih, 0.6, x0 + ix / 2, y0 + iy + ih / 2, fz + 0.3), ref, panel);
+        tag(box(p, mat, w - ix - iw, ih, 0.6, x0 + ix + iw + (w - ix - iw) / 2, y0 + iy + ih / 2, fz + 0.3), ref, panel);
+        // a thin shadow line where the frame steps down to the panel, so the design reads in any light
+        const sl = 0.45, sz = fz + 0.62;
+        box(p, mats.groove, iw + sl * 2, sl, 0.05, x0 + ix + iw / 2, y0 + iy - sl / 2, sz);
+        box(p, mats.groove, iw + sl * 2, sl, 0.05, x0 + ix + iw / 2, y0 + iy + ih + sl / 2, sz);
+        box(p, mats.groove, sl, ih, 0.05, x0 + ix - sl / 2, y0 + iy + ih / 2, sz);
+        box(p, mats.groove, sl, ih, 0.05, x0 + ix + iw + sl / 2, y0 + iy + ih / 2, sz);
+        if (dec.glass) {
+          const pane = new three.Mesh(new three.BoxGeometry(iw * M, ih * M, 0.4 * M), std("#dfeef7", 0.08, 0, { transparent: true, opacity: 0.35 }));
+          pane.position.set((x0 + ix + iw / 2) * M, (y0 + iy + ih / 2) * M, (fz + 0.1) * M);
+          p.add(pane);
+        }
+      }
+      const gy = dec.inner ? dec.inner.y : 0.4, gh = dec.inner ? dec.inner.h : hh - 0.8;
+      for (const lx of dec.lines) box(p, mats.groove, 0.35, gh, 0.2, x0 + lx, y0 + gy + gh / 2, fz + 0.05);
+    }
     if (grip && handle) {
       // integral handle: a grip groove milled into the edge of the front
       const gm = l.colors?.grip === "front" ? mat : mats.grip;

@@ -11,6 +11,7 @@ import {
 import KitchenPlan from "./KitchenPlan";
 import { BluranSheet, SwatchButton, swatchStyle } from "./BluranPicker";
 import { bluranOf } from "@/lib/quotes/bluran";
+import { POLYMER_MODELS, polymerImg, polymerOf } from "@/lib/quotes/polymer";
 import { FRONT_COLORS } from "@/lib/quotes/layout";
 
 const Kitchen3D = dynamic(() => import("./Kitchen3D"), { ssr: false, loading: () => <div className="nqp-3d" style={{ height: 380 }} /> });
@@ -373,6 +374,7 @@ export default function LayoutEditor({ layout, onChange, claudeHref, shotRef, vi
   const warns = layoutWarnings(layout);
   const c = layout.colors || {};
   const [paintAll, setPaintAll] = useState<"front" | "upper" | null>(null);
+  const [pickModel, setPickModel] = useState(false);
 
   return (
     <section className="nq-card">
@@ -440,6 +442,11 @@ export default function LayoutEditor({ layout, onChange, claudeHref, shotRef, vi
         <div className="f">חזיתות (בלורן)
           <button type="button" className="in nqb-field" onClick={() => setPaintAll("front")}><span className="nqb-dot" style={swatchStyle(c.front)} />{colorLabel(c.front, "לבן")}</button>
         </div>
+        <div className="f">דגם חזית (פולימר בלורן)
+          <button type="button" className="in nqb-field" onClick={() => setPickModel(true)}>
+            {polymerOf(c.model) ? <><img src={polymerImg(polymerOf(c.model)!)} alt="" style={{ height: 22, width: "auto", verticalAlign: "middle", marginInlineEnd: 6 }} />{polymerOf(c.model)!.name}</> : "חלקה, בלי דגם"}
+          </button>
+        </div>
         <div className="f">עליונים (בלורן)
           <button type="button" className="in nqb-field" onClick={() => setPaintAll("upper")}><span className="nqb-dot" style={swatchStyle(c.upper || c.front)} />{c.upper ? colorLabel(c.upper, "") : "כמו החזיתות"}</button>
         </div>
@@ -499,6 +506,27 @@ export default function LayoutEditor({ layout, onChange, claudeHref, shotRef, vi
           <label>חיפוי קיר בגובה<input className="in num" type="number" inputMode="decimal" placeholder="בלי" value={layout.counter?.splash ?? ""} onChange={(e) => up((l) => { l.counter = { ...l.counter, splash: Number(e.target.value) || undefined }; })} /></label>
           <label><input type="checkbox" style={{ width: "auto" }} checked={!!layout.counter?.fallLeft} onChange={(e) => up((l) => { l.counter = { ...l.counter, fallLeft: e.target.checked || undefined }; })} /> מפל משמאל</label>
           <label><input type="checkbox" style={{ width: "auto" }} checked={!!layout.counter?.fallRight} onChange={(e) => up((l) => { l.counter = { ...l.counter, fallRight: e.target.checked || undefined }; })} /> מפל מימין</label>
+        </div>
+      )}
+      {pickModel && (
+        <div className="nq-scrim" onClick={(e) => e.target === e.currentTarget && setPickModel(false)}>
+          <div className="nq-sheet nq-modal nqb-sheet" role="dialog" aria-label="דגם חזית">
+            <div className="nqb-head">
+              <h2>דגם חזית: פולימר בלורן</h2>
+              <button type="button" className="nq-btn sm" onClick={() => setPickModel(false)}>סגור</button>
+            </div>
+            <p className="hint" style={{ margin: "0 0 8px" }}>הדגם חל על כל החזיתות. את הצבע בוחרים ב&quot;חזיתות (בלורן)&quot;, בקבוצה &quot;פולימר&quot;.</p>
+            <div className="nqm-grid">
+              <button type="button" className="nqm-item" aria-pressed={!c.model} onClick={() => { up((l) => { if (l.colors) delete l.colors.model; }); setPickModel(false); }}>
+                <span className="nqm-plain" />חלקה, בלי דגם
+              </button>
+              {POLYMER_MODELS.map((m) => (
+                <button key={m.id} type="button" className="nqm-item" aria-pressed={c.model === m.id} onClick={() => { up((l) => { l.colors = { ...l.colors, model: m.id }; }); setPickModel(false); }}>
+                  <img src={polymerImg(m)} alt="" loading="lazy" />{m.name}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
       {paintAll && (

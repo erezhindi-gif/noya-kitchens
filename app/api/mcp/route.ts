@@ -777,7 +777,7 @@ const handler = createMcpHandler(
             ceiling: z.number().optional(), depth: z.number().optional(), upperDepth: z.number().optional(), topDepth: z.number().optional(),
             plinth: z.number().optional().describe("גובה סוקל, 0 = בלי סוקל"), floorGap: z.number().optional().describe("ניתוק מהרצפה בס״מ"),
           }).optional(),
-          colors: z.object({ front: z.string().optional(), upper: z.string().optional(), counter: z.string().optional().describe("white_stone beige_stone grey_stone black_stone wood none (בלי משטח) או #hex"), handles: z.enum(["bar", "integral", "none"]).optional(), grip: z.enum(["front", "black", "alu"]).optional().describe("צבע הידית האינטגרלית: front = בצבע הארון, black = שחור (ברירת מחדל), alu = אלומיניום"), plinth: z.string().optional().describe("צבע הסוקל: bl:CODE או front = כמו החזיתות. ריק = כהה") }).optional(),
+          colors: z.object({ front: z.string().optional(), upper: z.string().optional(), counter: z.string().optional().describe("white_stone beige_stone grey_stone black_stone wood none (בלי משטח) או #hex"), handles: z.enum(["bar", "integral", "none"]).optional(), model: z.string().optional().describe("דגם החזיתות, פולימר בלורן: klen panama berlin gauda-open acropolis elize angli-light asam asam-hariz boston dror dror-medorag england england-medorag firentze gauda gauda-medorag kan kan-hafuch korfu leeds manchester miconos miconos-vitrina milano napoli nis papa paris pireus porta rockfor roma saloniki sardinia shangrila sizilia sparta toskana tripoli tunis verona. ריק = חלקה. הצבע מקבוצת פולימר בבלורן (bluran_colors)"), grip: z.enum(["front", "black", "alu"]).optional().describe("צבע הידית האינטגרלית: front = בצבע הארון, black = שחור (ברירת מחדל), alu = אלומיניום"), plinth: z.string().optional().describe("צבע הסוקל: bl:CODE או front = כמו החזיתות. ריק = כהה") }).optional(),
           handle: z.object({ style: z.enum(["bar", "knob", "edge"]).optional(), length: z.number().optional(), finish: z.enum(["steel", "black", "gold", "bronze"]).optional() }).optional().describe("דגם הידית כשיש ידיות חיצוניות"),
           lighting: z.object({ underCabinet: z.boolean().optional(), nicheLed: z.boolean().optional(), spots: z.number().optional(), pendants: z.number().optional() }).optional().describe("תאורה: פס לד מתחת לעליונים, לד בנישות, ספוטים בתקרה, תליונים מעל האי"),
           cornice: z.object({ h: z.number().optional().describe("גובה הקרניז"), toCeiling: z.boolean().optional().describe("קרניז עד התקרה"), over: z.number().optional().describe("בליטה, ברירת מחדל 2") }).optional().describe("קרניז מעל הארונות הגבוהים ביותר"),
@@ -810,7 +810,7 @@ const handler = createMcpHandler(
     );
   },
   {
-    serverInfo: { name: "noya-quotes", version: "1.20.0" },
+    serverInfo: { name: "noya-quotes", version: "1.21.0" },
     instructions:
       "מערכת הצעות המחיר של נויה מטבחים (ארז). תהליך: 1) search_catalog כדי למצוא את הפריטים. " +
       "2) אם חסרה כמות לרכיב כלשהו (למשל ידית לחזיתות), או שיש כמה פריטים אפשריים, שאל את ארז שאלה אחת מרוכזת עם כל החסרים — לפני שבונים. " +

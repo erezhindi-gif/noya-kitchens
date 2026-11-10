@@ -11,6 +11,7 @@
 // Not only kitchens: a TV wall or wall unit is a run with no counter (colors.counter "none"), no plinth
 // (h.plinth 0), maybe lifted off the floor (h.floorGap), made of panels and columns of free heights.
 import { bluranOf } from "./bluran";
+import { polymerOf } from "./polymer";
 
 export type BaseKind = "doors" | "drawers" | "sink" | "cooktop" | "oven" | "dishwasher" | "fridge" | "tall" | "tall_oven" | "corner" | "gap" | "panel" | "column" | "open";
 export type UpperKind = "doors" | "lift" | "open" | "shelf" | "hood" | "corner" | "gap";
@@ -74,7 +75,7 @@ export type KitchenLayout = {
   island?: { w: number; d: number; gap: number; base: BaseUnit[]; align?: "left" | "right" };
   h?: Partial<LayoutHeights>;
   /** handles: "bar" a handle on every front, "integral" a grip groove cut into the front's edge, "none" push-open */
-  colors?: { front?: string; upper?: string; counter?: string; handles?: "bar" | "integral" | "none"; /** integral handle's color: like the cabinet, black (default) or aluminum */ grip?: "front" | "black" | "alu"; /** the plinth: a Bluran shade, "front" = like the fronts; missing = dark */ plinth?: string };
+  colors?: { front?: string; upper?: string; counter?: string; handles?: "bar" | "integral" | "none"; /** integral handle's color: like the cabinet, black (default) or aluminum */ grip?: "front" | "black" | "alu"; /** the door model of all fronts, a Bluran polymer model id (lib/quotes/polymer.ts); missing = plain */ model?: string; /** the plinth: a Bluran shade, "front" = like the fronts; missing = dark */ plinth?: string };
   /** the counter's edge: over = how far it comes past the fronts (default 2); fallLeft/fallRight = it runs down to the floor at the
    *  kitchen's free end; splash = height of the same stone on the wall above it, 0 or missing = none */
   counter?: { over?: number; fallLeft?: boolean; fallRight?: boolean; splash?: number };
@@ -335,6 +336,7 @@ export function normalizeLayout(raw: unknown): KitchenLayout | null {
       ...(str(c.counter) ? { counter: str(c.counter) } : {}),
       ...(c.handles === "none" || c.handles === "integral" ? { handles: c.handles } : {}),
       ...(c.grip === "front" || c.grip === "alu" ? { grip: c.grip } : {}),
+      ...(polymerOf(str(c.model)) ? { model: str(c.model) } : {}),
       ...(str(c.plinth) ? { plinth: str(c.plinth) } : {}),
     };
   }
@@ -477,7 +479,7 @@ export function describeLayout(l: KitchenLayout) {
   if (l.cornice) lines.push(`קרניז: ${l.cornice.toCeiling ? "עד התקרה" : `גובה ${l.cornice.h}`}, בליטה ${l.cornice.over ?? 2}`);
   if (l.counter) lines.push(`משטח: בליטה ${l.counter.over ?? 2}${l.counter.fallLeft ? ", מפל משמאל" : ""}${l.counter.fallRight ? ", מפל מימין" : ""}${l.counter.splash ? `, חיפוי קיר בגובה ${l.counter.splash}` : ""}`);
   const c = l.colors || {};
-  lines.push(`צבעים: חזיתות ${colorName(c.front)}${c.upper ? `, עליונים ${colorName(c.upper)}` : ""}${hasCounter(l) ? `, משטח ${COUNTER_COLORS[c.counter || "white_stone"]?.name || c.counter}` : ", בלי משטח"}${c.handles === "none" ? ", בלי ידיות" : c.handles === "integral" ? `, ידית אינטגרלית${c.grip === "front" ? " בצבע הארון" : c.grip === "alu" ? " אלומיניום" : " שחורה"}` : ""}`);
+  lines.push(`${polymerOf(c.model) ? `דגם חזיתות: פולימר ${polymerOf(c.model)!.name}. ` : ""}צבעים: חזיתות ${colorName(c.front)}${c.upper ? `, עליונים ${colorName(c.upper)}` : ""}${hasCounter(l) ? `, משטח ${COUNTER_COLORS[c.counter || "white_stone"]?.name || c.counter}` : ", בלי משטח"}${c.handles === "none" ? ", בלי ידיות" : c.handles === "integral" ? `, ידית אינטגרלית${c.grip === "front" ? " בצבע הארון" : c.grip === "alu" ? " אלומיניום" : " שחורה"}` : ""}`);
   if (l.ends?.left || l.ends?.right) lines.push(`קיר ניצב בקצה: ${[l.ends.left && `שמאל ${endWallLen(l, "left")}`, l.ends.right && `ימין ${endWallLen(l, "right")}`].filter(Boolean).join(", ")}`);
   return lines.join("\n");
 }
