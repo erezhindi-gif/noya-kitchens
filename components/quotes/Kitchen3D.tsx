@@ -6,14 +6,14 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type * as T from "three";
 import {
-  COUNTER_COLORS, FRONT_COLORS, FRONT_THICK, SIDE_PANEL, FRIDGE_BLACK, fridgeNiche, beamHeight, sidesOf, colorOf, corniceBoxes, handleOf, columnParts, openingBox, cornerPart, counterSpans, counterSpansOver, wallFillers, WALL_FILLER, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, tvSize, mainWallIndex, partsOf, placed, tallOvenParts, tallDoors, shelfYs, onCounter, upperBox, wallGeometry,
+  COUNTER_COLORS, FRONT_COLORS, FRONT_THICK, SIDE_PANEL, FRIDGE_BLACK, fridgeNiche, beamHeight, sidesOf, colorOf, corniceBoxes, handleOf, columnParts, openingBox, cornerPart, counterSpans, counterSpansOver, wallFillers, WALL_FILLER, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, islandEnds, islandExtras, islandSeat, panelHeights, tvSize, mainWallIndex, partsOf, placed, tallOvenParts, tallDoors, shelfYs, onCounter, tallHandleRight, upperBox, wallGeometry,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 import { bluranImg, bluranOf } from "@/lib/quotes/bluran";
 import { polymerDecor, polymerOf } from "@/lib/quotes/polymer";
 
 type Three = typeof import("three");
-type Mats = Record<"front" | "upper" | "carcass" | "upperCarcass" | "counter" | "plinth" | "steel" | "glass" | "handle" | "wall" | "floor" | "shelf" | "sink" | "grip" | "black" | "zone" | "display" | "inox" | "groove", T.Material>;
+type Mats = Record<"front" | "upper" | "carcass" | "upperCarcass" | "counter" | "plinth" | "steel" | "glass" | "handle" | "wall" | "floor" | "shelf" | "sink" | "grip" | "black" | "zone" | "display" | "inox" | "groove" | "stool", T.Material>;
 
 const M = 0.01; // cm → m
 
@@ -145,6 +145,7 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
     // the integral handle's groove: black, aluminum, or the cabinet's own color (set per front below)
     grip: l.colors?.grip === "alu" ? std("#b9bcbf", 0.35, 0.7) : std("#2b2724", 0.85),
     groove: std("#000000", 0.9, 0, { transparent: true, opacity: 0.22 }),
+    stool: std("#2f2a26", 0.55),
     black: std("#141414", 0.4, 0.2),
     zone: std("#3a3a3c", 0.25, 0.1),
     display: std("#0b1a22", 0.2, 0.1, { emissive: new three.Color("#16384a"), emissiveIntensity: 0.6 }),
@@ -181,8 +182,11 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
     return m;
   };
   /** A door or drawer front with its handle; (x0,y0) is its lower-left corner on the run's face at depth z. */
-  const frontPanel = (p: T.Object3D, mat: T.Material, x0: number, y0: number, w: number, hh: number, z: number, handle: "top" | "bottom" | "mid" | undefined, ref?: string, glass?: string) => {
+  const frontPanel = (p: T.Object3D, mat: T.Material, x0: number, y0: number, w: number, hh: number, z: number, side: "top" | "bottom" | "mid" | "mid-r" | undefined, ref?: string, glass?: string) => {
     if (showInside) return; // the view with the fronts off, to see what's in the cabinets
+    // "mid-r": a tall door's handle on its right edge (away from a wall on the left)
+    const handle = side === "mid-r" ? "mid" : side;
+    const ex = (off: number) => (side === "mid-r" ? x0 + w - off : x0 + off);
     if (glass) {
       // a vitrine: glass in a frame
       const t = 2.2;
@@ -225,7 +229,7 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
     if (grip && handle) {
       // integral handle: a grip groove milled into the edge of the front
       const gm = l.colors?.grip === "front" ? mat : mats.grip;
-      if (handle === "mid") tag(box(p, gm, 1.6, hh - 0.4, 0.5, x0 + 1.2, y0 + hh / 2, z + 1.6), ref, panel);
+      if (handle === "mid") tag(box(p, gm, 1.6, hh - 0.4, 0.5, ex(1.2), y0 + hh / 2, z + 1.6), ref, panel);
       else tag(box(p, gm, w - 0.4, 1.6, 0.5, x0 + w / 2, handle === "top" ? y0 + hh - 1.2 : y0 + 1.2, z + 1.6), ref, panel);
       return;
     }
@@ -234,12 +238,12 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
     if (hl.style === "knob") {
       const knob = new three.Mesh(new three.CylinderGeometry(1.2 * M, 1.2 * M, 2.4 * M, 18), mats.handle);
       knob.rotation.x = Math.PI / 2;
-      knob.position.set((handle === "mid" ? x0 + 5 : x0 + w / 2) * M, hy * M, (z + 2.8) * M);
+      knob.position.set((handle === "mid" ? ex(5) : x0 + w / 2) * M, hy * M, (z + 2.8) * M);
       p.add(knob);
     } else if (hl.style === "edge") {
-      if (handle === "mid") tag(box(p, mats.handle, 1, hh - 0.4, 1.2, x0 + 0.8, y0 + hh / 2, z + 2.2), ref, panel);
+      if (handle === "mid") tag(box(p, mats.handle, 1, hh - 0.4, 1.2, ex(0.8), y0 + hh / 2, z + 2.2), ref, panel);
       else tag(box(p, mats.handle, w - 0.4, 1, 1.2, x0 + w / 2, handle === "top" ? y0 + hh - 0.7 : y0 + 0.7, z + 2.2), ref, panel);
-    } else if (handle === "mid") tag(box(p, mats.handle, 1.2, Math.min(Math.max(hl.length, 30), hh * 0.5), 1.6, x0 + 5, hy, z + 2.6), ref, panel);
+    } else if (handle === "mid") tag(box(p, mats.handle, 1.2, Math.min(Math.max(hl.length, 30), hh * 0.5), 1.6, ex(5), hy, z + 2.6), ref, panel);
     else tag(box(p, mats.handle, Math.min(hl.length, w * 0.9), 1.2, 1.6, x0 + w / 2, hy, z + 2.6), ref, panel);
   };
 
@@ -493,7 +497,9 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
           const ds = tallDoors(u, hs);
           let yy = by;
           // above the fridge line the grip is at the door's bottom, in one line with the cabinet over the fridge
-          ds.forEach((dh, i) => { frontPanel(p, fm(ds.length - 1 - i), x, yy, w, dh, zz, ds.length === 2 && i === 1 ? "bottom" : "mid", r(ds.length - 1 - i)); yy += dh; });
+          // the handle is never on the wall side
+          const midSide = tallHandleRight(l, atNum, idx) ? "mid-r" : "mid";
+          ds.forEach((dh, i) => { frontPanel(p, fm(ds.length - 1 - i), x, yy, w, dh, zz, ds.length === 2 && i === 1 ? "bottom" : midSide, r(ds.length - 1 - i)); yy += dh; });
           break;
         }
         case "tall_oven": {
@@ -665,9 +671,47 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
     grp.position.set((isl.cx + g.dx * (isl.w / 2) + g.nx * (isl.d / 2)) * M, 0, (isl.cz + g.dz * (isl.w / 2) + g.nz * (isl.d / 2)) * M);
     grp.rotation.y = Math.atan2(g.dz, -g.dx);
     const units = l.island.base.length ? l.island.base : [{ kind: "doors" as const, w: isl.w }];
-    baseRun(grp, units, isl.d - FRONT_THICK, h, "island", false);
-    // the counter covers the whole island even where there are no cabinets
-    if (hasCounter(l)) box(grp, counterMat(isl.w, isl.d + 2), isl.w, h.counter, isl.d + 2, isl.w / 2, h.base - h.counter / 2, isl.d / 2);
+    if (!islandExtras(l)) {
+      baseRun(grp, units, isl.d - FRONT_THICK, h, "island", false);
+      // the counter covers the whole island even where there are no cabinets
+      if (hasCounter(l)) box(grp, counterMat(isl.w, isl.d + 2), isl.w, h.counter, isl.d + 2, isl.w / 2, h.base - h.counter / 2, isl.d / 2);
+    } else {
+      // local z: 0 = the back (seating side), d = the fronts facing the main wall
+      const seat = islandSeat(l), d = isl.d, ends = islandEnds(l);
+      const cab = new three.Group();
+      cab.position.z = seat * M;
+      grp.add(cab);
+      baseRun(cab, units, d - seat - FRONT_THICK, h, "island", false);
+      const back = matOf(l.island.backColor, mats.front), under = h.base - h.counter;
+      // back cladding over the whole back of the cabinets, under the overhang
+      box(grp, back, isl.w, under, SIDE_PANEL, isl.w / 2, under / 2, seat - SIDE_PANEL / 2);
+      // exposed ends: a panel the full depth of the island, floor to counter
+      if (ends.start) box(grp, back, SIDE_PANEL, under, d, -SIDE_PANEL / 2, under / 2, d / 2);
+      if (ends.end) box(grp, back, SIDE_PANEL, under, d, isl.w + SIDE_PANEL / 2, under / 2, d / 2);
+      // the counter: d deep over the cabinets and the seating, 2 cm over the fronts, and over the end panels
+      if (hasCounter(l)) {
+        const x0 = ends.start ? -SIDE_PANEL : 0, x1 = isl.w + (ends.end ? SIDE_PANEL : 0);
+        box(grp, counterMat(x1 - x0, d + 2), x1 - x0, h.counter, d + 2, (x0 + x1) / 2, h.base - h.counter / 2, (d + 2) / 2);
+      }
+      // bar stools on the seating side, spread along the island
+      const n = l.island.stools || 0, sh = Math.max(45, h.base - 25);
+      for (let k = 0; k < n; k++) {
+        const sx = (isl.w * (k + 0.5)) / n, sz = -12;
+        const seatM = new three.Mesh(new three.CylinderGeometry(19 * M, 17 * M, 5 * M, 24), mats.stool);
+        seatM.position.set(sx * M, (sh - 2.5) * M, sz * M);
+        grp.add(seatM);
+        const leg = new three.Mesh(new three.CylinderGeometry(2.4 * M, 2.4 * M, (sh - 5) * M, 12), mats.steel);
+        leg.position.set(sx * M, ((sh - 5) / 2) * M, sz * M);
+        grp.add(leg);
+        const foot = new three.Mesh(new three.CylinderGeometry(19 * M, 20 * M, 1.6 * M, 24), mats.steel);
+        foot.position.set(sx * M, 0.8 * M, sz * M);
+        grp.add(foot);
+        const ring = new three.Mesh(new three.TorusGeometry(15 * M, 0.9 * M, 8, 28), mats.steel);
+        ring.rotation.x = Math.PI / 2;
+        ring.position.set(sx * M, 25 * M, sz * M);
+        grp.add(ring);
+      }
+    }
     root.add(grp);
   }
 

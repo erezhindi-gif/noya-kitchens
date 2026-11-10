@@ -3,7 +3,7 @@
 // as the drawing. The building rules below are defaults Erez can change in the settings.
 import { polymerOf } from "./polymer";
 import {
-  BASE_LABEL, PART_LABEL, UPPER_LABEL, applianceText, baseUnitTop, colorName, columnParts, cornerPart, corniceBoxes, frontsFrom, hasCounter, heightsOf, panelHeights, partsOf, placed, sidesOf, tallOvenParts, tallDoors, onCounter, tvSize, upperBox, wallName, SIDE_PANEL, FRONT_THICK, fridgeNiche, wallSides, WALL_FILLER,
+  BASE_LABEL, PART_LABEL, UPPER_LABEL, applianceText, baseUnitTop, colorName, columnParts, cornerPart, corniceBoxes, frontsFrom, hasCounter, heightsOf, panelHeights, partsOf, placed, sidesOf, tallOvenParts, tallDoors, onCounter, tvSize, upperBox, wallName, SIDE_PANEL, FRONT_THICK, fridgeNiche, wallSides, WALL_FILLER, islandEnds, islandExtras, islandSeat,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperUnit,
 } from "./layout";
 
@@ -287,7 +287,20 @@ export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Tak
     }
   });
   if (l.island) {
-    doBase(l.island.base, "אי", "אי", l.island.d - FRONT_THICK, "island");
+    const extra = islandExtras(l);
+    doBase(l.island.base, "אי", "אי", l.island.d - (extra ? islandSeat(l) : 0) - FRONT_THICK, "island");
+    if (extra) {
+      // the island's back cladding and its exposed side panels, floor to counter, in the back color (or the fronts')
+      const under = h.base - h.counter, color = colorName(l.island.backColor || front), ends = islandEnds(l);
+      const m2 = (a: number, b: number) => Math.round((a * b) / 100) / 100;
+      out.panels.push({ of: "אי", name: `חיפוי גב אי ${SIDE_PANEL} ס״מ (${m2(l.island.w, under)} מ״ר)`, w: r1(l.island.w), h: r1(under), qty: 1, color });
+      out.meters.panelsArea += m2(l.island.w, under);
+      const nEnds = (ends.start ? 1 : 0) + (ends.end ? 1 : 0);
+      if (nEnds) {
+        out.panels.push({ of: "אי", name: `דופן גלויה אי ${SIDE_PANEL} ס״מ (${m2(l.island.d * nEnds, under)} מ״ר)`, w: r1(l.island.d), h: r1(under), qty: nEnds, color });
+        out.meters.panelsArea += m2(l.island.d * nEnds, under);
+      }
+    }
     out.meters.base += l.island.base.filter((u) => u.kind !== "gap").reduce((a, u) => a + u.w, 0) / 100;
     if (hasCounter(l)) out.meters.counter += l.island.w / 100;
   }

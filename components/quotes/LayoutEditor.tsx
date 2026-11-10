@@ -375,6 +375,7 @@ export default function LayoutEditor({ layout, onChange, claudeHref, shotRef, vi
   const c = layout.colors || {};
   const [paintAll, setPaintAll] = useState<"front" | "upper" | null>(null);
   const [pickModel, setPickModel] = useState(false);
+  const [pickBack, setPickBack] = useState(false);
 
   return (
     <section className="nq-card">
@@ -529,6 +530,15 @@ export default function LayoutEditor({ layout, onChange, claudeHref, shotRef, vi
           </div>
         </div>
       )}
+      {pickBack && layout.island && (
+        <BluranSheet
+          title="צבע הגב והדופן של האי"
+          value={() => layout.island?.backColor}
+          emptyLabel="כמו החזיתות"
+          onPick={(v) => up((l) => { if (!l.island) return; if (v) l.island.backColor = v; else delete l.island.backColor; })}
+          onClose={() => setPickBack(false)}
+        />
+      )}
       {paintAll && (
         <BluranSheet
           title={paintAll === "front" ? "צבע החזיתות של כל המטבח" : "צבע הארונות העליונים"}
@@ -592,6 +602,11 @@ export default function LayoutEditor({ layout, onChange, claudeHref, shotRef, vi
                   <option value="right">צמוד לקיר מימין</option>
                 </select>
               </label>
+              <label className="nqp-num">ישיבה מאחור (ס״מ)<input className="in num" type="number" placeholder="0" value={layout.island.seat || ""} onChange={(e) => up((l) => { const v = Number(e.target.value) || 0; if (v > 0) l.island!.seat = v; else delete l.island!.seat; })} /></label>
+              <label className="nqp-num">כיסאות<input className="in num" type="number" placeholder="0" value={layout.island.stools || ""} onChange={(e) => up((l) => { const v = Math.round(Number(e.target.value) || 0); if (v > 0) l.island!.stools = v; else delete l.island!.stools; })} /></label>
+              <div className="nqp-num">צבע גב ודופן
+                <button type="button" className="in nqb-field" onClick={() => setPickBack(true)}><span className="nqb-dot" style={swatchStyle(layout.island.backColor || c.front)} />{layout.island.backColor ? colorLabel(layout.island.backColor, "") : "כמו החזיתות"}</button>
+              </div>
             </div>
             <UnitRows<BaseKind> units={layout.island.base} labels={BASE_LABEL} addKind="doors" onChange={(us) => up((l) => { l.island!.base = us as BaseUnit[]; })} />
           </>

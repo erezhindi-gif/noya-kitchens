@@ -72,7 +72,15 @@ export type KitchenLayout = {
   /** An island facing the main wall, with cabinets on the side toward it */
   /** align: where along the main wall (as you face it) — centered by default, or flush with its left or right end,
    *  against the wall standing there. The island's cabinets run the other way: its first unit is at the main wall's right. */
-  island?: { w: number; d: number; gap: number; base: BaseUnit[]; align?: "left" | "right" };
+  island?: {
+    w: number; d: number; gap: number; base: BaseUnit[]; align?: "left" | "right";
+    /** seating at the back: the cabinets are d − seat deep on the fronts' side, the counter (d deep) overhangs only at the back */
+    seat?: number;
+    /** a Bluran shade for the back cladding and the exposed side panels; missing = the kitchen's front color. The fronts stay the kitchen's */
+    backColor?: string;
+    /** bar stools on the seating side, spread evenly */
+    stools?: number;
+  };
   h?: Partial<LayoutHeights>;
   /** handles: "bar" a handle on every front, "integral" a grip groove cut into the front's edge, "none" push-open */
   colors?: { front?: string; upper?: string; counter?: string; handles?: "bar" | "integral" | "none"; /** integral handle's color: like the cabinet, black (default) or aluminum */ grip?: "front" | "black" | "alu"; /** the door model of all fronts, a Bluran polymer model id (lib/quotes/polymer.ts); missing = plain */ model?: string; /** the plinth: a Bluran shade, "front" = like the fronts; missing = dark */ plinth?: string };
@@ -318,7 +326,10 @@ export function normalizeLayout(raw: unknown): KitchenLayout | null {
   const out: KitchenLayout = { walls };
   const isl = r.island as Record<string, unknown> | undefined;
   if (isl && typeof isl === "object" && Number(isl.w) > 0)
-    out.island = { w: num(isl.w, 40, 600, 200), d: num(isl.d, 40, 200, 90), gap: num(isl.gap, 60, 300, 110), base: units(isl.base, BASE_KINDS), ...(isl.align === "left" || isl.align === "right" ? { align: isl.align } : {}) };
+    out.island = { w: num(isl.w, 40, 600, 200), d: num(isl.d, 40, 200, 90), gap: num(isl.gap, 60, 300, 110), base: units(isl.base, BASE_KINDS), ...(isl.align === "left" || isl.align === "right" ? { align: isl.align } : {}),
+      ...(Number(isl.seat) > 0 ? { seat: num(isl.seat, 1, 150, 30) } : {}),
+      ...(typeof isl.backColor === "string" && isl.backColor.trim() ? { backColor: isl.backColor.trim().slice(0, 30) } : {}),
+      ...(Number(isl.stools) > 0 ? { stools: Math.round(num(isl.stools, 1, 12, 3)) } : {}) };
   if (r.h && typeof r.h === "object") {
     const h: Partial<LayoutHeights> = {};
     for (const k of Object.keys(DEFAULT_HEIGHTS) as (keyof LayoutHeights)[]) {
@@ -469,7 +480,7 @@ export function describeLayout(l: KitchenLayout) {
   const lines = l.walls.map((w, i) =>
     `${wallName(l, i)} ${w.length} ס״מ${roomItems(w).length ? `\n  בקיר: ${roomItems(w).join(" | ")}` : ""}\n  תחתון: ${w.base.map((x) => u(x, BASE_LABEL)).join(" | ") || "—"}\n  עליון: ${w.upper.map((x) => u(x, UPPER_LABEL)).join(" | ") || "—"}${w.top?.length ? `
   שורה עליונה: ${w.top.map((x) => u(x, UPPER_LABEL)).join(" | ")}` : ""}`);
-  if (l.island) lines.push(`אי ${l.island.w}×${l.island.d}, מרחק ${l.island.gap} מהארונות${l.island.align === "left" ? ", צמוד לקיר בקצה השמאלי" : l.island.align === "right" ? ", צמוד לקיר בקצה הימני" : ""}: ${l.island.base.map((x) => u(x, BASE_LABEL)).join(" | ") || "—"}`);
+  if (l.island) lines.push(`אי ${l.island.w}×${l.island.d}, מרחק ${l.island.gap} מהארונות${l.island.align === "left" ? ", צמוד לקיר בקצה השמאלי" : l.island.align === "right" ? ", צמוד לקיר בקצה הימני" : ""}${l.island.seat ? `, ישיבה מאחור ${l.island.seat} (ארונות בעומק ${l.island.d - islandSeat(l)})` : ""}${l.island.backColor ? `, גב ודופן ${colorName(l.island.backColor)}` : ""}${l.island.stools ? `, ${l.island.stools} כיסאות` : ""}: ${l.island.base.map((x) => u(x, BASE_LABEL)).join(" | ") || "—"}`);
   lines.push(`גבהים: ${hasCounter(l) ? `משטח ${h.base}` : "בלי משטח"}${h.plinth !== DEFAULT_HEIGHTS.plinth ? `, סוקל ${h.plinth}` : ""}${h.floorGap ? `, ניתוק מהרצפה ${h.floorGap}` : ""}, עומק ${h.depth}, עליונים מ-${h.upperFrom} בגובה ${h.upper} ועומק ${h.upperDepth}, שורה עליונה בעומק ${h.topDepth}, ארון גבוה ${h.tall}, תקרה ${h.ceiling}`);
   for (const s of sinkCenters(l)) lines.push(`מרכז כיור: ${s.wall}, ${s.from} ס״מ מהקצה השמאלי של הקיר`);
   const apps = [...l.walls.flatMap((w) => [...w.base, ...w.upper]), ...(l.island?.base || [])].map(applianceText).filter(Boolean);
@@ -503,6 +514,13 @@ export function wallGeometry(l: KitchenLayout): WallGeo[] {
 
 /** The wall the island faces (the back wall of an L or U). */
 export const mainWallIndex = (l: KitchenLayout) => (l.walls.length === 3 ? 1 : 0);
+
+/** The island's new options (seating, back color, stools). A plan without any of them looks exactly as before. */
+export const islandExtras = (l: KitchenLayout) => !!(l.island && (l.island.seat || l.island.backColor || l.island.stools));
+/** how deep the seating overhang is (leaving at least 30 cm of cabinet) */
+export const islandSeat = (l: KitchenLayout) => (l.island ? Math.max(0, Math.min(l.island.seat || 0, l.island.d - 30)) : 0);
+/** which ends of the island are exposed: start = its first unit's end (the main wall's right), end = its last unit's end */
+export const islandEnds = (l: KitchenLayout) => ({ start: l.island?.align !== "right", end: l.island?.align !== "left" });
 
 /** Island placement in plan: centered on the main wall's run (or flush with its left/right end), `gap` cm in front of the base cabinets. */
 export function islandBox(l: KitchenLayout) {
@@ -565,6 +583,7 @@ export function sidesOf(l: KitchenLayout, at: number | "island", row: "base" | U
   const u = (row === "base" ? base : row === "upper" ? upper : top)[index] as (BaseUnit & UpperUnit) | undefined;
   if (!u) return none;
   if (u.side === "none") return none;
+  if (at === "island" && islandExtras(l)) return none;
   if (u.side) return { left: u.side !== "right", right: u.side !== "left" };
   if (["gap", "corner", "hood", "shelf", "panel", "open", "oven"].includes(u.kind as string)) return none;
   const range = (x: BaseUnit | UpperUnit, r: "base" | UpperRow) => {
@@ -631,6 +650,9 @@ export function wallFillers(l: KitchenLayout, at: number) {
   }));
   return out;
 }
+
+/** Erez: a tall door's handle is never on the wall side. True when the handle goes on the right (a wall on the left). */
+export const tallHandleRight = (l: KitchenLayout, at: number | "island", index: number) => at !== "island" && wallSides(l, at, "base", index).left;
 
 /** which sides of a unit stand against a wall and get the filler (not gaps, corners, hoods, open shelves, panels or a fridge niche) */
 export function wallSides(l: KitchenLayout, at: number | "island", row: "base" | UpperRow, index: number) {

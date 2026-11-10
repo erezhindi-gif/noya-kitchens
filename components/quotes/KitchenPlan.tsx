@@ -4,7 +4,7 @@
 import "./plan.css";
 import { polymerDecor, polymerOf, type PolymerModel } from "@/lib/quotes/polymer";
 import {
-  BASE_LABEL, COUNTER_COLORS, PART_LABEL, POINT_LABEL, beamHeight, handleOf, sidesOf, SIDE_PANEL, FRONT_THICK, openingBox, FRONT_COLORS, baseUnitTop, colorOf, corniceBoxes, columnParts, cornerPart, counterSpans, counterSpansOver, wallFillers, WALL_FILLER, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, panelHeights, partsOf, placed, tvSize, tallOvenParts, tallDoors, shelfYs, onCounter, upperBox, wallGeometry, wallName,
+  BASE_LABEL, COUNTER_COLORS, PART_LABEL, POINT_LABEL, beamHeight, handleOf, sidesOf, SIDE_PANEL, FRONT_THICK, openingBox, FRONT_COLORS, baseUnitTop, colorOf, corniceBoxes, columnParts, cornerPart, counterSpans, counterSpansOver, wallFillers, WALL_FILLER, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, islandEnds, islandExtras, islandSeat, panelHeights, partsOf, placed, tvSize, tallOvenParts, tallDoors, shelfYs, onCounter, tallHandleRight, upperBox, wallGeometry, wallName,
   type BaseUnit, type LayoutWall, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
   fridgeNiche, FRIDGE_BLACK,
 } from "@/lib/quotes/layout";
@@ -16,7 +16,7 @@ const STEEL = "#cfd3d6";
 const GLASS = "#2c2c2c";
 const GAP = 0.5; // gap between fronts, cm
 
-type Ctx = { hl: ReturnType<typeof handleOf>; h: LayoutHeights; top: number; front: string; upper: string; counter: string; handles: boolean; grip: boolean; gripColor?: "front" | "black" | "alu"; model?: PolymerModel; f: number; plinth: string };
+type Ctx = { hl: ReturnType<typeof handleOf>; h: LayoutHeights; top: number; front: string; upper: string; counter: string; handles: boolean; grip: boolean; gripColor?: "front" | "black" | "alu"; model?: PolymerModel; layout: KitchenLayout; f: number; plinth: string };
 
 /** Dark fronts (anthracite, black, walnut…) get light writing on them. */
 const isDark = (hex: string) => {
@@ -214,7 +214,7 @@ function BaseShape({ c, u, x, units, index, at }: { c: Ctx; u: BaseUnit; x: numb
       // doors up to the fridge line and above it; fronts are numbered from the top
       const ds = tallDoors(u, h);
       let yy = by;
-      return <>{plinth}{ds.map((dh, i) => { const y = yy; yy += dh; const k = ds.length - 1 - i; return <Front key={i} c={c} x={x} y0={y} w={u.w} h={dh} fill={pf[k] || fr} handle={ds.length === 2 && i === 1 ? "bottom" : "mid"} r={`${r}.${k}`} />; })}</>;
+      return <>{plinth}{ds.map((dh, i) => { const y = yy; yy += dh; const k = ds.length - 1 - i; return <Front key={i} c={c} x={x} y0={y} w={u.w} h={dh} fill={pf[k] || fr} handle={ds.length === 2 && i === 1 ? "bottom" : tallHandleRight(c.layout, at === "island" ? "island" : Number(at), index) ? "side-r" : "side-l"} r={`${r}.${k}`} />; })}</>;
     }
     case "tall_oven": {
       const t = tallOvenParts(u, h);
@@ -317,6 +317,7 @@ function ctxOf(l: KitchenLayout, length: number): Ctx {
   const h = heightsOf(l);
   const front = colorOf(l.colors?.front, FRONT_COLORS, FRONT_COLORS.white.hex);
   return {
+    layout: l,
     h,
     top: 0,
     front,
@@ -519,9 +520,43 @@ export function PlanView({ layout: l }: { layout: KitchenLayout }) {
         {isl && l.island && (
           <g>
             <rect x={isl.cx - isl.w / 2} y={isl.cz - isl.d / 2} width={isl.w} height={isl.d} fill={counter} stroke={LINE} strokeWidth={0.8} />
-            <text x={isl.cx} y={isl.cz + f * 0.3} fontSize={f * 0.85} textAnchor="middle" fill={INK} direction="rtl">אי {cm(isl.w)}×{cm(isl.d)}</text>
+            {islandExtras(l) && islandSeat(l) > 0 && (
+              // where the cabinets end and the seating overhang begins
+              <line x1={isl.cx - isl.w / 2} x2={isl.cx + isl.w / 2} y1={isl.cz + isl.d / 2 - islandSeat(l)} y2={isl.cz + isl.d / 2 - islandSeat(l)} stroke={INK} strokeWidth={0.5} strokeDasharray="4 3" />
+            )}
+            {islandExtras(l) && Array.from({ length: l.island.stools || 0 }, (_, k) => (
+              <circle key={"st" + k} cx={isl.cx - isl.w / 2 + (isl.w * (k + 0.5)) / (l.island!.stools || 1)} cy={isl.cz + isl.d / 2 + 12} r={18} fill="#e9e4da" stroke={INK} strokeWidth={0.5} />
+            ))}
+            <text x={isl.cx} y={isl.cz + f * 0.3} fontSize={f * 0.85} textAnchor="middle" fill={INK} direction="rtl">אי {cm(isl.w)}×{cm(isl.d)}{islandSeat(l) > 0 && islandExtras(l) ? ` · ישיבה ${cm(islandSeat(l))}` : ""}</text>
           </g>
         )}
+      </svg>
+    </figure>
+  );
+}
+
+/** The back of the island (the seating side): the cladding and the exposed side panels under the counter. */
+function IslandBack({ layout }: { layout: KitchenLayout }) {
+  const isl = layout.island!;
+  const h = heightsOf(layout), ends = islandEnds(layout), seat = islandSeat(layout);
+  const under = h.base - h.counter;
+  const back = colorOf(isl.backColor || layout.colors?.front, FRONT_COLORS, FRONT_COLORS.white.hex);
+  const counter = colorOf(layout.colors?.counter, COUNTER_COLORS, COUNTER_COLORS.white_stone.hex);
+  // seen from the back, the island's start (its first unit's end) is on the right
+  const L = ends.end ? SIDE_PANEL : 0, R = ends.start ? SIDE_PANEL : 0, W = isl.w + L + R;
+  const pad = 14, top = h.base + 6;
+  const f = Math.min(11, Math.max(6, W * 0.024));
+  return (
+    <figure className="nqp-fig">
+      <figcaption>אי · צד הגב (הישיבה){seat ? ` · בליטה ${cm(seat)} ס״מ` : ""}{isl.stools ? ` · ${isl.stools} כיסאות` : ""}</figcaption>
+      <svg viewBox={`${-pad} 0 ${W + pad * 2} ${top + pad * 2}`} className="nqp-svg" role="img" aria-label="אי מצד הגב">
+        <rect x={0} y={top - h.base} width={W} height={h.counter} fill={counter} stroke={LINE} strokeWidth={0.4} />
+        <rect x={L} y={top - under} width={isl.w} height={under} fill={back} stroke={LINE} strokeWidth={0.4} />
+        {L > 0 && <rect x={0} y={top - under} width={L} height={under} fill={back} stroke={INK} strokeWidth={0.5} />}
+        {R > 0 && <rect x={L + isl.w} y={top - under} width={R} height={under} fill={back} stroke={INK} strokeWidth={0.5} />}
+        <line x1={-pad / 2} x2={W + pad / 2} y1={top} y2={top} stroke={INK} strokeWidth={0.6} />
+        <text x={W / 2} y={top - under / 2} fontSize={f * 0.85} textAnchor="middle" fill={isDark(back) ? "#fff" : INK} direction="rtl">חיפוי גב {cm(isl.w)}×{cm(under)}</text>
+        <text x={W / 2} y={top + f * 1.2} fontSize={f * 0.8} textAnchor="middle" fill={INK}>{cm(W)}</text>
       </svg>
     </figure>
   );
@@ -538,6 +573,7 @@ export default function KitchenPlan({ layout }: { layout: KitchenLayout }) {
           fallL={i === 0 && !!layout.counter?.fallLeft} fallR={i === layout.walls.length - 1 && !!layout.counter?.fallRight} />
       ))}
       {layout.island && <Elevation layout={layout} title="אי (הצד הפונה לארונות)" length={layout.island.w} base={layout.island.base} upper={[]} island at="island" />}
+      {layout.island && islandExtras(layout) && <IslandBack layout={layout} />}
       <div className="nqp-note">כל המידות בס״מ. השרטוט בקנה מידה.</div>
     </div>
   );
