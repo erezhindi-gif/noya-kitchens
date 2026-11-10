@@ -461,7 +461,8 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
           // doors up to the fridge line and above it
           const ds = tallDoors(u, hs);
           let yy = by;
-          ds.forEach((dh, i) => { frontPanel(p, fm(ds.length - 1 - i), x, yy, w, dh, zz, "mid", r(ds.length - 1 - i)); yy += dh; });
+          // above the fridge line the grip is at the door's bottom, in one line with the cabinet over the fridge
+          ds.forEach((dh, i) => { frontPanel(p, fm(ds.length - 1 - i), x, yy, w, dh, zz, ds.length === 2 && i === 1 ? "bottom" : "mid", r(ds.length - 1 - i)); yy += dh; });
           break;
         }
         case "tall_oven": {

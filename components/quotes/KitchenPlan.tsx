@@ -199,7 +199,7 @@ function BaseShape({ c, u, x, units, index, at }: { c: Ctx; u: BaseUnit; x: numb
       // doors up to the fridge line and above it; fronts are numbered from the top
       const ds = tallDoors(u, h);
       let yy = by;
-      return <>{plinth}{ds.map((dh, i) => { const y = yy; yy += dh; const k = ds.length - 1 - i; return <Front key={i} c={c} x={x} y0={y} w={u.w} h={dh} fill={pf[k] || fr} handle="mid" r={`${r}.${k}`} />; })}</>;
+      return <>{plinth}{ds.map((dh, i) => { const y = yy; yy += dh; const k = ds.length - 1 - i; return <Front key={i} c={c} x={x} y0={y} w={u.w} h={dh} fill={pf[k] || fr} handle={ds.length === 2 && i === 1 ? "bottom" : "mid"} r={`${r}.${k}`} />; })}</>;
     }
     case "tall_oven": {
       const t = tallOvenParts(u, h);
