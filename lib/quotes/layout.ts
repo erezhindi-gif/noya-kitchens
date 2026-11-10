@@ -467,7 +467,7 @@ export function describeLayout(l: KitchenLayout) {
   const lines = l.walls.map((w, i) =>
     `${wallName(l, i)} ${w.length} ס״מ${roomItems(w).length ? `\n  בקיר: ${roomItems(w).join(" | ")}` : ""}\n  תחתון: ${w.base.map((x) => u(x, BASE_LABEL)).join(" | ") || "—"}\n  עליון: ${w.upper.map((x) => u(x, UPPER_LABEL)).join(" | ") || "—"}${w.top?.length ? `
   שורה עליונה: ${w.top.map((x) => u(x, UPPER_LABEL)).join(" | ")}` : ""}`);
-  if (l.island) lines.push(`אי ${l.island.w}×${l.island.d}, מרחק ${l.island.gap} מהארונות: ${l.island.base.map((x) => u(x, BASE_LABEL)).join(" | ") || "—"}`);
+  if (l.island) lines.push(`אי ${l.island.w}×${l.island.d}, מרחק ${l.island.gap} מהארונות${l.island.align === "left" ? ", צמוד לקיר בקצה השמאלי" : l.island.align === "right" ? ", צמוד לקיר בקצה הימני" : ""}: ${l.island.base.map((x) => u(x, BASE_LABEL)).join(" | ") || "—"}`);
   lines.push(`גבהים: ${hasCounter(l) ? `משטח ${h.base}` : "בלי משטח"}${h.plinth !== DEFAULT_HEIGHTS.plinth ? `, סוקל ${h.plinth}` : ""}${h.floorGap ? `, ניתוק מהרצפה ${h.floorGap}` : ""}, עומק ${h.depth}, עליונים מ-${h.upperFrom} בגובה ${h.upper} ועומק ${h.upperDepth}, שורה עליונה בעומק ${h.topDepth}, ארון גבוה ${h.tall}, תקרה ${h.ceiling}`);
   for (const s of sinkCenters(l)) lines.push(`מרכז כיור: ${s.wall}, ${s.from} ס״מ מהקצה השמאלי של הקיר`);
   const apps = [...l.walls.flatMap((w) => [...w.base, ...w.upper]), ...(l.island?.base || [])].map(applianceText).filter(Boolean);
