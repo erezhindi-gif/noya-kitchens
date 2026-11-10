@@ -20,12 +20,15 @@ export const ITEM_DEFAULT: Record<RoomItemKind, { w?: number; y: number }> = {
 
 export const emptyRoom = (): RoomSketch => ({ pts: [], thick: 20, items: [], kitchen: [] });
 export const wallCount = (r: RoomSketch) => (r.pts.length < 2 ? 0 : r.closed ? r.pts.length : r.pts.length - 1);
-/** the kitchen walls: the ones chosen, or all of them when none were chosen and there are up to 3 */
+/** shorter than this is a side wall (a 65-80 cm return), not a wall a kitchen is built on */
+export const SIDE_WALL_MAX = 100;
+/** the kitchen walls: the ones chosen, or else every wall but the short side walls, when that leaves up to 3 */
 export function kitchenWalls(r: RoomSketch) {
   const n = wallCount(r);
   const chosen = r.kitchen.filter((i, j) => i < n && r.kitchen.indexOf(i) === j);
   if (chosen.length) return chosen;
-  return n <= 3 ? Array.from({ length: n }, (_, i) => i) : [];
+  const long = Array.from({ length: n }, (_, i) => i).filter((i) => wallInfo(r, i).len >= SIDE_WALL_MAX);
+  return long.length <= 3 ? long : [];
 }
 /** one wall in or out of the kitchen */
 export function toggleKitchen(r: RoomSketch, i: number): RoomSketch {
@@ -103,7 +106,7 @@ export function setWallLength(r: RoomSketch, i: number, len: number): RoomSketch
 export function roomToLayout(r: RoomSketch, layout: KitchenLayout): { layout: KitchenLayout } | { error: string } {
   const n = wallCount(r);
   const ks = kitchenWalls(r);
-  if (!ks.length) return { error: "בחדר יש יותר מ-3 קירות: לחץ 'קירות המטבח' וסמן עליהם את הקירות שהמטבח עומד עליהם (עד 3)" };
+  if (!ks.length) return { error: "לחץ 'קירות המטבח' וסמן את הקירות שהמטבח עומד עליהם (עד 3)" };
   if (ks.length > 3) return { error: "מטבח יכול לעמוד על עד 3 קירות (ישר, ר׳ או ח׳). לחץ 'קירות המטבח' והורד קיר" };
   const info = new Map(ks.map((i) => [i, wallInfo(r, i)]));
   const ends = (i: number) => { const w = info.get(i)!; return w.leftIsP ? { L: w.P, R: w.Q } : { L: w.Q, R: w.P }; };
