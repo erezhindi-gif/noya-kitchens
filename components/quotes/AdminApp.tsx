@@ -664,6 +664,9 @@ function LeadsView({ data, onSave, onDelete, onQuote, onOpenQuote, onPlan, onOpe
                   ? <button className="nq-btn sm" onClick={() => onOpenPlan(pl.id)}>📐 פתח תכנון</button>
                   : <button className="nq-btn sm" onClick={() => onPlan(l)}>📐 תכנון</button>;
               })()}
+              {!!l.files?.length && (
+                <a className="nq-btn sm" href={claudeLink(`תתכנן לי מטבח במערכת נויה לפי הקבצים בפנייה של ${l.name || "הלקוח"} (פנייה ${l.id}). קודם תקרא אותם עם lead_files, תכתוב לי בקצרה מה הבנת מהם, ותשאל מה שחסר. `)} target="_blank" rel="noopener">✨ תכנון מהקבצים בקלוד</a>
+              )}
               <label className="nq-btn sm">📎 קובץ
                 <input type="file" hidden multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx"
                   onChange={(e) => { const fs = Array.from(e.target.files || []); e.target.value = ""; if (fs.length) onUpload(l, fs); }} />

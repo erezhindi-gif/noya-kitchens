@@ -4,7 +4,7 @@ import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
 import { calc, defaultCommissions, fdate, lineTotal, markSentFields, money, pathOf, qnum, STATUS_LABEL, todayIL, uid, waLink } from "@/lib/quotes/calc";
 import { catalogForPrompt, linesFromDraft } from "@/lib/quotes/agent";
-import { addSpend, getData, getMarketing, getSecrets, putCatalog, putLead, putPlan, putQuote } from "@/lib/quotes/store";
+import { addSpend, getData, getLeadFile, getMarketing, getSecrets, putCatalog, putLead, putPlan, putQuote } from "@/lib/quotes/store";
 import { CHANNELS, CHANNEL_LABEL } from "@/lib/marketing/channels";
 import { monthName, monthRange, per, report } from "@/lib/marketing/report";
 import { SOURCE_LABEL, STAGE_LABEL, ago, findPhone, leadStage } from "@/lib/quotes/leads";
@@ -404,6 +404,62 @@ const handler = createMcpHandler(
     );
 
     server.registerTool(
+      "lead_files",
+      {
+        title: "הקבצים של פנייה",
+        description: "התמונות והקבצים שהלקוח שלח בפנייה (סקיצה, תוכנית, הצעה ממקום אחר, תמונות של החדר). תמונות חוזרות כתמונה; PDF חוזר כטקסט שחולץ ממנו (לפי עמודים) ועם התמונות שבתוכו. לקרוא כשארז מבקש לתכנן מטבח או לבנות הצעה לפי הקבצים של לקוח. lead_id מ-list_leads.",
+        inputSchema: { lead_id: z.string() },
+        annotations: { readOnlyHint: true },
+      },
+      async ({ lead_id }) => {
+        const d = await getData();
+        const l = d.leads.find((x) => x.id === lead_id);
+        if (!l) return text("לא נמצאה פנייה כזו. אפשר לראות את הפניות עם list_leads (show: all).");
+        if (!l.files?.length) return text(`בפנייה של ${l.name || "הלקוח"} אין קבצים.`);
+        const sharp = (await import("sharp")).default;
+        type Part = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
+        const parts: Part[] = [{ type: "text", text: `הקבצים בפנייה של ${l.name || "הלקוח"} (${l.files.length}):` }];
+        let images = 0;
+        const addImage = async (buf: Buffer, raw?: { width: number; height: number; channels: 1 | 2 | 3 | 4 }) => {
+          if (images >= 8) return;
+          const img = await sharp(buf, raw ? { raw } : {}).rotate().resize(1400, 1400, { fit: "inside", withoutEnlargement: true }).jpeg({ quality: 78 }).toBuffer();
+          parts.push({ type: "image", data: img.toString("base64"), mimeType: "image/jpeg" });
+          images++;
+        };
+        for (const f of l.files.slice(0, 8)) {
+          const file = await getLeadFile(f.id).catch(() => null);
+          if (!file) { parts.push({ type: "text", text: `${f.name}: לא נמצא` }); continue; }
+          try {
+            if (f.type.startsWith("image/")) {
+              parts.push({ type: "text", text: `תמונה: ${f.name}` });
+              await addImage(file.data);
+            } else if (f.type === "application/pdf") {
+              const { getDocumentProxy, extractText, extractImages } = await import("unpdf");
+              const pdf = await getDocumentProxy(new Uint8Array(file.data));
+              const { totalPages, text: pages } = await extractText(pdf, { mergePages: false });
+              const body = (pages as string[]).map((t, i) => `--- עמוד ${i + 1} ---\n${t.trim()}`).join("\n").slice(0, 30000);
+              parts.push({ type: "text", text: `PDF: ${f.name}, ${totalPages} עמודים. הטקסט שבו (בעברית הסדר יכול לצאת הפוך):\n${body}` });
+              for (let p = 1; p <= totalPages && images < 8; p++) {
+                for (const im of await extractImages(pdf, p).catch(() => [])) {
+                  if (im.width < 200 || im.height < 150) continue;
+                  parts.push({ type: "text", text: `תמונה מתוך ${f.name}, עמוד ${p}` });
+                  await addImage(Buffer.from(im.data), { width: im.width, height: im.height, channels: im.channels as 1 | 2 | 3 | 4 });
+                  if (images >= 8) break;
+                }
+              }
+            } else {
+              parts.push({ type: "text", text: `${f.name} (${f.type}): קובץ מסוג שאי אפשר לקרוא כאן. אפשר לפתוח אותו במסך הפניות.` });
+            }
+          } catch {
+            parts.push({ type: "text", text: `${f.name}: לא הצלחתי לקרוא את הקובץ.` });
+          }
+        }
+        parts.push({ type: "text", text: `מסך הפניות: ${SITE}/admin?view=leads` });
+        return { content: parts };
+      }
+    );
+
+    server.registerTool(
       "add_lead",
       {
         title: "הוספת פנייה",
@@ -754,7 +810,7 @@ const handler = createMcpHandler(
     );
   },
   {
-    serverInfo: { name: "noya-quotes", version: "1.18.0" },
+    serverInfo: { name: "noya-quotes", version: "1.19.0" },
     instructions:
       "מערכת הצעות המחיר של נויה מטבחים (ארז). תהליך: 1) search_catalog כדי למצוא את הפריטים. " +
       "2) אם חסרה כמות לרכיב כלשהו (למשל ידית לחזיתות), או שיש כמה פריטים אפשריים, שאל את ארז שאלה אחת מרוכזת עם כל החסרים — לפני שבונים. " +
