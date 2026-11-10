@@ -589,9 +589,9 @@ export function sidesOf(l: KitchenLayout, at: number | "island", row: "base" | U
   if (u.side) return { left: u.side !== "right", right: u.side !== "left" };
   if (["gap", "corner", "hood", "shelf", "panel", "open", "oven"].includes(u.kind as string)) return none;
   const range = (x: BaseUnit | UpperUnit, r: "base" | UpperRow) => {
-    if (r !== "base") { const b = upperBox(x as UpperUnit, h, r); return { y0: b.y0, y1: b.y0 + b.hh }; }
+    if (r !== "base") { const b = upperBox(x as UpperUnit, h, r); return { y0: b.y0, y1: b.y0 + b.hh, dd: b.d }; }
     const bu = x as BaseUnit;
-    return { y0: bu.y ?? frontsFrom(h), y1: baseUnitTop(bu, h) - (["fridge", "tall", "tall_oven", "panel", "column"].includes(bu.kind) || bu.h !== undefined ? 0 : h.counter) };
+    return { dd: bu.d ?? h.depth, y0: bu.y ?? frontsFrom(h), y1: baseUnitTop(bu, h) - (["fridge", "tall", "tall_oven", "panel", "column"].includes(bu.kind) || bu.h !== undefined ? 0 : h.counter) };
   };
   const covers = (x: { kind: string; fridgeType?: string }) => !["gap", "hood"].includes(x.kind) && x.kind !== "shelf";
   // cap: how high a neighbor reaches, with the counter on it
@@ -611,10 +611,11 @@ export function sidesOf(l: KitchenLayout, at: number | "island", row: "base" | U
     const cs = all.filter((o) => Math.abs(o[side] - x) < 0.6 && o.y0 <= mine.y0 + 1 && o.cap > mine.y0 + 1 && o.cap < mine.y1 - 1);
     return cs.length ? Math.max(...cs.map((o) => o.cap)) : undefined;
   };
-  // Erez: the panel only covers the open part of the side; it stops under an upper cabinet (or a flap of any depth)
-  // standing beside it, and never runs up between the tall cabinet and the cabinets above the counter
+  // Erez: the panel only covers the open part of the side: from the counter up to a cabinet as deep as this one standing
+  // beside it (e.g. up to the fridge line, where the full-depth row starts), not on between them
   const to = (x: number, side: "a" | "b", start: number) => {
-    const cs = all.filter((o) => Math.abs(o[side] - x) < 0.6 && o.y0 > start + 1 && o.y0 < mine.y1 - 1);
+    // only a neighbor as deep as this unit closes its side; beside a shallower one (a 30 deep flap, a 35 upper) the panel goes on
+    const cs = all.filter((o) => Math.abs(o[side] - x) < 0.6 && o.y0 > start + 1 && o.y0 < mine.y1 - 1 && o.dd >= mine.dd - 2);
     return cs.length ? Math.min(...cs.map((o) => o.y0)) : undefined;
   };
   const left = !wallAtLeft && !covered(a, "b"), right = !wallAtRight && !covered(b, "a");

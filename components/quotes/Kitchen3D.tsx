@@ -101,6 +101,7 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
   const handles = !l.colors?.handles || l.colors.handles === "bar";
   const grip = l.colors?.handles === "integral";
   const hl = handleOf(l);
+  const seamLine = new three.LineBasicMaterial({ color: "#000000", transparent: true, opacity: 0.35 });
   // the door model (Bluran polymer): a raised frame around the panel, board grooves, or glass
   const model = polymerOf(l.colors?.model);
   const std = (color: T.ColorRepresentation, rough = 0.6, metal = 0, extra: Partial<T.MeshStandardMaterialParameters> = {}) =>
@@ -200,7 +201,11 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
       if (handles && handle) box(p, mats.handle, Math.min(16, w * 0.45), 1.2, 1.6, x0 + w / 2, handle === "top" ? y0 + hh - 4 : y0 + 4, z + 2.6);
       return;
     }
-    const panel = tag(box(p, mat, w - 0.4, hh - 0.4, 1.8, x0 + w / 2, y0 + hh / 2, z + 0.9), ref);
+    // 3 mm between fronts, and a thin dark outline so every front reads on its own
+    const panel = tag(box(p, mat, w - 0.3, hh - 0.3, 1.8, x0 + w / 2, y0 + hh / 2, z + 0.9), ref);
+    const seam = new three.LineSegments(new three.EdgesGeometry(panel.geometry), seamLine);
+    seam.position.copy(panel.position);
+    p.add(seam);
     const dec = polymerDecor(model, w, hh);
     if (dec) {
       const fz = z + 1.8;
