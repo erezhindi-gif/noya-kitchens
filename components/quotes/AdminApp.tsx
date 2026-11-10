@@ -413,10 +413,10 @@ export default function AdminApp() {
     }));
     savePlanLater(id, delay);
   };
-  const newPlan = () => {
+  const newPlan = (client: Plan["client"] = { name: "", phone: "" }) => {
     const p: Plan = {
       id: uid(12), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), title: "מטבח",
-      client: { name: "", phone: "" }, layout: STARTER_LAYOUT(),
+      client, layout: STARTER_LAYOUT(),
     };
     setPlans((ps) => [...ps, p]);
     savePlanLater(p.id, 0);
@@ -501,7 +501,8 @@ export default function AdminApp() {
       )}
       <main className="nq-wrap">
         {(view === "leads" || view === "list") && syncWarn && <div className="nq-back nq-warn" role="alert"><span>⚠️ {syncWarn}</span></div>}
-        {view === "leads" && <LeadsView data={data} onSave={saveLead} onDelete={removeLead} onQuote={quoteFromLead} onOpenQuote={(id) => go("edit", id)} onUpload={uploadLeadFiles} onRemoveFile={removeLeadFile} />}
+        {view === "leads" && <LeadsView data={data} onSave={saveLead} onDelete={removeLead} onQuote={quoteFromLead} onOpenQuote={(id) => go("edit", id)}
+          onPlan={(l) => go("plan", newPlan({ name: l.name, phone: l.phone || "", ...(l.email ? { email: l.email } : {}) }).id)} onOpenPlan={(id) => go("plan", id)} onUpload={uploadLeadFiles} onRemoveFile={removeLeadFile} />}
         {view === "list" && waiting > 0 && (
           <button className="nq-back nq-leads-alert" onClick={() => go("leads")}>
             <span><b className="num">{waiting}</b> {waiting === 1 ? "פנייה מחכה" : "פניות מחכות"} להצעת מחיר</span><span className="nq-btn sm pri">לפניות ›</span>
@@ -573,8 +574,10 @@ const showsInline = (f: LeadFile) => /^image\/(jpeg|png|webp|gif)$/.test(f.type)
 
 const waPhone = (p: string) => { const d = p.replace(/\D/g, ""); return d.startsWith("0") ? "972" + d.slice(1) : d; };
 
-function LeadsView({ data, onSave, onDelete, onQuote, onOpenQuote, onUpload, onRemoveFile }: {
+function LeadsView({ data, onSave, onDelete, onQuote, onOpenQuote, onPlan, onOpenPlan, onUpload, onRemoveFile }: {
   data: AppData; onSave: (l: Lead, isNew?: boolean) => void; onDelete: (id: string) => void; onQuote: (l: Lead) => void; onOpenQuote: (id: string) => void;
+  /** a kitchen plan for this request: a new one with the client's details, or the one already made for the same name */
+  onPlan: (l: Lead) => void; onOpenPlan: (id: string) => void;
   onUpload: (l: Lead, files: File[]) => void; onRemoveFile: (l: Lead, f: LeadFile) => void;
 }) {
   const [confirmFile, setConfirmFile] = useState<string | null>(null);
@@ -654,6 +657,13 @@ function LeadsView({ data, onSave, onDelete, onQuote, onOpenQuote, onUpload, onR
               {!s.quote && s.stage !== "closed" && (
                 <a className="nq-btn sm" href={claudeLink(`תבנה הצעה לפנייה של ${l.name}${l.phone ? ` (${l.phone})` : ""} במערכת נויה: `)} target="_blank" rel="noopener">✨ בקלוד</a>
               )}
+              {(() => {
+                const name = l.name.trim().replace(/\s+/g, " ");
+                const pl = name ? [...data.plans].sort((a, b) => (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt)).find((p) => p.client.name.trim().replace(/\s+/g, " ") === name) : undefined;
+                return pl
+                  ? <button className="nq-btn sm" onClick={() => onOpenPlan(pl.id)}>📐 פתח תכנון</button>
+                  : <button className="nq-btn sm" onClick={() => onPlan(l)}>📐 תכנון</button>;
+              })()}
               <label className="nq-btn sm">📎 קובץ
                 <input type="file" hidden multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx"
                   onChange={(e) => { const fs = Array.from(e.target.files || []); e.target.value = ""; if (fs.length) onUpload(l, fs); }} />
