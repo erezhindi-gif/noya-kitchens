@@ -127,3 +127,4 @@
 .nqp-3d-wrap { position: relative; }
 .nqp-views { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
 @media (max-width: 640px) { .nqp-3d { max-height: 70vh; } }
+.nqp-reading { align-self: center; font-weight: 700; color: #b0321f; font-size: 14px; }

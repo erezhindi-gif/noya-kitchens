@@ -577,7 +577,10 @@ export function corniceBoxes(l: KitchenLayout, w: Pick<LayoutWall, "length" | "b
 /** Which sides of a unit get a 2 cm side panel: those with no wall and no cabinet beside them, unless the unit says otherwise. */
 /** Which sides of a unit get a finished 2 cm side panel; leftFrom/rightFrom = where that panel starts when a
  *  lower unit stands beside it (the panel sits on the counter, it doesn't go down to the floor) */
-export type Sides = { left: boolean; right: boolean; leftFrom?: number; rightFrom?: number; leftTo?: number; rightTo?: number };
+/** leftCap/rightCap: the full-depth cabinet that ends the side panel; the panel turns there and runs under it (a 2 cm
+ *  board between it and the shallower flap or upper below), a: from, b: to along the wall, y: its bottom, d: its depth */
+export type Sides = { left: boolean; right: boolean; leftFrom?: number; rightFrom?: number; leftTo?: number; rightTo?: number;
+  leftCap?: { a: number; b: number; y: number; d: number }; rightCap?: { a: number; b: number; y: number; d: number } };
 export function sidesOf(l: KitchenLayout, at: number | "island", row: "base" | UpperRow, index: number): Sides {
   const none = { left: false, right: false };
   const h = heightsOf(l), wall = at === "island" ? null : l.walls[at];
@@ -616,12 +619,16 @@ export function sidesOf(l: KitchenLayout, at: number | "island", row: "base" | U
   const to = (x: number, side: "a" | "b", start: number) => {
     // only a neighbor as deep as this unit closes its side; beside a shallower one (a 30 deep flap, a 35 upper) the panel goes on
     const cs = all.filter((o) => Math.abs(o[side] - x) < 0.6 && o.y0 > start + 1 && o.y0 < mine.y1 - 1 && o.dd >= mine.dd - 2);
-    return cs.length ? Math.min(...cs.map((o) => o.y0)) : undefined;
+    return cs.length ? cs.reduce((m, o) => (o.y0 < m.y0 ? o : m)) : undefined;
   };
   const left = !wallAtLeft && !covered(a, "b"), right = !wallAtRight && !covered(b, "a");
   const lf = left ? from(a, "b") : undefined, rf = right ? from(b, "a") : undefined;
   const lt = left ? to(a, "b", lf ?? mine.y0) : undefined, rt = right ? to(b, "a", rf ?? mine.y0) : undefined;
-  return { left, right, ...(lf !== undefined ? { leftFrom: lf } : {}), ...(rf !== undefined ? { rightFrom: rf } : {}), ...(lt !== undefined ? { leftTo: lt } : {}), ...(rt !== undefined ? { rightTo: rt } : {}) };
+  return {
+    left, right, ...(lf !== undefined ? { leftFrom: lf } : {}), ...(rf !== undefined ? { rightFrom: rf } : {}),
+    ...(lt ? { leftTo: lt.y0, leftCap: { a: lt.a, b: lt.b, y: lt.y0, d: lt.dd } } : {}),
+    ...(rt ? { rightTo: rt.y0, rightCap: { a: rt.a, b: rt.b, y: rt.y0, d: rt.dd } } : {}),
+  };
 }
 
 /** The counter pieces of a wall, running 2 cm further over a finished side panel at their ends (Erez: the counter

@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type * as T from "three";
 import {
-  COUNTER_COLORS, FRONT_COLORS, FRONT_THICK, SIDE_PANEL, FRIDGE_BLACK, fridgeNiche, beamHeight, sidesOf, colorOf, corniceBoxes, handleOf, columnParts, openingBox, cornerPart, counterSpans, counterSpansOver, wallFillers, WALL_FILLER, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, islandEnds, islandExtras, islandSeat, panelHeights, tvSize, mainWallIndex, partsOf, placed, drawerHeights, tallOvenParts, tallDoors, shelfYs, onCounter, tallHandleRight, upperBox, wallGeometry,
+  COUNTER_COLORS, FRONT_COLORS, FRONT_THICK, SIDE_PANEL, FRIDGE_BLACK, fridgeNiche, beamHeight, sidesOf, type Sides, colorOf, corniceBoxes, handleOf, columnParts, openingBox, cornerPart, counterSpans, counterSpansOver, wallFillers, WALL_FILLER, endWallLen, frontsFrom, hasCounter, heightsOf, islandBox, islandEnds, islandExtras, islandSeat, panelHeights, tvSize, mainWallIndex, partsOf, placed, drawerHeights, tallOvenParts, tallDoors, shelfYs, onCounter, tallHandleRight, upperBox, wallGeometry,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperRow, type UpperUnit,
 } from "@/lib/quotes/layout";
 import { bluranImg, bluranOf } from "@/lib/quotes/bluran";
@@ -101,7 +101,16 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
   const handles = !l.colors?.handles || l.colors.handles === "bar";
   const grip = l.colors?.handles === "integral";
   const hl = handleOf(l);
-  const seamLine = new three.LineBasicMaterial({ color: "#000000", transparent: true, opacity: 0.35 });
+  const seamLine = new three.LineBasicMaterial({ color: "#000000", transparent: true, opacity: 0.45 });
+  const seamLight = new three.LineBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.55 });
+  /** a light line on a dark front, a dark line on a light one */
+  const seamFor = (m: T.Material) => {
+    const c = (m as T.MeshStandardMaterial).color;
+    if (!c || (m as T.MeshStandardMaterial).map) return seamLine;
+    const hsl = { h: 0, s: 0, l: 1 };
+    c.getHSL(hsl);
+    return hsl.l < 0.42 ? seamLight : seamLine;
+  };
   // the door model (Bluran polymer): a raised frame around the panel, board grooves, or glass
   const model = polymerOf(l.colors?.model);
   const std = (color: T.ColorRepresentation, rough = 0.6, metal = 0, extra: Partial<T.MeshStandardMaterialParameters> = {}) =>
@@ -203,7 +212,7 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
     }
     // 3 mm between fronts, and a thin dark outline so every front reads on its own
     const panel = tag(box(p, mat, w - 0.3, hh - 0.3, 1.8, x0 + w / 2, y0 + hh / 2, z + 0.9), ref);
-    const seam = new three.LineSegments(new three.EdgesGeometry(panel.geometry), seamLine);
+    const seam = new three.LineSegments(new three.EdgesGeometry(panel.geometry), seamFor(mat));
     seam.position.copy(panel.position);
     p.add(seam);
     const dec = polymerDecor(model, w, hh);
@@ -370,7 +379,7 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
     return undefined;
   };
   /** A finished panel on the exposed side of a cabinet. */
-  const sidePanels = (p: T.Object3D, mat: T.Material, sides: { left: boolean; right: boolean; leftFrom?: number; rightFrom?: number; leftTo?: number; rightTo?: number }, x: number, w: number, y0: number, hh: number, z: number) => {
+  const sidePanels = (p: T.Object3D, mat: T.Material, sides: Sides, x: number, w: number, y0: number, hh: number, z: number) => {
     const deep = z + FRONT_THICK;
     // beside a lower unit the panel sits on the counter; under an upper cabinet beside it, it stops
     const one = (from: number | undefined, to: number | undefined, cx: number) => {
@@ -379,6 +388,12 @@ function buildKitchen(three: Three, l: KitchenLayout, showInside = false) {
     };
     if (sides.left) one(sides.leftFrom, sides.leftTo, x - SIDE_PANEL / 2);
     if (sides.right) one(sides.rightFrom, sides.rightTo, x + w + SIDE_PANEL / 2);
+    // where a full-depth cabinet ends the panel, the panel turns and runs under it, between it and the flap below
+    for (const cap of [sides.left ? sides.leftCap : undefined, sides.right ? sides.rightCap : undefined]) {
+      if (!cap) continue;
+      const cd = cap.d + FRONT_THICK;
+      box(p, mat, cap.b - cap.a, SIDE_PANEL, cd, (cap.a + cap.b) / 2, cap.y - SIDE_PANEL / 2, cd / 2);
+    }
   };
   /** A niche: a frame in the plane of the fronts, its back `recess` behind it. */
   const niche = (p: T.Object3D, mat: T.Material, x: number, y0: number, w: number, hh: number, front: number, recess: number, frame: number, shelves: number, ref?: string, tv?: boolean, tvGap?: number) => {
@@ -804,6 +819,13 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
   const swap = useRef<((k: string) => void) | null>(null);
   /** jump to a standard view, like SketchUp's: front, top, left, right, or back to the 3D one */
   const viewTo = useRef<((v: View) => void) | null>(null);
+  // the tape measure: on, the reading, and how to clear it
+  const [measuring, setMeasuring] = useState(false);
+  const [reading, setReading] = useState("");
+  const measureRef = useRef(false);
+  measureRef.current = measuring;
+  const readingRef = useRef(setReading);
+  const clearTape = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -1002,6 +1024,70 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
         painting = false;
         controls.enabled = true;
       };
+      // the tape measure, like SketchUp's: two clicks, snapping to the corners and edge middles of what was clicked
+      const tape = new three.Group();
+      scene.add(tape);
+      const tapeMat = new three.MeshBasicMaterial({ color: "#d23c2a", depthTest: false });
+      const tapeLine = new three.LineBasicMaterial({ color: "#d23c2a", depthTest: false });
+      let tapePts: T.Vector3[] = [];
+      const snapTo = (hit: T.Intersection) => {
+        const m = hit.object as T.Mesh;
+        const g = m.geometry as T.BufferGeometry;
+        if (!g.boundingBox) g.computeBoundingBox();
+        const b = g.boundingBox!;
+        const xs = [b.min.x, (b.min.x + b.max.x) / 2, b.max.x], ys = [b.min.y, (b.min.y + b.max.y) / 2, b.max.y], zs = [b.min.z, (b.min.z + b.max.z) / 2, b.max.z];
+        let best = hit.point.clone(), bd = 4 * M; // within 4 cm
+        m.updateWorldMatrix(true, false);
+        for (const x of xs) for (const y of ys) for (const z of zs) {
+          const mids = (x !== xs[1] ? 0 : 1) + (y !== ys[1] ? 0 : 1) + (z !== zs[1] ? 0 : 1);
+          if (mids > 1) continue; // corners and edge middles only
+          const p = new three.Vector3(x, y, z).applyMatrix4(m.matrixWorld);
+          const d = p.distanceTo(hit.point);
+          if (d < bd) { bd = d; best = p; }
+        }
+        return best;
+      };
+      const dot = (p: T.Vector3) => {
+        const s = new three.Mesh(new three.SphereGeometry(1.1 * M, 12, 10), tapeMat);
+        s.position.copy(p);
+        s.renderOrder = 20;
+        tape.add(s);
+      };
+      clearTape.current = () => {
+        tape.children.slice().forEach((o) => { tape.remove(o); ((o as T.Mesh).geometry as T.BufferGeometry)?.dispose(); });
+        tapePts = [];
+        readingRef.current("");
+        invalidate();
+      };
+      let downAt: [number, number] | null = null;
+      const onTapeDown = (e: PointerEvent) => { downAt = measureRef.current && e.button === 0 ? [e.clientX, e.clientY] : null; };
+      const onTapeUp = (e: PointerEvent) => {
+        if (!downAt || !measureRef.current) return;
+        const moved = Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]);
+        downAt = null;
+        if (moved > 5) return; // that was a turn of the view
+        const r = renderer.domElement.getBoundingClientRect();
+        ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+        ray.setFromCamera(ndc, cam);
+        const hit = ray.intersectObjects(scene.children, true).find((h) => (h.object as T.Mesh).isMesh && h.object.visible && h.object !== hl && h.object.parent !== tape);
+        if (!hit) return;
+        if (tapePts.length >= 2) clearTape.current?.();
+        const p = snapTo(hit);
+        tapePts.push(p);
+        dot(p);
+        if (tapePts.length === 2) {
+          const [a, b] = tapePts;
+          const line = new three.Line(new three.BufferGeometry().setFromPoints([a, b]), tapeLine);
+          line.renderOrder = 20;
+          tape.add(line);
+          const cm = (v: number) => Math.round((v / M) * 10) / 10;
+          const dx = cm(Math.abs(b.x - a.x)), dy = cm(Math.abs(b.y - a.y)), dz = cm(Math.abs(b.z - a.z));
+          readingRef.current(`${cm(a.distanceTo(b))} ס״מ${[dx, dy, dz].filter((v) => v > 0.2).length > 1 ? ` (לרוחב ${dx}, לגובה ${dy}, לעומק ${dz})` : ""}`);
+        } else readingRef.current("לחץ על הנקודה השנייה");
+        invalidate();
+      };
+      el.addEventListener("pointerdown", onTapeDown, true);
+      el.addEventListener("pointerup", onTapeUp);
       el.addEventListener("pointerdown", onDown, true); // before the view control sees it
       el.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
@@ -1037,6 +1123,8 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
         cancelAnimationFrame(raf);
         ro.disconnect();
         el.removeEventListener("pointerdown", onDown, true);
+        el.removeEventListener("pointerdown", onTapeDown, true);
+        el.removeEventListener("pointerup", onTapeUp);
         el.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
         swap.current = null;
@@ -1074,6 +1162,8 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
         {VIEWS.map(([v, label]) => (
           <button key={v} type="button" className="nq-chip" aria-pressed={view === v} onClick={() => { setView(v); viewTo.current?.(v); }}>{label}</button>
         ))}
+        <button type="button" className="nq-chip" aria-pressed={measuring} onClick={() => { const on = !measuring; setMeasuring(on); clearTape.current?.(); if (on) setReading("לחץ על הנקודה הראשונה"); }}>📏 מטר</button>
+        {measuring && <span className="nqp-reading">{reading}</span>}
       </div>
       <div ref={host} className="nqp-3d" style={{ height }} />
     </div>

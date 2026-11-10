@@ -3,7 +3,7 @@
 // as the drawing. The building rules below are defaults Erez can change in the settings.
 import { polymerOf } from "./polymer";
 import {
-  BASE_LABEL, PART_LABEL, UPPER_LABEL, applianceText, baseUnitTop, colorName, columnParts, cornerPart, corniceBoxes, frontsFrom, hasCounter, heightsOf, panelHeights, partsOf, placed, sidesOf, tallOvenParts, tallDoors, drawerHeights, onCounter, tvSize, upperBox, wallName, SIDE_PANEL, FRONT_THICK, fridgeNiche, wallSides, WALL_FILLER, islandEnds, islandExtras, islandSeat,
+  type Sides, BASE_LABEL, PART_LABEL, UPPER_LABEL, applianceText, baseUnitTop, colorName, columnParts, cornerPart, corniceBoxes, frontsFrom, hasCounter, heightsOf, panelHeights, partsOf, placed, sidesOf, tallOvenParts, tallDoors, drawerHeights, onCounter, tvSize, upperBox, wallName, SIDE_PANEL, FRONT_THICK, fridgeNiche, wallSides, WALL_FILLER, islandEnds, islandExtras, islandSeat,
   type BaseUnit, type KitchenLayout, type LayoutHeights, type UpperUnit,
 } from "./layout";
 
@@ -74,7 +74,11 @@ export function takeoff(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): Tak
 
   /** a finished 2 cm panel on every side nothing covers */
   /** topY: where the panels end; beside a lower unit a panel starts on its counter (leftFrom/rightFrom) */
-  const sidePanels = (of: string, sides: { left: boolean; right: boolean; leftFrom?: number; rightFrom?: number; leftTo?: number; rightTo?: number }, d: number, hh: number, color?: string, topY?: number) => {
+  const sidePanels = (of: string, sides: Sides, d: number, hh: number, color?: string, topY?: number) => {
+    // the panel's turn under a full-depth cabinet beside it
+    for (const cap of [sides.left ? sides.leftCap : undefined, sides.right ? sides.rightCap : undefined]) {
+      if (cap) out.panels.push({ of, name: `דופן אופקית מתחת לארון ${SIDE_PANEL} ס״מ`, w: r1(cap.b - cap.a), h: r1(cap.d + FRONT_THICK), qty: 1, color: colorName(color) });
+    }
     const spans: [number | undefined, number | undefined][] = [];
     if (sides.left) spans.push([sides.leftFrom, sides.leftTo]);
     if (sides.right) spans.push([sides.rightFrom, sides.rightTo]);

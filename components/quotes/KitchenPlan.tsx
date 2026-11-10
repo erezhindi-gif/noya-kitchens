@@ -401,7 +401,12 @@ export function Elevation({ layout, title, length, base, upper, top = [], island
           const sideList: [number, number | undefined, number | undefined][] = [];
           if (s.left) sideList.push([u.a - SIDE_PANEL, s.leftFrom, s.leftTo]);
           if (s.right) sideList.push([u.a + u.w, s.rightFrom, s.rightTo]);
-          return sideList.map(([sx, from, to]) => { const yb = Math.max(y0, from ?? y0), yt = Math.min(y1, to ?? y1); return <rect key={`sd${row}${i}-${sx}`} x={sx} y={Y(c, yt)} width={SIDE_PANEL} height={Math.max(0, yt - yb)} fill={fr} stroke={INK} strokeWidth={0.5} />; });
+          const caps = [s.left ? s.leftCap : undefined, s.right ? s.rightCap : undefined].filter((x): x is NonNullable<typeof x> => !!x);
+          return [
+            ...sideList.map(([sx, from, to]) => { const yb = Math.max(y0, from ?? y0), yt = Math.min(y1, to ?? y1); return <rect key={`sd${row}${i}-${sx}`} x={sx} y={Y(c, yt)} width={SIDE_PANEL} height={Math.max(0, yt - yb)} fill={fr} stroke={INK} strokeWidth={0.5} />; }),
+            // the panel's turn under the full-depth cabinet beside it
+            ...caps.map((cp, k) => <rect key={`cap${row}${i}-${k}`} x={cp.a} y={Y(c, cp.y)} width={cp.b - cp.a} height={SIDE_PANEL} fill={fr} stroke={INK} strokeWidth={0.5} />),
+          ];
         }))}
         {splash > 0 && spans.map((s, i) => <rect key={"sp" + i} x={s.a} y={Y(c, h.base + splash)} width={s.w} height={splash} fill={c.counter} stroke={LINE} strokeWidth={0.3} opacity={0.8} />)}
         {spans.map((s, i) => <rect key={"c" + i} x={s.a} y={Y(c, h.base)} width={s.w} height={h.counter} fill={c.counter} stroke={LINE} strokeWidth={0.4} />)}
