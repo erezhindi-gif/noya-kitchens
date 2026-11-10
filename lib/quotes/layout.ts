@@ -49,6 +49,8 @@ export type RoomPoint = { kind: "water" | "drain" | "power" | "gas"; a: number; 
 export type LayoutWall = {
   length: number; base: BaseUnit[]; upper: UpperUnit[]; /** second row, above the uppers up to the ceiling */ top?: UpperUnit[];
   openings?: Opening[]; obstacles?: Obstacle[]; points?: RoomPoint[];
+  /** which wall of the room drawing this is (its index there), so its cabinets stay with it when kitchen walls change */
+  src?: number;
 };
 
 export type LayoutHeights = {

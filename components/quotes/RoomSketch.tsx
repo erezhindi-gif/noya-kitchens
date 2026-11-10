@@ -48,26 +48,31 @@ export default function RoomSketch({ room: saved, layout, onChange, optionsHref 
   }, [room, n]); // eslint-disable-line react-hooks/exhaustive-deps
   const ready = !!n && status.endsWith("✓");
   // a drawing saved before its walls could go into the plan (for example before all walls counted as the kitchen): put them in now
+  // the drawing goes into the plan; cabinets of walls taken out of the kitchen are kept in the drawing's stash
+  const apply = (next: RoomSketch) => {
+    const res = roomToLayout(next, base());
+    if (!("layout" in res)) { setRoom(next); onChange(next, null); return; }
+    const withStash = { ...next, ...(Object.keys(res.stash).length ? { stash: res.stash } : { stash: undefined }) };
+    if (!withStash.stash) delete withStash.stash;
+    setRoom(withStash);
+    onChange(withStash, res.layout);
+  };
   useEffect(() => {
     if (!saved) return;
     const res = roomToLayout(saved, base());
-    if ("layout" in res && JSON.stringify(res.layout.walls) !== JSON.stringify(layoutRef.current.walls)) onChange(saved, res.layout);
+    if ("layout" in res && JSON.stringify(res.layout.walls) !== JSON.stringify(layoutRef.current.walls)) apply(saved);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const commit = (next: RoomSketch) => {
     setHistory((h) => [...h.slice(-40), room]);
-    setRoom(next);
-    const res = roomToLayout(next, base());
-    onChange(next, "layout" in res ? res.layout : null);
+    apply(next);
   };
   const undo = () => {
     const prev = history[history.length - 1];
     if (!prev) return;
     setHistory((h) => h.slice(0, -1));
-    setRoom(prev);
     setSel(null);
-    const res = roomToLayout(prev, base());
-    onChange(prev, "layout" in res ? res.layout : null);
+    apply(prev);
   };
 
   const world = (e: { clientX: number; clientY: number }): Pt => {
@@ -182,8 +187,7 @@ export default function RoomSketch({ room: saved, layout, onChange, optionsHref 
     drag.current = null;
     if (g?.moved) {
       setHistory((h) => [...h.slice(-40), g.base]);
-      const res = roomToLayout(room, base());
-      onChange(room, "layout" in res ? res.layout : null);
+      apply(room);
     }
   };
 

@@ -10,7 +10,9 @@ export type RoomItemKind = "window" | "door" | RoomPoint["kind"];
 /** s = from the wall's first drawn point: an opening's start, a point's center */
 export type RoomItem = { kind: RoomItemKind; wall: number; s: number; w?: number; y?: number; h?: number };
 /** kitchen: the walls Erez chose; empty = every wall, when there are up to 3 */
-export type RoomSketch = { pts: Pt[]; closed?: boolean; thick: number; items: RoomItem[]; kitchen: number[] };
+export type WallUnits = Pick<LayoutWall, "base" | "upper" | "top" | "obstacles">;
+/** stash: the cabinets of room walls taken out of the kitchen, kept so they come back when the wall is added again */
+export type RoomSketch = { pts: Pt[]; closed?: boolean; thick: number; items: RoomItem[]; kitchen: number[]; stash?: Record<string, WallUnits> };
 
 export const ITEM_LABEL: Record<RoomItemKind, string> = { window: "חלון", door: "דלת", water: "נקודת מים", drain: "ניקוז", power: "חשמל", gas: "גז" };
 export const isOpening = (k: RoomItemKind): k is Opening["kind"] => k === "window" || k === "door";
@@ -103,7 +105,7 @@ export function setWallLength(r: RoomSketch, i: number, len: number): RoomSketch
  * The kitchen walls as plan walls, left to right as you stand in the room
  * (one wall, L = main then right, U = left, main, right). Cabinets already on the plan stay.
  */
-export function roomToLayout(r: RoomSketch, layout: KitchenLayout): { layout: KitchenLayout } | { error: string } {
+export function roomToLayout(r: RoomSketch, layout: KitchenLayout): { layout: KitchenLayout; stash: Record<string, WallUnits> } | { error: string } {
   const n = wallCount(r);
   const ks = kitchenWalls(r);
   if (!ks.length) return { error: "לחץ 'קירות המטבח' וסמן את הקירות שהמטבח עומד עליהם (עד 3)" };
@@ -124,13 +126,21 @@ export function roomToLayout(r: RoomSketch, layout: KitchenLayout): { layout: Ki
     const bdir = b.leftIsP ? b.d : { x: -b.d.x, y: -b.d.y };
     if (Math.abs(bdir.x - a.n.x) > 0.01 || Math.abs(bdir.y - a.n.y) > 0.01) return { error: "בין קירות המטבח צריכה להיות פינה ישרה שפונה לתוך החדר" };
   }
+  // each kitchen wall keeps its own cabinets: found by the room wall it came from, or in the stash, never by position
+  // (walls saved before src existed are matched by position, as they were made)
+  const anySrc = layout.walls.some((w) => w.src !== undefined);
+  const stash: Record<string, WallUnits> = { ...(r.stash || {}) };
+  for (const w of layout.walls) if (w.src !== undefined && !order.includes(w.src)) stash[w.src] = { base: w.base, upper: w.upper, ...(w.top ? { top: w.top } : {}), ...(w.obstacles ? { obstacles: w.obstacles } : {}) };
   const walls: LayoutWall[] = order.map((wi, k) => {
-    const old = layout.walls[k] || { length: 0, base: [], upper: [] };
+    const own = anySrc ? layout.walls.find((w) => w.src === wi) : layout.walls[k];
+    const kept = stash[wi];
+    if (kept) delete stash[wi];
+    const old: LayoutWall = own || (kept ? { length: 0, ...kept } : { length: 0, base: [], upper: [] });
     const its = r.items.filter((it) => it.wall === wi);
     const openings: Opening[] = its.filter((it) => isOpening(it.kind)).map((it) => ({ kind: it.kind as Opening["kind"], a: fromLeft(r, it), w: it.w || 0, ...(it.y !== undefined ? { y: it.y } : {}), ...(it.h !== undefined ? { h: it.h } : {}) }));
     const points: RoomPoint[] = its.filter((it) => !isOpening(it.kind)).map((it) => ({ kind: it.kind as RoomPoint["kind"], a: fromLeft(r, it), y: it.y ?? ITEM_DEFAULT[it.kind].y }));
     const { openings: _o, points: _p, ...rest } = old;
-    return { ...rest, length: info.get(wi)!.len, ...(openings.length ? { openings } : {}), ...(points.length ? { points } : {}) };
+    return { ...rest, length: info.get(wi)!.len, src: wi, ...(openings.length ? { openings } : {}), ...(points.length ? { points } : {}) };
   });
   // a room wall that meets the kitchen at its free end and turns into the room = a wall at that end
   const endWall = (pt: Pt, inward: Pt) => {
@@ -150,7 +160,7 @@ export function roomToLayout(r: RoomSketch, layout: KitchenLayout): { layout: Ki
   const out: KitchenLayout = { ...layout, walls, wallThick: r.thick };
   if (leftLen || rightLen) out.ends = { ...(leftLen ? { left: "wall" as const, leftLen } : {}), ...(rightLen ? { right: "wall" as const, rightLen } : {}) };
   else delete out.ends;
-  return { layout: out };
+  return { layout: out, stash };
 }
 
 /** A first drawing from the walls already on the plan, so a plan made before keeps its room. */
