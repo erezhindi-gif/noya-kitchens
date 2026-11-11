@@ -825,6 +825,9 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
   const measureRef = useRef(false);
   measureRef.current = measuring;
   const readingRef = useRef(setReading);
+  // what the mouse is on now (corner, edge middle, center)
+  const [hint, setHint] = useState("");
+  const hintRef = useRef(setHint);
   const clearTape = useRef<(() => void) | null>(null);
 
   useEffect(() => {
@@ -1009,7 +1012,7 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
       const onMove = (e: PointerEvent) => {
         if (!paintRef.current) {
           if (hl.visible) glow(null);
-          el.style.cursor = "";
+          if (!measureRef.current) el.style.cursor = "";
           return;
         }
         const f = frontAt(e);
@@ -1030,22 +1033,64 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
       const tapeMat = new three.MeshBasicMaterial({ color: "#d23c2a", depthTest: false });
       const tapeLine = new three.LineBasicMaterial({ color: "#d23c2a", depthTest: false });
       let tapePts: T.Vector3[] = [];
-      const snapTo = (hit: T.Intersection) => {
+      // like SketchUp's inference: the corner (end point), the middle of an edge, the middle of the face (of a front or
+      // any part), or just the point on the surface
+      type Snap = { p: T.Vector3; kind: "end" | "mid" | "center" | "on" };
+      const snapTo = (hit: T.Intersection): Snap => {
         const m = hit.object as T.Mesh;
         const g = m.geometry as T.BufferGeometry;
         if (!g.boundingBox) g.computeBoundingBox();
         const b = g.boundingBox!;
         const xs = [b.min.x, (b.min.x + b.max.x) / 2, b.max.x], ys = [b.min.y, (b.min.y + b.max.y) / 2, b.max.y], zs = [b.min.z, (b.min.z + b.max.z) / 2, b.max.z];
-        let best = hit.point.clone(), bd = 4 * M; // within 4 cm
         m.updateWorldMatrix(true, false);
+        let best: Snap = { p: hit.point.clone(), kind: "on" };
+        let bd = Infinity;
+        // how far a snap reaches grows with the distance to the camera, so it feels the same near and far
+        const reach = Math.max(2.5 * M, cam.position.distanceTo(hit.point) * 0.025);
         for (const x of xs) for (const y of ys) for (const z of zs) {
           const mids = (x !== xs[1] ? 0 : 1) + (y !== ys[1] ? 0 : 1) + (z !== zs[1] ? 0 : 1);
-          if (mids > 1) continue; // corners and edge middles only
+          if (mids > 1) continue;
           const p = new three.Vector3(x, y, z).applyMatrix4(m.matrixWorld);
           const d = p.distanceTo(hit.point);
-          if (d < bd) { bd = d; best = p; }
+          // corners win over edge middles when both are close
+          const score = d * (mids ? 1.15 : 1);
+          if (d < reach && score < bd) { bd = score; best = { p, kind: mids ? "mid" : "end" }; }
+        }
+        if (best.kind === "on" && hit.face) {
+          // the middle of the face that was hit: the box's center pushed out to that face
+          const n = hit.face.normal;
+          const c = new three.Vector3(xs[1], ys[1], zs[1]);
+          if (Math.abs(n.x) > 0.9) c.x = n.x > 0 ? b.max.x : b.min.x;
+          else if (Math.abs(n.y) > 0.9) c.y = n.y > 0 ? b.max.y : b.min.y;
+          else if (Math.abs(n.z) > 0.9) c.z = n.z > 0 ? b.max.z : b.min.z;
+          const p = c.applyMatrix4(m.matrixWorld);
+          if (p.distanceTo(hit.point) < reach * 1.6) best = { p, kind: "center" };
         }
         return best;
+      };
+      const SNAP_COLOR = { end: "#1f9d55", mid: "#1c8fd6", center: "#c026d3", on: "#d23c2a" } as const;
+      const SNAP_LABEL = { end: "פינה", mid: "אמצע קצה", center: "מרכז", on: "על המשטח" } as const;
+      const hover = new three.Mesh(new three.SphereGeometry(2.4 * M, 14, 12), new three.MeshBasicMaterial({ color: "#1f9d55", depthTest: false, transparent: true, opacity: 0.9 }));
+      hover.renderOrder = 21;
+      hover.visible = false;
+      scene.add(hover);
+      const hitAt = (e: PointerEvent) => {
+        const r = renderer.domElement.getBoundingClientRect();
+        ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+        ray.setFromCamera(ndc, cam);
+        return ray.intersectObjects(scene.children, true).find((h) => (h.object as T.Mesh).isMesh && h.object.visible && h.object !== hl && h.object !== hover && h.object.parent !== tape);
+      };
+      const onTapeMove = (e: PointerEvent) => {
+        if (!measureRef.current) { if (hover.visible) { hover.visible = false; invalidate(); } return; }
+        const hit = hitAt(e);
+        if (!hit) { if (hover.visible) { hover.visible = false; invalidate(); } return; }
+        const s = snapTo(hit);
+        hover.position.copy(s.p);
+        (hover.material as T.MeshBasicMaterial).color.set(SNAP_COLOR[s.kind]);
+        hover.visible = true;
+        el.style.cursor = "crosshair";
+        hintRef.current(SNAP_LABEL[s.kind]);
+        invalidate();
       };
       const dot = (p: T.Vector3) => {
         const s = new three.Mesh(new three.SphereGeometry(1.1 * M, 12, 10), tapeMat);
@@ -1066,13 +1111,10 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
         const moved = Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]);
         downAt = null;
         if (moved > 5) return; // that was a turn of the view
-        const r = renderer.domElement.getBoundingClientRect();
-        ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
-        ray.setFromCamera(ndc, cam);
-        const hit = ray.intersectObjects(scene.children, true).find((h) => (h.object as T.Mesh).isMesh && h.object.visible && h.object !== hl && h.object.parent !== tape);
+        const hit = hitAt(e);
         if (!hit) return;
         if (tapePts.length >= 2) clearTape.current?.();
-        const p = snapTo(hit);
+        const p = snapTo(hit).p;
         tapePts.push(p);
         dot(p);
         if (tapePts.length === 2) {
@@ -1088,6 +1130,7 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
       };
       el.addEventListener("pointerdown", onTapeDown, true);
       el.addEventListener("pointerup", onTapeUp);
+      el.addEventListener("pointermove", onTapeMove);
       el.addEventListener("pointerdown", onDown, true); // before the view control sees it
       el.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
@@ -1125,6 +1168,7 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
         el.removeEventListener("pointerdown", onDown, true);
         el.removeEventListener("pointerdown", onTapeDown, true);
         el.removeEventListener("pointerup", onTapeUp);
+        el.removeEventListener("pointermove", onTapeMove);
         el.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
         swap.current = null;
@@ -1164,6 +1208,7 @@ export default function Kitchen3D({ layout, still = false, height = 420, shotRef
         ))}
         <button type="button" className="nq-chip" aria-pressed={measuring} onClick={() => { const on = !measuring; setMeasuring(on); clearTape.current?.(); if (on) setReading("לחץ על הנקודה הראשונה"); }}>📏 מטר</button>
         {measuring && <span className="nqp-reading">{reading}</span>}
+        {measuring && hint && <span className="nqp-snap">{hint}</span>}
       </div>
       <div ref={host} className="nqp-3d" style={{ height }} />
     </div>
