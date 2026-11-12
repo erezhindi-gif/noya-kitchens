@@ -519,7 +519,7 @@ export default function AdminApp() {
         )}
         {view === "edit" && q && (
           <Editor
-            planLink={<QuotePlanLink q={q} data={data} onOpen={(id) => go("plan", id)} />}
+            planLink={<QuotePlanLink q={q} data={data} onOpen={(id) => go("plan", id)} upd={(fn) => updQuote(q.id, fn, 0)} />}
             data={data} q={q} upd={(fn, delay) => updQuote(q.id, fn, delay)}
             onPreview={() => go("preview", q.id)} onBack={() => go("list")}
             onDup={() => newQuote(q)} onDelete={() => removeQuote(q.id)} flash={flash}

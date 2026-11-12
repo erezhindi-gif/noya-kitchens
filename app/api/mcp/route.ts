@@ -11,7 +11,7 @@ import { SOURCE_LABEL, STAGE_LABEL, ago, findPhone, leadStage } from "@/lib/quot
 import { syncLeads } from "@/lib/quotes/lead-sync";
 import { describeLayout, layoutWarnings, normalizeLayout } from "@/lib/quotes/layout";
 import { DESIGN_BRIEF } from "@/lib/quotes/design-brief";
-import { DEFAULT_RULES, describeTakeoff } from "@/lib/quotes/takeoff";
+import { DEFAULT_RULES, describeTakeoff, planQuantities } from "@/lib/quotes/takeoff";
 import { passwordStamp, verifyPayload } from "@/lib/quotes/auth";
 import type { CatNode, Lead, Plan, Quote } from "@/lib/quotes/types";
 import { MAIL_ERRORS, sendQuoteMail, validEmail } from "@/lib/quotes/send-quote";
@@ -31,6 +31,7 @@ const SectionSchema = z.object({
         quantities: z
           .array(z.number())
           .describe("כמות אחת לכל 'רמה עם מחיר' של הפריט, לפי הסדר: מטרים לרמה למטר, יחידות לרמה ליחידה. כל כמות חייבת להיות כזו שארז אמר במפורש או אישר. אסור להעתיק כמות מרמה אחת לאחרת בלי לשאול"),
+        from_plan: z.array(z.string()).optional().describe("כשההצעה נבנית מתכנון: לכל כמות, מאיזו כמות בתכנון היא באה (המפתח מ-plan_takeoff, למשל fronts_m או hw:מגירה), באותו סדר. ריק = לא מהתכנון. ככה ההצעה מתעדכנת כשהתכנון משתנה"),
       })
     )
     .default([]),
@@ -721,7 +722,8 @@ const handler = createMcpHandler(
         const d = await getData();
         const p = d.plans.find((x) => x.id === plan_id);
         if (!p) return text("לא נמצא תכנון כזה.");
-        return text(`${p.title} · ${p.client.name || "ללא שם"}\n${describeTakeoff(p.layout, { ...DEFAULT_RULES, ...(d.settings.shopRules || {}) })}\n\nדפי ייצור: ${SITE}/admin/shop/${p.id}`);
+        const keys = planQuantities(p.layout, { ...DEFAULT_RULES, ...(d.settings.shopRules || {}) }).map((x) => `${x.key} = ${x.value} (${x.label})`).join("\n");
+        return text(`${p.title} · ${p.client.name || "ללא שם"}\n${describeTakeoff(p.layout, { ...DEFAULT_RULES, ...(d.settings.shopRules || {}) })}\n\nמפתחות לכמויות (from_plan ב-create_quote_draft, כדי שההצעה תתעדכן כשהתכנון משתנה):\n${keys}\n\nדפי ייצור: ${SITE}/admin/shop/${p.id}`);
       }
     );
 
@@ -814,7 +816,7 @@ const handler = createMcpHandler(
     );
   },
   {
-    serverInfo: { name: "noya-quotes", version: "1.22.0" },
+    serverInfo: { name: "noya-quotes", version: "1.23.0" },
     instructions:
       "מערכת הצעות המחיר של נויה מטבחים (ארז). תהליך: 1) search_catalog כדי למצוא את הפריטים. " +
       "2) אם חסרה כמות לרכיב כלשהו (למשל ידית לחזיתות), או שיש כמה פריטים אפשריים, שאל את ארז שאלה אחת מרוכזת עם כל החסרים — לפני שבונים. " +

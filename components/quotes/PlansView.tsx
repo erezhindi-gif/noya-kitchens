@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { fdate, planMessage, planSubject, planWaText, qnum, waText } from "@/lib/quotes/calc";
 import type { AppData, Lead, Plan, Quote } from "@/lib/quotes/types";
+import { DEFAULT_RULES, planQuantities } from "@/lib/quotes/takeoff";
 import LayoutEditor from "./LayoutEditor";
 import RoomSketch from "./RoomSketch";
 import { downloadBlob, sharePdf } from "./pdf";
@@ -277,13 +278,81 @@ function PlanMailModal({ p, data, saveNow, onClose, onSent }: {
 }
 
 /** In the quote editor: the plan this quote was made from. Plans are made and edited only under "תכנונים". */
-export function QuotePlanLink({ q, data, onOpen }: { q: Quote; data: AppData; onOpen: (id: string) => void }) {
+/** The quote's plan: open it, link one when there is none, and keep the quantities in step with it. */
+export function QuotePlanLink({ q, data, onOpen, upd }: { q: Quote; data: AppData; onOpen: (id: string) => void; upd: (fn: (x: Quote) => void) => void }) {
   const plan = q.planId ? data.plans.find((p) => p.id === q.planId) : undefined;
-  if (!plan) return null;
+  const [pick, setPick] = useState("");
+  if (!plan) {
+    // plans of this client first
+    const name = q.client.name.trim();
+    const plans = [...data.plans].sort((a, b) => Number(sameName(b.client.name, name)) - Number(sameName(a.client.name, name)) || (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt));
+    if (!plans.length) return null;
+    return (
+      <div className="nq-back">
+        <span>ההצעה לא מקושרת לתכנון.</span>
+        <select className="in" value={pick} onChange={(e) => setPick(e.target.value)} aria-label="תכנון לקישור">
+          <option value="">בחר תכנון…</option>
+          {plans.map((p) => <option key={p.id} value={p.id}>{(p.client.name || "ללא שם") + (p.title ? " · " + p.title : "")}</option>)}
+        </select>
+        <button className="nq-btn sm pri" disabled={!pick} onClick={() => upd((x) => { x.planId = pick; })}>קשר לתכנון</button>
+      </div>
+    );
+  }
+  const qs = planQuantities(plan.layout, { ...DEFAULT_RULES, ...(data.settings.shopRules || {}) });
+  const byKey = new Map(qs.map((x) => [x.key, x]));
+  // every quantity in the quote that can follow the plan: a line, or a part of a line
+  type Slot = { lineId: string; part: number; desc: string; qty: number; key?: string };
+  const slots: Slot[] = q.lines.flatMap((l) =>
+    l.type === "head" || l.type === "text" ? [] :
+    l.parts?.length ? l.parts.map((p, i) => ({ lineId: l.id, part: i, desc: `${l.desc.split(/[,—]/)[0].trim()} · ${p.name}`, qty: p.qty, key: p.fromPlan })) :
+    [{ lineId: l.id, part: -1, desc: l.desc.split(/[,—]/)[0].trim(), qty: l.qty, key: l.fromPlan }]);
+  const setSlot = (s: Slot, key: string | undefined, take: boolean) => upd((x) => {
+    const l = x.lines.find((y) => y.id === s.lineId);
+    if (!l) return;
+    const v = key ? byKey.get(key)?.value : undefined;
+    if (s.part >= 0 && l.parts?.[s.part]) {
+      if (key) l.parts[s.part].fromPlan = key; else delete l.parts[s.part].fromPlan;
+      if (take && v !== undefined) l.parts[s.part].qty = v;
+    } else {
+      if (key) l.fromPlan = key; else delete l.fromPlan;
+      if (take && v !== undefined) l.qty = v;
+    }
+  });
+  const linked = slots.filter((s) => s.key && byKey.has(s.key));
+  const off = linked.filter((s) => Math.abs(byKey.get(s.key!)!.value - s.qty) > 0.005);
   return (
-    <div className="nq-back">
-      <span>נבנתה מהתכנון של <b>{plan.client.name || "הלקוח"}</b> · השרטוט והתלת-ממד מוצגים ללקוח עם ההצעה</span>
-      <button className="nq-btn sm pri" onClick={() => onOpen(plan.id)}>פתח תכנון ›</button>
+    <div className="nq-back nq-sync">
+      <div className="nq-sync-h">
+        <span>נבנתה מהתכנון של <b>{plan.client.name || "הלקוח"}</b> · השרטוט והתלת-ממד מוצגים ללקוח עם ההצעה</span>
+        <button className="nq-btn sm pri" onClick={() => onOpen(plan.id)}>פתח תכנון ›</button>
+      </div>
+      {off.length > 0 && (
+        <div className="nq-sync-off">
+          <b>התכנון השתנה: {off.length} כמויות בהצעה שונות מהתכנון</b>
+          <button className="nq-btn sm pri" onClick={() => off.forEach((s) => setSlot(s, s.key, true))}>עדכן הכול מהתכנון</button>
+        </div>
+      )}
+      <details>
+        <summary>כמויות מהתכנון ({linked.length} שורות מסונכרנות)</summary>
+        <p className="hint">בחר לכל שורה את הכמות מהתכנון שהיא הולכת אחריה. מעכשיו, כשהתכנון משתנה, ההצעה תראה מה השתנה ותעדכן בלחיצה.</p>
+        <div className="nq-sync-rows">
+          {slots.map((s) => {
+            const pq = s.key ? byKey.get(s.key) : undefined;
+            const diff = pq && Math.abs(pq.value - s.qty) > 0.005;
+            return (
+              <div key={s.lineId + s.part} className="nq-sync-row">
+                <span className="d">{s.desc || "שורה"}</span>
+                <span className="num">{s.qty}</span>
+                <select className="in" value={s.key || ""} aria-label={`כמות מהתכנון ל${s.desc}`} onChange={(e) => setSlot(s, e.target.value || undefined, !!e.target.value)}>
+                  <option value="">לא מהתכנון</option>
+                  {qs.map((x) => <option key={x.key} value={x.key}>{x.label}: {x.value}</option>)}
+                </select>
+                {diff && <button className="nq-btn sm" onClick={() => setSlot(s, s.key, true)}>עדכן ל-{pq!.value}</button>}
+              </div>
+            );
+          })}
+        </div>
+      </details>
     </div>
   );
 }

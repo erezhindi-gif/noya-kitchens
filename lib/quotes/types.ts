@@ -41,9 +41,11 @@ export type Line = {
   /** One priced component per catalog level on the path, each with its own quantity
    *  (fronts 1,100 × 4 m + handle 250 × 3 m). When present, these set the line total. */
   parts?: LinePart[];
+  /** this line's quantity follows the plan's (a key of planQuantities: "fronts_m", "hw:מגירה"…) */
+  fromPlan?: string;
 };
 
-export type LinePart = { id: string; name: string; unit: Unit; price: number; qty: number; /** show this quantity to the client */ showQty?: boolean };
+export type LinePart = { id: string; name: string; unit: Unit; price: number; qty: number; /** show this quantity to the client */ showQty?: boolean; /** follows the plan's quantity */ fromPlan?: string };
 
 /** Hidden commission: just a % and an optional note for Erez */
 export type Commission = { name: string; pct: number };

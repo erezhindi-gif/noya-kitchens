@@ -341,3 +341,26 @@ export function describeTakeoff(l: KitchenLayout, rules?: ShopRules) {
   ];
   return rows.filter(Boolean).join("\n");
 }
+
+
+/** The plan's quantities a quote line can follow, by key: running meters, areas and hardware counts. */
+export type PlanQty = { key: string; label: string; value: number; unit: "m" | "m2" | "u" };
+export function planQuantities(l: KitchenLayout, rules: ShopRules = DEFAULT_RULES): PlanQty[] {
+  const t = takeoff(l, rules), m = t.meters;
+  const r2 = (v: number) => Math.round(v * 100) / 100;
+  const panelsM2 = r2(t.panels.reduce((a, p) => a + (p.w * p.h * p.qty) / 10000, 0));
+  const out: PlanQty[] = [
+    { key: "fronts_m", label: "חזיתות, מטר רץ (תחתון, גבוהים, עליון ושורה עליונה)", value: r2(m.base + m.tall + m.upper + m.top), unit: "m" },
+    { key: "base_m", label: "ארונות תחתונים, מטר רץ", value: r2(m.base), unit: "m" },
+    { key: "tall_m", label: "ארונות גבוהים, מטר רץ", value: r2(m.tall), unit: "m" },
+    { key: "upper_m", label: "ארונות עליונים, מטר רץ", value: r2(m.upper), unit: "m" },
+    { key: "top_m", label: "שורה עליונה, מטר רץ", value: r2(m.top), unit: "m" },
+    { key: "fronts_m2", label: "שטח חזיתות, מ״ר", value: r2(m.frontsArea), unit: "m2" },
+    { key: "panels_m2", label: "חיפויים ודפנות, מ״ר", value: panelsM2, unit: "m2" },
+    { key: "counter_m", label: "משטח, מטר", value: r2(m.counter), unit: "m" },
+    { key: "plinth_m", label: "סוקל, מטר", value: r2(m.plinth), unit: "m" },
+    { key: "cornice_m", label: "קרניז, מטר", value: r2(m.cornice), unit: "m" },
+    ...t.hardware.map((h) => ({ key: "hw:" + h.name, label: h.name + ", יחידות", value: h.qty, unit: "u" as const })),
+  ];
+  return out.filter((q) => q.value > 0 || q.key === "fronts_m");
+}

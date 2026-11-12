@@ -343,3 +343,13 @@ body:has(.nq-admin) [aria-label="פתח תפריט נגישות"] { display: non
 /* add buttons at the end of each project (section) in a quote */
 .nq-adds-sec { margin: 4px 0 14px; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 10px; align-items: center; }
 .nq-adds-sec .hint { margin-inline-end: 4px; }
+
+/* a quote following its plan's quantities */
+.nq-sync { display: grid; gap: 8px; }
+.nq-sync-h { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.nq-sync-off { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; background: #fdf0dc; border: 1px solid #f0d2a4; color: #8a4a1c; }
+.nq-sync summary { cursor: pointer; font-weight: 600; }
+.nq-sync-rows { display: grid; gap: 6px; margin-top: 6px; }
+.nq-sync-row { display: grid; grid-template-columns: minmax(120px, 1fr) 60px minmax(160px, 1.4fr) auto; gap: 6px; align-items: center; }
+.nq-sync-row .d { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 640px) { .nq-sync-row { grid-template-columns: 1fr 50px; } .nq-sync-row select, .nq-sync-row button { grid-column: 1 / -1; } }

@@ -19,6 +19,7 @@ const DraftSchema = z.object({
         z.object({
           catalog_id: z.string(),
           quantities: z.array(z.number()),
+          from_plan: z.array(z.string()).optional(),
         })
       ),
       custom_lines: z.array(z.object({ description: z.string(), qty: z.number(), price: z.number() })),
@@ -86,8 +87,8 @@ export function linesFromDraft(draft: Draft, cat: CatNode[]) {
       const node = cat.find((c) => c.id === it.catalog_id);
       if (!node) { notFound.push(it.catalog_id); continue; }
       const line = lineFrom(cat, node);
-      if (line.parts?.length) line.parts.forEach((p, i) => { p.qty = it.quantities[i] ?? it.quantities[0] ?? 1; });
-      else line.qty = it.quantities[0] ?? 1;
+      if (line.parts?.length) line.parts.forEach((p, i) => { p.qty = it.quantities[i] ?? it.quantities[0] ?? 1; if (it.from_plan?.[i]) p.fromPlan = it.from_plan[i]; });
+      else { line.qty = it.quantities[0] ?? 1; if (it.from_plan?.[0]) line.fromPlan = it.from_plan[0]; }
       lines.push(line);
     }
     for (const cl of sec.custom_lines)
