@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   STATUS_LABEL, UNIT_LABEL, addDays, ancestors, calc, descendantIds, fdate, isHardware, kids, leafCount, lineFrom, lineTotal,
   commissionsOf, defaultCommissions, followState, markSentFields, tidyLineDesc, composeDesc, label, money, pathPrice, priceOf, normalizeCat, tidyCat, qnum, followUpText, reviewAskLinks, reviewAskText, reviewLines, todayIL, uid, waLink, waText,
@@ -879,7 +879,9 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash, planL
   data: AppData; q: Quote; upd: (fn: (q: Quote) => void, delay?: number) => void; planLink: React.ReactNode;
   onPreview: () => void; onBack: () => void; onDup: () => void; onDelete: () => void; flash: (m: string) => void;
 }) {
+  // the catalog picker; pickAt = where its item goes (the end of a project's section), null = the end of the quote
   const [picker, setPicker] = useState(false);
+  const [pickAt, setPickAt] = useState<number | null>(null);
   const [confirmDel, setConfirmDel] = useState(false);
   const c = calc(q, data.settings, data.pros);
   const projects = useMemo(() => Array.from(new Set(data.quotes.map((x) => x.project.trim()).filter(Boolean))).sort(), [data.quotes]);
@@ -889,8 +891,9 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash, planL
   );
   const setLine = (id: string, patch: Partial<Line>) =>
     upd((x) => { const l = x.lines.find((y) => y.id === id); if (l) Object.assign(l, patch); });
-  const addLine = (type: Exclude<LineType, "cat">) =>
-    upd((x) => { x.lines.push({ id: uid(), type, qty: 1, price: 0, unit: "u", desc: "" }); });
+  /** at: where the new line goes (the end of a project's section); missing = the end of the quote */
+  const addLine = (type: Exclude<LineType, "cat">, at?: number) =>
+    upd((x) => { x.lines.splice(at ?? x.lines.length, 0, { id: uid(), type, qty: 1, price: 0, unit: "u", desc: "" }); });
   const move = (i: number, dir: number) =>
     upd((x) => { const j = i + dir; [x.lines[i], x.lines[j]] = [x.lines[j], x.lines[i]]; });
   const num = (v: string) => (v === "" ? 0 : Number(v));
@@ -933,7 +936,10 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash, planL
             <div className="nq-lines">
               {q.lines.map((l, i) => {
                 const catItem = l.catId ? data.cat.find((x) => x.id === l.catId) : undefined;
-                return (
+                // under the last line of each project (a section opened by a heading), its own add buttons
+                const endsSection = q.lines.slice(0, i + 1).some((x) => x.type === "head") && (i === q.lines.length - 1 || q.lines[i + 1].type === "head");
+                const sectionName = endsSection ? [...q.lines.slice(0, i + 1)].reverse().find((x) => x.type === "head")?.desc.trim() : "";
+                const row = (
                   <div key={l.id} className={`nq-line ${l.type === "head" ? "head" : ""}`}>
                     <div className="meta">
                       {l.type === "cat"
@@ -1004,11 +1010,24 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash, planL
                     )}
                   </div>
                 );
+                if (!endsSection) return row;
+                return (
+                  <Fragment key={l.id}>
+                    {row}
+                    <div className="nq-adds nq-adds-sec" aria-label={`הוספה ל${sectionName || "אזור הזה"}`}>
+                      <span className="hint">הוספה ל{sectionName || "אזור הזה"}:</span>
+                      <button className="nq-btn sm pri" onClick={() => { setPickAt(i + 1); setPicker(true); }}>+ מהקטלוג</button>
+                      <button className="nq-btn sm" onClick={() => addLine("free", i + 1)}>+ שורה חופשית</button>
+                      <button className="nq-btn sm" onClick={() => addLine("lump", i + 1)}>+ מחיר כולל</button>
+                      <button className="nq-btn sm" onClick={() => addLine("text", i + 1)}>+ שורת טקסט</button>
+                    </div>
+                  </Fragment>
+                );
               })}
               {!q.lines.length && <div className="nq-empty">עוד אין שורות. התחל מ&quot;הוסף מהקטלוג&quot;</div>}
             </div>
             <div className="nq-adds">
-              <button className="nq-btn sm pri" onClick={() => setPicker(true)}>+ הוסף מהקטלוג</button>
+              <button className="nq-btn sm pri" onClick={() => { setPickAt(null); setPicker(true); }}>+ הוסף מהקטלוג</button>
               <button className="nq-btn sm" onClick={() => addLine("free")}>+ שורה חופשית</button>
               <button className="nq-btn sm" onClick={() => addLine("lump")}>+ מחיר כולל</button>
               <button className="nq-btn sm" onClick={() => addLine("text")}>+ שורת טקסט</button>
@@ -1134,7 +1153,7 @@ function Editor({ data, q, upd, onPreview, onBack, onDup, onDelete, flash, planL
 
       {picker && (
         <Picker cat={data.cat} onClose={() => setPicker(false)}
-          onPick={(n) => { upd((x) => { x.lines.push(lineFrom(data.cat, n)); }); flash("נוסף להצעה"); setPicker(false); }} />
+          onPick={(n) => { upd((x) => { x.lines.splice(pickAt ?? x.lines.length, 0, lineFrom(data.cat, n)); }); flash("נוסף להצעה"); setPicker(false); setPickAt(null); }} />
       )}
     </>
   );
