@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "NOYA מטבחים | ארז הנדי — נגרות בהתאמה אישית",
-    description: "מעל 30 שנות ניסיון — מטבחים, ארונות וריהוט בהתאמה אישית. נתניה והסביבה.",
+    description: "מעל 30 שנות ניסיון — מטבחים, ארונות וריהוט בהתאמה אישית. נתניה, השרון והמרכז.",
     locale: "he_IL",
     type: "website",
     url: "https://www.noya-k.co.il",
