@@ -4,6 +4,7 @@ import Script from "next/script";
 import AccessibilityWidget from "@/components/AccessibilityWidget";
 import SiteTracker from "@/components/SiteTracker";
 import { GADS_ID } from "@/lib/marketing/gads";
+import { CITIES } from "@/lib/seo/cities";
 import "./globals.css";
 
 const heebo = Heebo({
@@ -69,7 +70,12 @@ const jsonLd = {
     latitude: 32.3215,
     longitude: 34.8532,
   },
-  areaServed: ["נתניה", "השרון", "המרכז", "קיסריה", "חדרה", "פרדס חנה", "זכרון יעקב"],
+  // Regions first, then every town that has its own page, so search engines and ChatGPT see the whole service area.
+  areaServed: [
+    { "@type": "AdministrativeArea", name: "השרון" },
+    { "@type": "AdministrativeArea", name: "מחוז המרכז" },
+    ...Array.from(new Set([...CITIES.map((c) => c.name), "חדרה", "זכרון יעקב"])).map((name) => ({ "@type": "City", name })),
+  ],
   openingHoursSpecification: [
     { "@type": "OpeningHoursSpecification", dayOfWeek: ["Sunday","Monday","Tuesday","Wednesday","Thursday"], opens: "08:00", closes: "18:00" },
   ],
