@@ -7,7 +7,7 @@ import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import { FILE_TYPE_OK, MAX_MAIL_FILE, fillReply, findPhone } from "./leads";
 import { gmailTransport, validEmail } from "./send-quote";
-import { getData, getSecrets, insertLead, patchSecrets, putLead, putLeadFile } from "./store";
+import { getSecrets, getSettings, insertLead, knownLeadMsgIds, patchSecrets, putLead, putLeadFile } from "./store";
 import type { Lead, LeadFile } from "./types";
 
 export const LEAD_LABEL = "הצעת מחיר";
@@ -51,12 +51,14 @@ async function importLeads(opts: { force?: boolean }) {
   if (!opts.force && secrets.lastLeadSync && Date.now() - secrets.lastLeadSync < 60_000) return { ok: true as const, added: 0, skipped: true };
   await patchSecrets({ lastLeadSync: Date.now() });
 
-  const d = await getData();
-  const owner = d.settings.email.toLowerCase();
-  const known = new Set(d.leads.map((l) => l.msgId).filter(Boolean));
+  // Light on purpose: it runs every 10 minutes, and usually there is nothing new. Only the settings are read
+  // here; the known leads only when there is mail under the label, and a mail's full content (with its files)
+  // only when it is new.
+  const settings = await getSettings();
+  const owner = settings.email.toLowerCase();
   const client = new ImapFlow({
     host: "imap.gmail.com", port: 993, secure: true,
-    auth: { user: d.settings.email, pass: secrets.gmailPass }, logger: false,
+    auth: { user: settings.email, pass: secrets.gmailPass }, logger: false,
   });
   await client.connect();
   const added: Lead[] = [];
@@ -73,13 +75,22 @@ async function importLeads(opts: { force?: boolean }) {
       const uids = (await client.search({ since: new Date(Date.now() - LOOKBACK_DAYS * 864e5) }, { uid: true })) || [];
       if (!uids.length) return { ok: true as const, added: 0 };
       const batch = uids.slice(-40);
-      const found: { uid: number; msgId: string; source: Buffer }[] = [];
+      const known = await knownLeadMsgIds();
+      const fresh: { uid: number; msgId: string }[] = [];
       const taken: number[] = []; // already a lead from an earlier run: only the label is left to change
-      for await (const m of client.fetch(batch, { envelope: true, source: true }, { uid: true })) {
+      for await (const m of client.fetch(batch, { envelope: true }, { uid: true })) {
         const msgId = m.envelope?.messageId;
-        if (!msgId || !m.source) continue;
+        if (!msgId) continue;
         if (known.has(msgId)) taken.push(m.uid);
-        else found.push({ uid: m.uid, msgId, source: m.source });
+        else fresh.push({ uid: m.uid, msgId });
+      }
+      const found: { uid: number; msgId: string; source: Buffer }[] = [];
+      if (fresh.length) {
+        const ids = new Map(fresh.map((f) => [f.uid, f.msgId]));
+        for await (const m of client.fetch(fresh.map((f) => f.uid), { source: true }, { uid: true })) {
+          const msgId = ids.get(m.uid);
+          if (msgId && m.source) found.push({ uid: m.uid, msgId, source: m.source });
+        }
       }
       for (const f of found) {
         const mail = await simpleParser(f.source);
@@ -121,13 +132,13 @@ async function importLeads(opts: { force?: boolean }) {
         if (!(await insertLead(lead))) continue;
         added.push(lead);
 
-        const fresh = Date.now() - Date.parse(lead.createdAt) < REPLY_WITHIN_HOURS * 36e5;
+        const recent = Date.now() - Date.parse(lead.createdAt) < REPLY_WITHIN_HOURS * 36e5;
         const robot = /no-?reply|mailer-daemon|notifications?@/i.test(email);
-        if (d.settings.leadAutoReply !== false && d.settings.leadReplyText && fresh && !robot && !fromErez && validEmail(email)) {
+        if (settings.leadAutoReply !== false && settings.leadReplyText && recent && !robot && !fromErez && validEmail(email)) {
           try {
-            const body = fillReply(d.settings.leadReplyText, lead.name);
-            await gmailTransport(d.settings.email, secrets.gmailPass).sendMail({
-              from: { name: "נויה מטבחים", address: d.settings.email },
+            const body = fillReply(settings.leadReplyText, lead.name);
+            await gmailTransport(settings.email, secrets.gmailPass).sendMail({
+              from: { name: "נויה מטבחים", address: settings.email },
               to: email,
               subject: /^re:/i.test(lead.subject || "") ? lead.subject : `Re: ${lead.subject || "פנייה לנויה מטבחים"}`,
               text: body,

@@ -185,6 +185,24 @@ export async function deleteQuote(id: string) {
 /* ---------- leads (requests for a quote) ---------- */
 const leadDoc = (l: Lead) => ({ _id: ID.lead(l.id), _type: "nq_lead", ...l, ...(l.files ? { files: withKeys(l.files) } : {}) });
 
+/** Just the settings, without loading every quote, lead and plan (the mail check runs every 10 minutes). */
+export async function getSettings(): Promise<Settings> {
+  if (sanity) {
+    const doc = await readDoc(ID.settings);
+    return withDefaults(doc ? clean<{ settings: Settings }>(doc).settings : undefined);
+  }
+  return (await getData()).settings;
+}
+
+/** The mail ids of the leads already in, to know which mails are new. */
+export async function knownLeadMsgIds(): Promise<Set<string>> {
+  if (sanity) {
+    const ids = await sanity.fetch<(string | null)[]>(`*[_type == "nq_lead" && _id in path("noyaq.lead.*")].msgId`, {}, NO_CACHE);
+    return new Set(ids.filter((x): x is string => !!x));
+  }
+  return new Set(((await readFile()).leads || []).map((l) => l.msgId).filter((x): x is string => !!x));
+}
+
 export async function getLead(id: string): Promise<Lead | null> {
   if (sanity) {
     const doc = await readDoc(ID.lead(id));
